@@ -1,0 +1,86 @@
+{
+  "identifier" : "A1B2C3D4-0000-0000-0000-DUPRIQ000001",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "99.99",
+      "familyShareable" : false,
+      "internalID" : "DUPRIQ-LIFETIME",
+      "localizations" : [
+        {
+          "description" : "Every phase, unlimited balls, one payment",
+          "displayName" : "DUPR IQ Pro Lifetime",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.jackwallner.pickleball.pro.lifetime",
+      "referenceName" : "Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "DUPRIQ",
+    "_developerTeamID" : "YXG4MP6W39",
+    "_lastSynchronizedDate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "DUPRIQ-PRO-GROUP",
+      "localizations" : [],
+      "name" : "DUPR IQ Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "DUPRIQ-MONTHLY",
+          "introductoryOffer" : {
+            "internalID" : "DUPRIQ-MONTHLY-TRIAL",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Unlimited graded balls, every phase",
+              "displayName" : "Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.jackwallner.pickleball.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "DUPRIQ-PRO-GROUP",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "59.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "DUPRIQ-YEARLY",
+          "introductoryOffer" : {
+            "internalID" : "DUPRIQ-YEARLY-TRIAL",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Unlimited graded balls, every phase",
+              "displayName" : "Pro Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.jackwallner.pickleball.pro.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Yearly",
+          "subscriptionGroupID" : "DUPRIQ-PRO-GROUP",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : { "major" : 4, "minor" : 0 }
+}

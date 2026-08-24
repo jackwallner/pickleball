@@ -1,0 +1,9 @@
+build/
+DerivedData/
+*.xcodeproj
+*.xcarchive
+.DS_Store
+.env*
+fastlane/report.xml
+fastlane/README.md
+metadata.bak.*
