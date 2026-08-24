@@ -23,6 +23,7 @@ struct TodayView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    .accessibilityIdentifier("mixed-rally")
 
                     if let weakest = progress.weakestPhase {
                         NavigationLink {
@@ -36,6 +37,7 @@ struct TodayView: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .accessibilityIdentifier("weakest-phase")
                     }
                 } header: {
                     Text("Practice")
@@ -64,6 +66,7 @@ struct TodayView: View {
                                 }
                             }
                         }
+                        .accessibilityIdentifier("room-\(phase.rawValue)")
                     }
                 }
 
@@ -74,10 +77,12 @@ struct TodayView: View {
                         } label: {
                             Label("Unlimited balls with Pro", systemImage: "infinity")
                         }
+                        .accessibilityIdentifier("home-paywall")
                     }
                 }
             }
             .navigationTitle(progress.streak > 0 ? "\(progress.streak) day streak" : "DUPR IQ")
+            .contentMargins(.bottom, 28, for: .scrollContent)
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(isPresented: $showEnjoymentGate) { EnjoymentGateSheet() }
             .onAppear {

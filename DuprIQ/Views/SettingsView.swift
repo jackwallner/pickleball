@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
     @EnvironmentObject private var progress: ProgressStore
+    @EnvironmentObject private var limiter: PracticeLimiter
+    @EnvironmentObject private var reviews: ReviewPromptTracker
     @State private var showPaywall = false
 
     var body: some View {
@@ -12,6 +14,7 @@ struct SettingsView: View {
                     LabeledContent("Status", value: subscriptions.isPro ? "Pro" : "Free")
                     if !subscriptions.isPro {
                         Button("See Pro") { showPaywall = true }
+                            .accessibilityIdentifier("see-pro")
                     }
                     Button("Restore purchases") {
                         Task { try? await subscriptions.restore() }
@@ -30,9 +33,13 @@ struct SettingsView: View {
                         get: { subscriptions.isPro },
                         set: { subscriptions.setLocalOverride(isPro: $0) }
                     ))
+                    .accessibilityIdentifier("local-pro")
                     Button("Reset progress", role: .destructive) {
                         progress.resetForTesting()
+                        limiter.resetForTesting()
+                        reviews.resetForTesting()
                     }
+                    .accessibilityIdentifier("reset-progress")
                 }
                 #endif
             }
@@ -46,6 +53,7 @@ struct SettingsView: View {
 /// asserting bare answers. This screen is the honest version of that promise,
 /// and it is also the first place a 4.0 player looks before leaving a review.
 struct CoachingSystemView: View {
+    @Environment(\.dismiss) private var dismiss
     var body: some View {
         List {
             Section {
@@ -79,5 +87,16 @@ struct CoachingSystemView: View {
         }
         .navigationTitle("The system")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .accessibilityIdentifier("nav-back")
+            }
+        }
     }
 }

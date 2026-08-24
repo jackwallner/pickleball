@@ -15,6 +15,7 @@ struct DrillSessionView: View {
     @State private var index = 0
     @State private var picked: Int?
     @State private var correctCount = 0
+    @State private var answeredCount = 0
     @State private var showPaywall = false
     @State private var finished = false
 
@@ -35,7 +36,18 @@ struct DrillSessionView: View {
         }
         .navigationTitle(phase?.title ?? "Mixed rally")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .tabBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .accessibilityIdentifier("nav-back")
+            }
+        }
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .onAppear { if questions.isEmpty { build() } }
     }
@@ -74,6 +86,7 @@ struct DrillSessionView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(.bar)
+                .accessibilityIdentifier("next-ball")
             }
         }
     }
@@ -131,6 +144,7 @@ struct DrillSessionView: View {
         }
         .buttonStyle(.plain)
         .disabled(picked != nil)
+        .accessibilityIdentifier("shot-\(offset)")
     }
 
     private func background(isAnswer: Bool, isPicked: Bool) -> Color {
@@ -159,7 +173,7 @@ struct DrillSessionView: View {
     private var summary: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("\(correctCount) of \(questions.count)")
+            Text("\(correctCount) of \(max(answeredCount, 1))")
                 .font(.system(size: 52, weight: .bold, design: .rounded))
             Text(summaryBlurb).font(.headline).multilineTextAlignment(.center)
             if let weakest = progress.weakestPhase {
@@ -172,12 +186,14 @@ struct DrillSessionView: View {
             Button("Done") { dismiss() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .accessibilityIdentifier("session-done")
         }
         .padding()
     }
 
     private var summaryBlurb: String {
-        let ratio = questions.isEmpty ? 0 : Double(correctCount) / Double(questions.count)
+        let denom = max(answeredCount, 1)
+        let ratio = Double(correctCount) / Double(denom)
         switch ratio {
         case 0.9...: return "That's tournament-grade shot selection."
         case 0.7..<0.9: return "Solid. The misses are where the rating is."
@@ -207,6 +223,7 @@ struct DrillSessionView: View {
         picked = offset
         let wasCorrect = offset == question.answerIndex
         if wasCorrect { correctCount += 1 }
+        answeredCount += 1
         progress.record(phase: question.position.phase, wasCorrect: wasCorrect)
         limiter.consume(isPro: subscriptions.isPro)
     }
@@ -218,6 +235,7 @@ struct DrillSessionView: View {
             finished = true
         } else if !limiter.canPractice(isPro: subscriptions.isPro) {
             showPaywall = true
+            reviews.recordSessionFinished()
             finished = true
         } else {
             index += 1

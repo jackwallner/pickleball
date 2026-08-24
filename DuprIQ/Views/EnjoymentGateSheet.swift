@@ -24,12 +24,14 @@ struct EnjoymentGateSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .accessibilityIdentifier("enjoyment-yes")
 
             Button("Not really") {
                 reviews.markPrompted()
                 dismiss()
             }
             .font(.footnote)
+            .accessibilityIdentifier("enjoyment-no")
         }
         .padding()
         .presentationDetents([.medium])

@@ -69,10 +69,7 @@ struct PaywallView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                         .buttonStyle(.plain)
-                    }
-
-                    if let error {
-                        Text(error).font(.footnote).foregroundStyle(.red)
+                        .accessibilityIdentifier("plan-\(option.rawValue)")
                     }
                 }
                 .padding()
@@ -86,6 +83,13 @@ struct PaywallView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
+                    if let error {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
+
                     Button(action: purchase) {
                         if isWorking {
                             ProgressView().frame(maxWidth: .infinity)
@@ -96,6 +100,7 @@ struct PaywallView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
                     .disabled(isWorking)
+                    .accessibilityIdentifier("paywall-continue")
 
                     HStack(spacing: 16) {
                         Button("Restore", action: restore)

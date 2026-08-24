@@ -36,6 +36,7 @@ struct ProgressDashboardView: View {
                 }
             }
             .navigationTitle("Progress")
+            .contentMargins(.bottom, 28, for: .scrollContent)
         }
     }
 

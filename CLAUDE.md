@@ -52,9 +52,9 @@ placeholder and the simulator early-return. The `sk_` secret lives in
 `.env.local` (gitignored) and never enters source.
 
 ## App-specific notes
-- **Not yet on the App Store.** There is no App Store ID yet, so the
-  review funnel uses `requestReview()` rather than a write-review URL.
-  Set the ID in this file when the ASC record exists.
+- **App Store Connect** record exists: id `6804828001`, name
+  `DUPR IQ - Pickleball Drills`. Not yet released, so the review funnel
+  still uses `requestReview()` rather than a write-review URL.
 - Privacy policy: `https://jackwallner.github.io/pickleball/privacy-policy`
 - Display name is `DUPR IQ` (`CFBundleDisplayName`). `PRODUCT_NAME` is
   `DuprIQ` so the `.app` and `TEST_HOST` have no spaces.
