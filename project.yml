@@ -18,7 +18,11 @@ targets:
     platform: iOS
     sources:
       - path: DuprIQ
+        excludes:
+          - DuprIQ.storekit
       - path: Shared
+      - path: DuprIQ/DuprIQ.storekit
+        buildPhase: resources
     settings:
       base:
         DEVELOPMENT_TEAM: YXG4MP6W39
@@ -48,6 +52,21 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/DuprIQ.app/DuprIQ"
 
+  # App Store screenshot capture. Deliberately NOT in the DuprIQ scheme's test
+  # action: it drives the real UI and takes a minute, and the unit-test loop
+  # should stay instant. Drive it with scripts/capture-screenshots.sh.
+  DuprIQScreenshots:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: DuprIQScreenshots
+    dependencies:
+      - target: DuprIQ
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: DuprIQ
+
 schemes:
   DuprIQ:
     build:
@@ -66,3 +85,15 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  Screenshots:
+    build:
+      targets:
+        DuprIQ: all
+        DuprIQScreenshots: [test]
+    test:
+      config: Debug
+      testPlans:
+        - path: DuprIQScreenshots/Screenshots.xctestplan
+      targets:
+        - DuprIQScreenshots

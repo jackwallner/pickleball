@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "A1F5C3D2-7B84-4E19-9C60-3D8E1A427B95",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "storeKitConfiguration" : "DuprIQ.storekit",
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:DuprIQ.xcodeproj",
+      "identifier" : "85169FE5FF61E276AD4CC5DC",
+      "name" : "DuprIQ"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:DuprIQ.xcodeproj",
+        "identifier" : "B73C5AF94793F0AA09892731",
+        "name" : "DuprIQScreenshots"
+      }
+    }
+  ],
+  "version" : 1
+}

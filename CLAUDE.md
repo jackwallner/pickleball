@@ -79,13 +79,23 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
   those scripts are the 9.99 / 59.99 / 99.99 set this file documents.
 - Marketing site: `docs/` (index, privacy-policy, support), mirrored to
   `jackwallner.com/ios/pickleball/` by `.github/workflows/sync-landing-page.yml`.
-  **Neither is live yet**: the GitHub repo is private and Pages is not enabled,
-  so `https://jackwallner.github.io/pickleball/privacy-policy` currently 404s and
-  the App Store record cannot be submitted against it.
-- **No screenshots target.** `scripts/capture-screenshots.sh` and
-  `scripts/capture-paywall.sh` are ported and correct but expect a
-  `DuprIQScreenshots` ui-testing target and a `Screenshots` scheme that
-  `project.yml` does not define yet. See `~/electrician` for the shape.
+  Live as of 2026-08-24: the repo is public and Pages serves `/docs` on `main`,
+  so `https://jackwallner.github.io/pickleball/` and its `privacy-policy` and
+  `support` paths all resolve.
+- **Screenshots run headlessly off the `Screenshots` scheme.**
+  `DuprIQScreenshots` is a ui-testing target kept out of the `DuprIQ` scheme's
+  test action on purpose, so the unit-test loop stays instant. Drive it with
+  `scripts/capture-screenshots.sh <udid> <out>` (five App Store shots) and
+  `scripts/capture-paywall.sh <udid> <out>` (the paywall alone, with prices).
+- **The paywall's prices on a simulator come from the bundled `.storekit`.**
+  `SubscriptionService` never configures RevenueCat on a sim, so
+  `paywallPrice(for:)` falls back to a DEBUG-only catalog reader. That is the
+  only way to screenshot a paywall showing real money; without it the sheet
+  renders its empty state. Keep the fallback amounts in
+  `pricesFromStoreKitCatalog()` in step with `DuprIQ.storekit`.
+- Both `setUp()` and any other override of a nonisolated XCTestCase method run
+  outside the MainActor even on a `@MainActor` test class, so launching the app
+  there trips Swift 6's sending check. Launch from the test body.
 - **Do not trademark-drift.** The app is not affiliated with Dynamic Universal
   Pickleball Rating. The marketing pages carry that disclaimer; keep it, and keep
   the app out of anything that looks like reporting an official rating.

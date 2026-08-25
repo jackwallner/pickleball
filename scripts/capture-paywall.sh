@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Render the purchase surfaces (in-app paywall + onboarding trial step) and
+# Render the purchase surface (the in-app paywall) and
 # export them as PNGs.
 #
 # Usage:
@@ -60,7 +60,9 @@ if (( test_status != 0 )); then
   exit "$test_status"
 fi
 
-for expected in onboarding_trial.png paywall_plans.png; do
+# DuprIQ has no onboarding trial step, so the paywall sheet is the only
+# required capture. Add to this list if an onboarding surface is ever added.
+for expected in paywall_plans.png; do
   if [[ ! -f "$OUT/$expected" ]]; then
     echo "missing required capture: $expected" >&2
     exit 1
