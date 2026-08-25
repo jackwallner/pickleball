@@ -6,6 +6,8 @@ struct SettingsView: View {
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
     @State private var showPaywall = false
+    @State private var restoreMessage: String?
+    @State private var isRestoring = false
 
     var body: some View {
         NavigationStack {
@@ -16,8 +18,13 @@ struct SettingsView: View {
                         Button("See Pro") { showPaywall = true }
                             .accessibilityIdentifier("see-pro")
                     }
-                    Button("Restore purchases") {
-                        Task { try? await subscriptions.restore() }
+                    Button("Restore purchases") { restore() }
+                        .disabled(isRestoring)
+                        .accessibilityIdentifier("restore-purchases")
+                    if let restoreMessage {
+                        Text(restoreMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -45,6 +52,24 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .sheet(isPresented: $showPaywall) { PaywallView() }
+        }
+    }
+
+    /// Restore has to say something. A button that silently does nothing is
+    /// what App Review reads as a broken restore path.
+    private func restore() {
+        isRestoring = true
+        restoreMessage = nil
+        Task {
+            defer { isRestoring = false }
+            do {
+                try await subscriptions.restore()
+                restoreMessage = subscriptions.isPro
+                    ? "Pro restored."
+                    : "No previous purchase found on this Apple Account."
+            } catch {
+                restoreMessage = error.localizedDescription
+            }
         }
     }
 }

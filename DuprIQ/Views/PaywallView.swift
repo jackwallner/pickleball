@@ -146,7 +146,14 @@ struct PaywallView: View {
                 let outcome = try await subscriptions.purchase(subscriptions.package(for: plan))
                 guard outcome == .purchased else { return }
                 await subscriptions.confirmEntitlement()
-                if subscriptions.isPro { dismiss() }
+                if subscriptions.isPro {
+                    dismiss()
+                } else {
+                    // Apple took the money but the entitlement has not landed
+                    // after the retries. Saying nothing here leaves someone who
+                    // just paid staring at the sheet that charged them.
+                    error = "Your purchase went through, but we couldn't confirm it yet. Tap Restore in a moment and it will unlock."
+                }
             } catch {
                 self.error = error.localizedDescription
             }
@@ -155,10 +162,22 @@ struct PaywallView: View {
 
     private func restore() {
         isWorking = true
+        error = nil
         Task {
             defer { isWorking = false }
-            try? await subscriptions.restore()
-            if subscriptions.isPro { dismiss() }
+            do {
+                try await subscriptions.restore()
+                if subscriptions.isPro {
+                    dismiss()
+                } else {
+                    // App Review taps this button on an account with nothing to
+                    // restore. A button that silently does nothing reads as
+                    // broken, so say what happened.
+                    error = "No previous purchase found on this Apple Account."
+                }
+            } catch {
+                self.error = error.localizedDescription
+            }
         }
     }
 }

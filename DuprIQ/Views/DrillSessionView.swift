@@ -216,6 +216,10 @@ struct DrillSessionView: View {
     }
 
     private func select(_ offset: Int, in question: DrillQuestion) {
+        // A session can straddle midnight. Roll over here, in an event handler
+        // rather than a view body, so the cap the tap is graded against is
+        // today's cap and not the one this screen was built with.
+        limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
             showPaywall = true
             return
@@ -230,6 +234,7 @@ struct DrillSessionView: View {
 
     private func advance() {
         picked = nil
+        limiter.rollOverIfNeeded()
         if index + 1 >= questions.count {
             reviews.recordSessionFinished()
             finished = true
