@@ -80,4 +80,94 @@ final class PositionGeneratorTests: XCTestCase {
         })
         XCTAssertEqual(ids.count, sampleSeeds.count)
     }
+
+    // MARK: - Geometry contract
+
+    func testTheKitchenBucketMatchesTheGeneratedStance() {
+        // One physical contract, shared by generation, classification and the
+        // diagram. A marker generated as "at the line" must classify as
+        // `.kitchen`, and a marker a stride further back must not, or the
+        // coaching language and the drawn line disagree.
+        for side in [CourtSide.near, CourtSide.far] {
+            let atLine = side == .near
+                ? Court.netY - Court.kitchenReadyDepth + 0.2
+                : Court.netY + Court.kitchenReadyDepth - 0.2
+            let stepBack = side == .near
+                ? Court.netY - Court.kitchenReadyDepth - 0.2
+                : Court.netY + Court.kitchenReadyDepth + 0.2
+            XCTAssertEqual(Court.zone(forY: atLine, side: side), .kitchen, "\(side)")
+            XCTAssertEqual(Court.zone(forY: stepBack, side: side), .transition, "\(side)")
+        }
+        // The two sides are reflections of each other, not offset copies.
+        for depth in stride(from: 0.5, through: 21.0, by: 0.5) {
+            XCTAssertEqual(
+                Court.zone(forY: Court.netY - depth, side: .near),
+                Court.zone(forY: Court.netY + depth, side: .far),
+                "depth \(depth) classifies differently on the two sides"
+            )
+        }
+    }
+
+    func testEveryGeneratedKitchenPlayerClassifiesAsAtTheKitchen() {
+        for seed in sampleSeeds {
+            let dink = PositionGenerator.question(phase: .dinkRally, seed: seed).position
+            XCTAssertEqual(dink.yourZone, .kitchen, "seed \(seed)")
+            XCTAssertEqual(dink.partnerZone, .kitchen, "seed \(seed)")
+        }
+    }
+
+    // MARK: - Left/right balance
+
+    func testLaggingOpponentIsNotAlwaysTheSameSide() {
+        // A drill that always leaves the right-hand player short teaches
+        // players to look right, not to read feet.
+        for phase in [RallyPhase.thirdShot, .dinkRally, .attack] {
+            var left = 0
+            var right = 0
+            for seed in sampleSeeds {
+                switch PositionGenerator.question(phase: phase, seed: seed).position.laggingOpponentSide {
+                case .left: left += 1
+                case .right: right += 1
+                case nil: break
+                }
+            }
+            let total = left + right
+            XCTAssertGreaterThan(total, 20, "\(phase): almost no lagging scenarios generated")
+            XCTAssertGreaterThan(Double(left) / Double(total), 0.3, "\(phase): lagging opponent is \(left) left / \(right) right")
+            XCTAssertGreaterThan(Double(right) / Double(total), 0.3, "\(phase): lagging opponent is \(left) left / \(right) right")
+        }
+    }
+
+    func testContactIsNotAlwaysOnTheSameHalfOfTheCourt() {
+        var leftHalf = 0
+        for seed in sampleSeeds {
+            for phase in RallyPhase.allCases {
+                if PositionGenerator.question(phase: phase, seed: seed).position.contact.isLeftHalf {
+                    leftHalf += 1
+                }
+            }
+        }
+        let total = sampleSeeds.count * RallyPhase.allCases.count
+        let share = Double(leftHalf) / Double(total)
+        XCTAssertGreaterThan(share, 0.35, "contact lands on the left half \(share)")
+        XCTAssertLessThan(share, 0.65, "contact lands on the left half \(share)")
+    }
+
+    func testMirroringKeepsAPositionLegal() {
+        for phase in RallyPhase.allCases {
+            for seed in sampleSeeds.prefix(60) {
+                let p = PositionGenerator.question(phase: phase, seed: seed).position.mirrored
+                for (name, point) in [("you", p.you), ("partner", p.partner),
+                                      ("left", p.opponentLeft), ("right", p.opponentRight),
+                                      ("ball", p.contact)] {
+                    XCTAssertTrue((0...Court.width).contains(point.x), "\(phase)/\(seed): \(name)")
+                    XCTAssertTrue((0...Court.length).contains(point.y), "\(phase)/\(seed): \(name)")
+                }
+                XCTAssertLessThan(p.you.y, Court.netY)
+                XCTAssertGreaterThan(p.opponentLeft.y, Court.netY)
+                XCTAssertLessThanOrEqual(p.opponentLeft.x, p.opponentRight.x,
+                                         "\(phase)/\(seed): mirroring did not swap left and right")
+            }
+        }
+    }
 }

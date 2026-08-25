@@ -18,6 +18,30 @@ enum BallHeight: String, Sendable, CaseIterable {
     var isAttackable: Bool { self == .aboveNet }
 }
 
+/// Which opponent a shot is aimed at. The diagram draws two identical white
+/// markers, so the answer has to be able to name one of them.
+enum OpponentSide: String, Sendable, CaseIterable {
+    case left
+    case right
+
+    var label: String {
+        switch self {
+        case .left: return "the left opponent"
+        case .right: return "the right opponent"
+        }
+    }
+
+    /// What the marker itself is captioned with on the diagram.
+    var marker: String {
+        switch self {
+        case .left: return "L"
+        case .right: return "R"
+        }
+    }
+
+    var opposite: OpponentSide { self == .left ? .right : .left }
+}
+
 /// The rally phase a position belongs to. Drills are grouped by this, and it
 /// is also what the advisor branches on first.
 enum RallyPhase: String, Sendable, CaseIterable, Identifiable {
@@ -80,6 +104,12 @@ struct RallyPosition: Equatable, Sendable, Identifiable {
     var opponentLeftZone: CourtZone { opponentLeft.zone }
     var opponentRightZone: CourtZone { opponentRight.zone }
 
+    func opponent(_ side: OpponentSide) -> CourtPoint {
+        side == .left ? opponentLeft : opponentRight
+    }
+
+    func zone(of side: OpponentSide) -> CourtZone { opponent(side).zone }
+
     /// True only when both opponents have established at the kitchen line.
     var opponentsBothAtKitchen: Bool {
         opponentLeftZone == .kitchen && opponentRightZone == .kitchen
@@ -87,15 +117,68 @@ struct RallyPosition: Equatable, Sendable, Identifiable {
 
     /// The opponent who has not got to the line yet, if there is exactly one.
     /// This is the target a drive or a ball at the feet should go to.
-    var laggingOpponent: CourtPoint? {
+    var laggingOpponentSide: OpponentSide? {
         let leftBack = opponentLeftZone != .kitchen
         let rightBack = opponentRightZone != .kitchen
         guard leftBack != rightBack else { return nil }
-        return leftBack ? opponentLeft : opponentRight
+        return leftBack ? .left : .right
+    }
+
+    var laggingOpponent: CourtPoint? { laggingOpponentSide.map(opponent) }
+
+    // MARK: - Lateral reads
+    //
+    // The diagram shows four sets of feet, so the answer has to be allowed to
+    // change when those feet move sideways. Everything below is what turns an
+    // exact x into something a coach would actually say out loud.
+
+    /// The opponent diagonally opposite your contact point. Your cross-court
+    /// ball goes to this one.
+    var crossCourtOpponentSide: OpponentSide {
+        contact.isLeftHalf ? .right : .left
+    }
+
+    /// The opponent straight ahead of your contact point.
+    var straightOpponentSide: OpponentSide { crossCourtOpponentSide.opposite }
+
+    /// How far apart the two opponents are standing, laterally.
+    var opponentSpread: Double { abs(opponentLeft.x - opponentRight.x) }
+
+    /// Both of them have drifted wide, so the seam between them is the target
+    /// rather than either body.
+    var isMiddleOpen: Bool { opponentSpread >= Court.openMiddleGap }
+
+    /// Contact near the center line has no long diagonal available.
+    var isContactNearMiddle: Bool { contact.isNearMiddle }
+
+    /// Plain-language description of where you are hitting from, used in the
+    /// situation line and the accessible court description.
+    var contactSideLabel: String {
+        if contact.isNearMiddle { return "from the middle" }
+        return contact.isLeftHalf ? "from the left side" : "from the right side"
     }
 
     var scoreLine: String {
         isServingTeam ? "\(yourScore)-\(theirScore), you're serving"
                       : "\(theirScore)-\(yourScore), they're serving"
+    }
+
+    /// The same rally seen from the other side of the center line.
+    ///
+    /// Left and right swap because the marker that was nearest the left
+    /// sideline is now nearest the right one. Nothing about the shot changes,
+    /// which is exactly the property `ShotAdvisorTests` pins down.
+    var mirrored: RallyPosition {
+        RallyPosition(
+            id: id + "-m", phase: phase,
+            you: you.mirrored,
+            partner: partner.mirrored,
+            opponentLeft: opponentRight.mirrored,
+            opponentRight: opponentLeft.mirrored,
+            contact: contact.mirrored,
+            ballHeight: ballHeight,
+            yourScore: yourScore, theirScore: theirScore,
+            isServingTeam: isServingTeam
+        )
     }
 }

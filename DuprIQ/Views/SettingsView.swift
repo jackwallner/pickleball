@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
     @State private var showPaywall = false
+    @State private var showPrimer = false
     @State private var restoreMessage: String?
     @State private var isRestoring = false
 
@@ -29,6 +30,8 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Button("How to read the court") { showPrimer = true }
+                        .accessibilityIdentifier("settings-primer")
                     NavigationLink("How the answers are decided") { CoachingSystemView() }
                     Link("Privacy Policy", destination: PaywallLinks.privacy)
                     Link("Terms of Use", destination: PaywallLinks.terms)
@@ -52,6 +55,7 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .sheet(isPresented: $showPrimer) { CourtPrimerView() }
         }
     }
 

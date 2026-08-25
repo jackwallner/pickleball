@@ -9,6 +9,15 @@ import SwiftUI
 /// on a phone and an iPad.
 struct CourtDiagramView: View {
     let position: RallyPosition
+    /// The opponent the graded answer is aimed at, once there is one. Naming a
+    /// target in the explanation is only coaching if the player can see which
+    /// of the two identical markers it means.
+    let highlight: OpponentSide?
+
+    init(position: RallyPosition, highlight: OpponentSide? = nil) {
+        self.position = position
+        self.highlight = highlight
+    }
 
     private let surface = Color(red: 0.16, green: 0.42, blue: 0.62)
     private let kitchen = Color(red: 0.72, green: 0.31, blue: 0.22)
@@ -39,9 +48,9 @@ struct CourtDiagramView: View {
                     .offset(x: originX, y: originY)
 
                 marker(at: position.opponentLeft, scale: scale, w: w, h: h,
-                       ox: originX, oy: originY, kind: .opponent)
+                       ox: originX, oy: originY, kind: .opponent(.left))
                 marker(at: position.opponentRight, scale: scale, w: w, h: h,
-                       ox: originX, oy: originY, kind: .opponent)
+                       ox: originX, oy: originY, kind: .opponent(.right))
                 marker(at: position.partner, scale: scale, w: w, h: h,
                        ox: originX, oy: originY, kind: .partner)
                 marker(at: position.you, scale: scale, w: w, h: h,
@@ -77,8 +86,9 @@ struct CourtDiagramView: View {
         .frame(width: w, height: h)
     }
 
-    private enum MarkerKind {
-        case you, partner, opponent
+    private enum MarkerKind: Equatable {
+        case you, partner
+        case opponent(OpponentSide)
 
         var color: Color {
             switch self {
@@ -88,12 +98,19 @@ struct CourtDiagramView: View {
             }
         }
 
+        /// Every marker is captioned. Two blank white circles cannot carry an
+        /// answer that says "hit the left opponent".
         var initial: String {
             switch self {
             case .you: return "You"
             case .partner: return "P"
-            case .opponent: return ""
+            case .opponent(let side): return side.marker
             }
+        }
+
+        var opponentSide: OpponentSide? {
+            if case .opponent(let side) = self { return side }
+            return nil
         }
     }
 
@@ -102,10 +119,17 @@ struct CourtDiagramView: View {
         ox: Double, oy: Double, kind: MarkerKind
     ) -> some View {
         let size = 22.0
+        let isTarget = kind.opponentSide != nil && kind.opponentSide == highlight
         return ZStack {
+            if isTarget {
+                Circle()
+                    .stroke(Color.accentColor, lineWidth: 3)
+                    .frame(width: size + 10, height: size + 10)
+            }
             Circle()
                 .fill(kind.color)
                 .overlay(Circle().stroke(Color.black.opacity(0.45), lineWidth: 1.5))
+                .frame(width: size, height: size)
             if !kind.initial.isEmpty {
                 Text(kind.initial)
                     .font(.system(size: 9, weight: .bold))
@@ -136,13 +160,34 @@ struct CourtDiagramView: View {
         height - courtY * scale
     }
 
+    /// The whole decision, spoken.
+    ///
+    /// The task is reading feet, so an accessible description that stops at
+    /// "opponents at the kitchen" hides the exact thing being graded: which
+    /// opponent is short, how wide the seam between them is, and where the
+    /// contact sits relative to the middle.
     private var accessibilityDescription: String {
-        """
-        \(position.phase.title). You are \(position.yourZone.label.lowercased()). \
-        Your partner is \(position.partnerZone.label.lowercased()). \
-        Opponents: \(position.opponentLeftZone.label.lowercased()) on the left, \
-        \(position.opponentRightZone.label.lowercased()) on the right. \
-        The ball is \(position.ballHeight.label.lowercased()). \(position.scoreLine).
-        """
+        var parts: [String] = [
+            position.phase.title + ".",
+            "You are \(position.yourZone.label.lowercased()), hitting \(position.contactSideLabel).",
+            "Your partner is \(position.partnerZone.label.lowercased()).",
+            "Left opponent \(position.opponentLeftZone.label.lowercased()), right opponent \(position.opponentRightZone.label.lowercased()).",
+        ]
+        if let lagging = position.laggingOpponentSide {
+            parts.append("\(lagging.label.capitalizedFirst) has not reached the line.")
+        } else if position.opponentsBothAtKitchen {
+            parts.append("Both opponents are set at the line.")
+        }
+        parts.append(
+            position.isMiddleOpen
+                ? "They are about \(Int(position.opponentSpread.rounded())) feet apart, so the middle is open."
+                : "They are about \(Int(position.opponentSpread.rounded())) feet apart, covering the middle."
+        )
+        parts.append("The ball is \(position.ballHeight.label.lowercased()).")
+        if let highlight {
+            parts.append("The answer targets \(highlight.label), marked \(highlight.marker).")
+        }
+        parts.append("Score, \(position.scoreLine).")
+        return parts.joined(separator: " ")
     }
 }

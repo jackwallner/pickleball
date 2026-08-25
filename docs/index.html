@@ -6,16 +6,16 @@
 <title>DUPR IQ - Pickleball Drills</title>
 <meta name="description" content="Pickleball drills that grade your shot selection. A real court position, four options, and the principle behind the right answer. Generated, so it never runs out.">
 <style>
-  :root { color-scheme: light dark; --ink:#111827; --muted:#4b5563; --line:#e5e7eb; --accent:#0f766e; --bg:#ffffff; }
+  :root { color-scheme: light dark; --ink:#111827; --muted:#4b5563; --line:#e5e7eb; --accent:#0f766e; --bg:#ffffff; --panel:#f8fafc; }
   @media (prefers-color-scheme: dark) {
-    :root { --ink:#f3f4f6; --muted:#9ca3af; --line:#374151; --accent:#5eead4; --bg:#0b0f19; }
+    :root { --ink:#f3f4f6; --muted:#9ca3af; --line:#374151; --accent:#5eead4; --bg:#0b0f19; --panel:#111827; }
   }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .wrap { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+  .wrap { max-width: 52rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
   h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); line-height:1.15; margin:0 0 .6rem; letter-spacing:-.02em; }
-  .lede { font-size:1.15rem; color:var(--muted); margin:0 0 2.5rem; }
+  .lede { font-size:1.15rem; color:var(--muted); margin:0 0 2rem; }
   h2 { font-size:1.15rem; margin:2.5rem 0 .5rem; }
   p { margin:.6rem 0; }
   .grid { display:grid; gap:1.25rem; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); margin-top:1.5rem; }
@@ -29,6 +29,26 @@
   a { color:var(--accent); }
   .note { font-size:.88rem; color:var(--muted); border-left:3px solid var(--line);
           padding-left:1rem; margin-top:2.5rem; }
+
+  /* The product is a picture of a court and a decision, so the page has to
+     show one. Everything here is inline SVG: no external assets, no CDN, and
+     it renders identically in both colour schemes. */
+  .demo { display:grid; gap:1.5rem; grid-template-columns:minmax(11rem,15rem) 1fr;
+          align-items:start; background:var(--panel); border:1px solid var(--line);
+          border-radius:16px; padding:1.25rem; margin-top:2rem; }
+  @media (max-width: 34rem) { .demo { grid-template-columns:1fr; } }
+  .demo svg { width:100%; height:auto; display:block; border-radius:8px; }
+  .options { list-style:none; margin:0; padding:0; display:grid; gap:.5rem; }
+  .options li { border:1px solid var(--line); border-radius:10px; padding:.55rem .75rem;
+                font-size:.95rem; background:var(--bg); }
+  .options li.right { border-color:var(--accent); }
+  .options li .tick { color:var(--accent); font-weight:800; }
+  .why { margin-top:.9rem; font-size:.9rem; color:var(--muted); }
+  .why strong { color:var(--ink); }
+  .cta { margin-top:2rem; padding:1.1rem 1.2rem; border:1px solid var(--line);
+         border-radius:12px; background:var(--panel); }
+  .cta p { margin:0; }
+  .cta .big { font-weight:700; font-size:1.05rem; color:var(--ink); }
 </style>
 </head>
 <body>
@@ -36,6 +56,44 @@
   <p class="eyebrow">Pickleball drills</p>
   <h1>You already know how to hit it. The question is which one.</h1>
   <p class="lede">Most rec players lose points they had won, by picking the wrong shot from a good position. DUPR IQ puts you in the position, gives you four options, and grades the choice. Then it names the principle, so the next one is not a guess.</p>
+
+  <!-- One real drill, drawn the way the app draws it: your end at the bottom,
+       the kitchen in red, and every marker captioned. -->
+  <div class="demo">
+    <svg viewBox="0 0 200 440" role="img" aria-label="A pickleball court seen from behind your own baseline. You are at the kitchen line on the left, your partner beside you. The left opponent is at their kitchen line, the right opponent is still back in the transition zone.">
+      <rect x="0" y="0" width="200" height="440" rx="8" fill="#2A6B9E"/>
+      <rect x="0" y="70" width="200" height="140" fill="#B84F38" opacity="0.55"/>
+      <g stroke="#ffffff" stroke-opacity="0.85" stroke-width="2" fill="none">
+        <line x1="0" y1="140" x2="200" y2="140"/>
+        <line x1="0" y1="70" x2="200" y2="70"/>
+        <line x1="0" y1="210" x2="200" y2="210"/>
+        <line x1="100" y1="0" x2="100" y2="70"/>
+        <line x1="100" y1="210" x2="100" y2="440"/>
+      </g>
+      <g font-family="-apple-system, sans-serif" font-size="9" font-weight="700" text-anchor="middle">
+        <circle cx="62" cy="62" r="11" fill="#F2F2F2" stroke="#000" stroke-opacity="0.45" stroke-width="1.5"/>
+        <text x="62" y="65">L</text>
+        <circle cx="146" cy="26" r="11" fill="#F2F2F2" stroke="#000" stroke-opacity="0.45" stroke-width="1.5"/>
+        <text x="146" y="29">R</text>
+        <circle cx="138" cy="224" r="11" fill="#E8C33A" stroke="#000" stroke-opacity="0.45" stroke-width="1.5"/>
+        <text x="138" y="227">P</text>
+        <circle cx="58" cy="224" r="11" fill="#F5D311" stroke="#000" stroke-opacity="0.45" stroke-width="1.5"/>
+        <text x="58" y="227">You</text>
+        <circle cx="66" cy="240" r="6" fill="#D9F233" stroke="#000" stroke-opacity="0.5" stroke-width="1"/>
+      </g>
+    </svg>
+    <div>
+      <p style="margin:0 0 .2rem;font-weight:700;">Dink rally</p>
+      <p style="margin:0 0 .9rem;color:var(--muted);font-size:.9rem;">Below net height, hit from the left side. You're at the kitchen line.</p>
+      <ul class="options">
+        <li>Speed up, to the backhand</li>
+        <li class="right"><span class="tick">&check;</span> Dink, at their feet</li>
+        <li>Dink, cross-court kitchen</li>
+        <li>Lob, deep cross-court</li>
+      </ul>
+      <p class="why"><strong>Dink at the player who isn't set.</strong> The right opponent has not re-established at the line, so a soft ball at their feet makes them hit up, and the ball that comes back is the one you attack.</p>
+    </div>
+  </div>
 
   <div class="grid">
     <div class="card">
@@ -52,15 +110,24 @@
     </div>
     <div class="card">
       <h3>Graded by phase</h3>
-      <p>Serve and return, third shot, transition, dink battle, speed-up. Progress is tracked per phase, so you can see which one is actually costing you games.</p>
+      <p>Return of serve, third shot, transition zone, dink rally, attacking a high ball, and playing defense. Progress is tracked per phase, so you can see which one is actually costing you games.</p>
     </div>
   </div>
 
   <h2>What is free</h2>
-  <p>Fifteen graded balls every day, across every phase. The counter resets each calendar day, not once for good.</p>
+  <p>Fifteen graded balls every day, across all six phases, and your accuracy in each of them. The counter resets each calendar day, not once for good.</p>
 
   <h2>DUPR IQ Pro</h2>
-  <p>Unlimited graded balls, every drill phase, and full progress history.</p>
+  <p>Unlimited graded balls, plus the history behind the numbers: every session you finish kept and scored, and the coaching principles you keep getting wrong ranked so you know what to drill next. Accuracy by phase stays free.</p>
+
+  <div class="cta">
+    <!-- Release day: swap this block for
+         <a href="https://apps.apple.com/app/id6804828001">Download on the App Store</a>.
+         The listing 404s until version 1.0 is Ready for Sale, and a dead
+         download button is worse than an honest one. -->
+    <p class="big">Coming to the App Store.</p>
+    <p style="color:var(--muted);font-size:.95rem;">Requires iOS 17 or later. Free to install, with 15 graded balls a day.</p>
+  </div>
 
   <p class="note">Shot selection is coached opinion, not physics. The app states the system it grades against so you can disagree with it on purpose. Not affiliated with, endorsed by, or connected to Dynamic Universal Pickleball Rating (DUPR), USA Pickleball, or any rating body. The app does not calculate, report, or affect any official rating.</p>
 

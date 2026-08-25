@@ -2,38 +2,24 @@ import XCTest
 
 /// Drives the real app to capture the App Store screenshot set.
 ///
-/// Nothing here calls XCTFail. A UI test that fails spends ten minutes
-/// collecting simulator diagnostics before it tells you anything, and a missing
-/// element on screen 4 should not throw away screens 1 to 3. Problems are
-/// collected and attached instead, and `capture-screenshots.sh` exports
-/// whatever was taken regardless of the reported result.
+/// State comes from `-uitest.fixture demo` and the court from `-uitest.seed`,
+/// so the exported set is a chosen story rather than whatever the simulator was
+/// holding. Every capture asserts that the screen it names actually rendered;
+/// under `SCREENSHOT_STRICT=1` a missing control fails the run instead of
+/// quietly exporting a blank.
 ///
 /// Run: scripts/capture-screenshots.sh <udid> <out-dir> [prefix]
+/// Gate: scripts/capture-screenshots.sh --strict <udid> <out-dir>
 @MainActor
-final class ScreenshotTests: XCTestCase {
-    private var app: XCUIApplication!
-    private var problems: [String] = []
+final class ScreenshotTests: ScreenshotHarness {
 
-    // setUp() overrides a nonisolated method, so self is not MainActor-isolated
-    // inside it and launching there trips Swift 6's sending check. Each test
-    // calls launch() instead.
-    override func setUp() {
-        continueAfterFailure = true
-    }
-
-    override func tearDown() {
-        guard !problems.isEmpty else { return }
-        let note = XCTAttachment(string: problems.joined(separator: "\n"))
-        note.name = "problems"
-        note.lifetime = .keepAlways
-        add(note)
-    }
-
-    /// 01 Practice lobby: the daily rally, the weakest-phase shortcut, and the
-    /// six phase rooms with their accuracy readouts.
+    /// 01 Practice lobby: the daily rally, the recommended phase, and the six
+    /// phase rooms with their accuracy readouts.
     func test01Lobby() {
         launch()
         guard selectTab("Practice") else { return }
+        expect("mixed-rally", on: "lobby")
+        expect("room-dinkRally", on: "lobby")
         settle()
         capture("01_lobby")
     }
@@ -44,11 +30,11 @@ final class ScreenshotTests: XCTestCase {
         launch()
         guard selectTab("Practice") else { return }
         guard tapIdentifier("mixed-rally") else {
-            problems.append("could not start the mixed rally")
             attachTree("court_question")
             return
         }
         settle(2.0)
+        expect("shot-0", on: "court question")
         capture("02_court_question")
     }
 
@@ -56,18 +42,17 @@ final class ScreenshotTests: XCTestCase {
     func test03GradedAnswer() {
         launch()
         guard selectTab("Practice") else { return }
-        guard tapIdentifier("mixed-rally") else {
-            problems.append("could not start the mixed rally")
-            return
-        }
+        guard tapIdentifier("mixed-rally") else { return }
         settle(2.0)
         // Any option grades the ball; a wrong pick shows the same answer card.
         guard tapFirstOption() else {
-            problems.append("could not pick a shot option")
             attachTree("graded_answer")
             return
         }
         settle(1.4)
+        // The principle card is the product. A capture without it is not this
+        // screenshot, it is the question screen with coloured rows.
+        expect("answer-card", on: "graded answer", visible: true)
         capture("03_graded_answer")
     }
 
@@ -88,71 +73,31 @@ final class ScreenshotTests: XCTestCase {
         settle()
         let seePro = app.buttons["See Pro"].firstMatch
         guard seePro.waitForExistence(timeout: 4) else {
-            problems.append("Settings had no See Pro row")
+            report("Settings had no See Pro row")
             attachTree("paywall")
             return
         }
         seePro.tap()
         settle(2.0)
+        expect("plan-yearly", on: "paywall")
         capture("05_paywall")
     }
 
-    // MARK: - Helpers
-
-    private func launch() {
+    /// 06 The first-run court primer. It is the answer to "what am I looking
+    /// at", so it is worth a slot in the set and worth proving it still opens.
+    func test06CourtPrimer() {
+        // No fixture: this is the genuinely-empty first-run state, with the
+        // primer suppression turned back off.
         app = XCUIApplication()
-        // Start from a clean free account: the local Pro override is what the
-        // Settings toggle flips, and a leftover YES hides the paywall entirely.
-        app.launchArguments = ["-subscription.localProOverride", "NO"]
+        app.launchArguments = [
+            "-subscription.localProOverride", "NO",
+            "-uitest.reset", "YES",
+            "-uitest.seed", "4242",
+        ]
         app.launch()
         _ = app.wait(for: .runningForeground, timeout: 30)
-        settle()
-    }
-
-    private func selectTab(_ name: String) -> Bool {
-        let tab = app.tabBars.buttons[name].firstMatch
-        guard tab.waitForExistence(timeout: 8) else {
-            problems.append("no \(name) tab")
-            return false
-        }
-        tab.tap()
-        return true
-    }
-
-    private func tapIdentifier(_ identifier: String) -> Bool {
-        let element = app.descendants(matching: .any)[identifier].firstMatch
-        guard element.waitForExistence(timeout: 6) else { return false }
-        element.tap()
-        return true
-    }
-
-    /// The four shot options are plain buttons carrying the shot label, so the
-    /// stable handle is position: skip the nav bar and take the first button
-    /// inside the scroll view.
-    private func tapFirstOption() -> Bool {
-        let buttons = app.scrollViews.buttons
-        guard buttons.firstMatch.waitForExistence(timeout: 6) else { return false }
-        let candidate = buttons.element(boundBy: 0)
-        guard candidate.exists, candidate.isHittable else { return false }
-        candidate.tap()
-        return true
-    }
-
-    private func settle(_ seconds: TimeInterval = 1.6) {
-        Thread.sleep(forTimeInterval: seconds)
-    }
-
-    private func capture(_ name: String) {
-        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
-    }
-
-    private func attachTree(_ name: String) {
-        let tree = XCTAttachment(string: app.debugDescription)
-        tree.name = "tree_\(name)"
-        tree.lifetime = .keepAlways
-        add(tree)
+        settle(2.0)
+        expect("primer-done", on: "court primer")
+        capture("06_court_primer")
     }
 }

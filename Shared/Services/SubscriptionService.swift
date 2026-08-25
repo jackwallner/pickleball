@@ -29,6 +29,43 @@ enum PurchaseError: LocalizedError {
     }
 }
 
+/// Whether the paywall has real, purchasable products to show.
+///
+/// The paywall used to render plausible prices whichever way this went, which
+/// is fine for a screenshot and dishonest on a customer's phone: a polished
+/// price list attached to a Continue button that cannot charge anyone reads as
+/// a broken app, not as a network problem. These states are what the sheet
+/// renders instead of guessing.
+enum StoreState: Equatable, Sendable {
+    /// Offerings are in flight. Prices are redacted, Continue is disabled.
+    case loading
+    /// A current offering with at least one package arrived.
+    case available
+    /// RevenueCat is configured but produced nothing purchasable.
+    case unavailable
+    /// RevenueCat is deliberately not configured: a simulator, or a DEBUG
+    /// build carrying the placeholder key. DEBUG catalog prices stand in.
+    case notConfigured
+}
+
+/// What the trial line under the Continue button is allowed to claim.
+///
+/// Apple's introductory offer is per Apple Account and per subscription group,
+/// so "7 days free" is not a property of the product, it is a property of the
+/// person reading it.
+enum TrialCopy: Equatable, Sendable {
+    case eligible(String)
+    case unknown(String)
+    case none
+
+    var text: String? {
+        switch self {
+        case .eligible(let value), .unknown(let value): return value
+        case .none: return nil
+        }
+    }
+}
+
 struct PaywallPrice {
     let amount: Decimal
     let localized: String
@@ -41,6 +78,9 @@ final class SubscriptionService: NSObject, ObservableObject {
 
     @Published private(set) var isPro = false
     @Published private(set) var offerings: Offerings?
+    @Published private(set) var storeState: StoreState = .loading
+    /// Intro-offer eligibility per product id, as RevenueCat reports it.
+    @Published private(set) var introEligibility: [String: IntroEligibilityStatus] = [:]
 
     private var isConfigured = false
     private let localOverrideKey = "subscription.localProOverride"
@@ -70,11 +110,28 @@ final class SubscriptionService: NSObject, ObservableObject {
             storeKitPrices = Self.pricesFromStoreKitCatalog()
         }
         #endif
+        guard isConfigured else {
+            storeState = .notConfigured
+            Task { await loadStoreKitPricesIfNeeded() }
+            return
+        }
         Task {
             await loadStoreKitPricesIfNeeded()
-            guard isConfigured else { return }
             await refreshCustomerInfo()
             await loadOfferings()
+        }
+    }
+
+    /// A purchase or a cancellation can happen entirely outside the app: in
+    /// Settings, on another device, or in the App Store's own subscription
+    /// management. Without a foreground refresh the gate stays stale until the
+    /// delegate happens to fire, which is how a paying customer ends up
+    /// looking at a paywall.
+    func refreshOnForeground() {
+        guard isConfigured else { return }
+        Task {
+            await refreshCustomerInfo()
+            if offerings?.current == nil { await loadOfferings() }
         }
     }
 
@@ -120,8 +177,65 @@ final class SubscriptionService: NSObject, ObservableObject {
     }
 
     func loadOfferings() async {
-        guard isConfigured else { return }
+        guard isConfigured else {
+            storeState = .notConfigured
+            return
+        }
+        storeState = .loading
         offerings = try? await Purchases.shared.offerings()
+        let packages = offerings?.current?.availablePackages ?? []
+        storeState = packages.isEmpty ? .unavailable : .available
+        await loadIntroEligibility(for: packages)
+    }
+
+    /// Ask RevenueCat which of the subscription products this Apple Account can
+    /// still start a trial on. A failure leaves the map empty, which the
+    /// paywall renders as the qualified "new subscribers" wording rather than
+    /// as a promise.
+    private func loadIntroEligibility(for packages: [Package]) async {
+        guard isConfigured, !packages.isEmpty else { return }
+        let result = await Purchases.shared.checkTrialOrIntroDiscountEligibility(
+            packages: packages
+        )
+        var next: [String: IntroEligibilityStatus] = [:]
+        for (package, eligibility) in result {
+            next[package.storeProduct.productIdentifier] = eligibility.status
+        }
+        introEligibility = next
+    }
+
+    /// The honest trial line for a plan, given the product's real offer and
+    /// this account's real eligibility.
+    func trialCopy(for plan: PaywallPlan) -> TrialCopy {
+        guard plan != .lifetime else { return .none }
+        guard let product = package(for: plan)?.storeProduct else {
+            // No product in hand yet: say the thing that is true for everyone.
+            return .unknown("7 days free for new subscribers, then it auto-renews until canceled.")
+        }
+        guard let intro = product.introductoryDiscount else {
+            return .none
+        }
+        let period = Self.periodDescription(intro)
+        switch introEligibility[product.productIdentifier] {
+        case .eligible:
+            return .eligible("\(period) free, then \(product.localizedPriceString), auto-renews until canceled.")
+        case .ineligible:
+            return .eligible("You've already used your free trial. \(product.localizedPriceString), auto-renews until canceled.")
+        default:
+            return .unknown("\(period) free for new subscribers, then \(product.localizedPriceString), auto-renews until canceled.")
+        }
+    }
+
+    private static func periodDescription(_ discount: StoreProductDiscount) -> String {
+        let period = discount.subscriptionPeriod
+        let count = period.value * discount.numberOfPeriods
+        switch period.unit {
+        case .day: return count == 1 ? "1 day" : "\(count) days"
+        case .week: return count == 1 ? "7 days" : "\(count) weeks"
+        case .month: return count == 1 ? "1 month" : "\(count) months"
+        case .year: return count == 1 ? "1 year" : "\(count) years"
+        @unknown default: return "A free trial"
+        }
     }
 
     func package(for plan: PaywallPlan) -> Package? {
@@ -224,10 +338,16 @@ final class SubscriptionService: NSObject, ObservableObject {
     /// the products missing, so the button isn't dead on a fast tapper.
     @discardableResult
     func ensureOfferings() async -> Bool {
-        guard isConfigured else { return false }
-        if offerings?.current != nil { return true }
+        guard isConfigured else {
+            storeState = .notConfigured
+            return false
+        }
+        if offerings?.current?.availablePackages.isEmpty == false {
+            storeState = .available
+            return true
+        }
         await loadOfferings()
-        return offerings?.current != nil
+        return storeState == .available
     }
 
     func purchase(_ package: Package?) async throws -> PurchaseOutcome {

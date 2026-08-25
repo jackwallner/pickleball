@@ -1,16 +1,35 @@
 import Foundation
 
 /// A generated drill: the position, the four options shown, and the answer.
+///
+/// `answerIndex` is resolved once, at construction, and the initialiser refuses
+/// to build a question whose options do not contain the advisor's answer. The
+/// paid coaching contract is that every graded ball is graded against the
+/// advisor; silently falling back to option zero would keep the app running
+/// while quietly marking the wrong shot correct, which is the one failure mode
+/// worth crashing a debug build over.
 struct DrillQuestion: Identifiable, Sendable {
     let position: RallyPosition
     let options: [Shot]
     let verdict: ShotVerdict
+    let answerIndex: Int
 
     var id: String { position.id }
 
-    var answerIndex: Int {
-        options.firstIndex(of: verdict.best) ?? 0
+    init(position: RallyPosition, options: [Shot], verdict: ShotVerdict) {
+        self.position = position
+        self.options = options
+        self.verdict = verdict
+        guard let index = options.firstIndex(of: verdict.best) else {
+            preconditionFailure(
+                "\(position.id): options \(options.map(\.id)) do not contain "
+                + "the advisor's answer \(verdict.best.id)"
+            )
+        }
+        self.answerIndex = index
     }
+
+    var answer: Shot { options[answerIndex] }
 }
 
 /// Deterministic, seedable RNG so a drill can be replayed exactly. The system
@@ -63,6 +82,17 @@ enum PositionGenerator {
     // MARK: - Positions
 
     private static func position(
+        phase: RallyPhase, seed: UInt64, rng: inout SeededGenerator
+    ) -> RallyPosition {
+        // Half of every phase is reflected across the center line. Without it
+        // the "one opponent is lagging" scenarios below are always the right
+        // hand player, and the drill trains a side instead of a read.
+        let mirror = Bool.random(using: &rng)
+        let raw = rawPosition(phase: phase, seed: seed, rng: &rng)
+        return mirror ? raw.mirrored : raw
+    }
+
+    private static func rawPosition(
         phase: RallyPhase, seed: UInt64, rng: inout SeededGenerator
     ) -> RallyPosition {
         let id = "\(phase.rawValue)-\(seed)"
@@ -215,7 +245,7 @@ enum PositionGenerator {
         case .attack:
             return [Shot(.putAway, .atFeet), Shot(.drive, .atFeet),
                     Shot(.speedUp, .backhand), Shot(.dink, .crossCourtKitchen),
-                    Shot(.putAway, .deepStraight)]
+                    Shot(.lob, .deepCrossCourt)]
         case .defense:
             return [Shot(.reset, .straightKitchen), Shot(.lob, .deepCrossCourt),
                     Shot(.drive, .deepStraight), Shot(.dink, .crossCourtKitchen),

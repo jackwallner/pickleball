@@ -25,8 +25,9 @@ every answer names the principle it came from. The money search term is
 - `Shared/Models` — `Court`, `RallyPosition`, `Shot`
 - `Shared/Content` — `PositionGenerator` (the asset) and `ShotAdvisor`
   (the rules engine). Both are total, deterministic, and seedable.
-- `Shared/Services` — progress by phase, the 15-ball free daily cap,
-  subscriptions, review funnel
+- `Shared/Services` — progress by phase and practice history, the 15-ball free
+  daily cap, subscriptions, review funnel, and the DEBUG-only `DebugFixtures`
+  that gives screenshot runs a deterministic state
 - `DuprIQ/Views` — `TodayView` lobby, `DrillSessionView` (the loop),
   `CourtDiagramView`, progress, paywall, settings
 
@@ -34,6 +35,25 @@ every answer names the principle it came from. The money search term is
 If a generated position is off-court, the answer is missing from the
 options, or a dink rally ships an attackable ball, the paid tier is
 broken. Do not weaken those tests to land a generator change.
+`ServiceTests` is the equivalent contract for the daily cap, the streak rule,
+the accuracy sample threshold, the practice history and the review gate: none
+of those regressions show up in a generator test.
+
+**Lateral position is load-bearing.** The advisor branches on where the contact
+sits relative to the center line (no long diagonal exists from the middle) and
+on how far apart the two opponents are standing (an open seam beats either
+body). Every generated position is mirrored with probability one half, and
+`testTheAnswerIsUnchangedUnderALeftRightMirror` pins the property that makes
+this a decision rather than a side: reflect the court and the shot is
+identical, aimed at the marker now in the mirrored place. Any new rule has to
+keep that symmetry, and any verdict that names an opponent has to carry
+`targetOpponent` so the diagram can highlight the marker it means.
+
+**One kitchen contract.** `Court.kitchenDepth` (7 ft) is the line the rulebook
+and the diagram draw. `Court.kitchenReadyDepth` (8.5 ft) is how far back a
+player can stand and still count as "at the line", because nobody waits inside
+the non-volley zone. Generation, classification, the diagram and the tests all
+use those two constants; do not introduce a third threshold.
 
 ## Products
 Local StoreKit configuration (`DuprIQ/DuprIQ.storekit`):
@@ -71,7 +91,10 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
   As of 2026-08-24 build 3 is attached and all three IAPs are
   `READY_TO_SUBMIT`. What remains is App Privacy in the web UI (no public API),
   then `scripts/asc-submit-for-review.py`.
-  `scripts/asc-readiness.py` is the read-only check for all of that.
+  `scripts/asc-readiness.py` is the read-only check for all of that, and
+  `docs/asc-submission-checklist.md` is the durable record of the web-UI-only
+  answers (App Privacy, age rating, version review information) plus the
+  first-IAP attachment step the API cannot do.
   Not yet released, so the review funnel still uses `requestReview()` rather
   than a write-review URL.
 - **First IAPs must ship with the app version.** Run
@@ -98,8 +121,24 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
 - **Screenshots run headlessly off the `Screenshots` scheme.**
   `DuprIQScreenshots` is a ui-testing target kept out of the `DuprIQ` scheme's
   test action on purpose, so the unit-test loop stays instant. Drive it with
-  `scripts/capture-screenshots.sh <udid> <out>` (five App Store shots) and
+  `scripts/capture-screenshots.sh <udid> <out>` (six shots) and
   `scripts/capture-paywall.sh <udid> <out>` (the paywall alone, with prices).
+- **Screenshot state is a fixture, not the simulator's leftovers.**
+  `DebugFixtures` reads DEBUG-only launch arguments through the `UserDefaults`
+  argument domain: `-uitest.reset YES` wipes progress, the cap and review state,
+  `-uitest.fixture demo` installs a curated four-week history, and
+  `-uitest.seed <n>` pins the drill instead of using the wall clock. Without
+  them the App Store set is whatever a previous test account happened to leave
+  behind.
+- **`--strict` is the screenshot release gate.** Plain runs collect problems as
+  an attachment and still report success, which is right for iterating and
+  wrong before an upload: an iPad run once reported four passing tests whose
+  only output said "no Practice tab". `scripts/capture-screenshots.sh --strict`
+  turns a missing control into a failure and a non-zero exit. The flag reaches
+  the test process through `Screenshots.xctestplan`'s
+  `environmentVariableEntries`, because a test plan owns the test environment
+  and a bare `TEST_RUNNER_` build setting never arrives. Every run attaches
+  `run_info` naming whether strict was actually armed.
 - **The paywall's prices on a simulator come from the bundled `.storekit`.**
   `SubscriptionService` never configures RevenueCat on a sim, so
   `paywallPrice(for:)` falls back to a DEBUG-only catalog reader. That is the
@@ -115,7 +154,25 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
 - Display name is `DUPR IQ` (`CFBundleDisplayName`). `PRODUCT_NAME` is
   `DuprIQ` so the `.app` and `TEST_HOST` have no spaces.
 - Free tier is 15 graded balls per calendar day, not a lifetime cap,
-  because the generator never runs out.
+  because the generator never runs out. The cap is checked in the lobby, before
+  the court is drawn: discovering the paywall after reading a position is a
+  bait-and-switch, and a session never promises more balls than the allowance
+  can grade.
+- **The free/Pro line is history, not accuracy.** Accuracy by phase is free and
+  visible on the lobby, so selling it back as a Pro benefit was a claim the app
+  could not keep. Pro is the unlimited cap plus session history and the ranked
+  missed principles. The paywall copy, `docs/index.html` and
+  `fastlane/metadata/en-US/description.txt` all have to agree with that; they
+  did not, and it was the audit's clearest trust problem.
+- **A percentage needs a sample.** `ProgressThreshold.sampleForAccuracy` (5)
+  gates when a phase shows a number at all; below it the UI shows `New` or a
+  count. A streak needs `ballsForPracticeDay` (5) too, because a streak that
+  starts on one tap is engagement theatre.
+- **Paywall prices are real or absent.** There is no release fallback price
+  string. `SubscriptionService.storeState` drives a loading, available,
+  unavailable or not-configured surface, and `trialCopy(for:)` derives the trial
+  line from the product's actual introductory offer and this account's
+  eligibility rather than promising everyone seven free days.
 - Shot selection is coached opinion. `CoachingSystemView` states the
   system (unattackable ball, get to the kitchen, hit the player who
   isn't set). Keep answers named by principle.

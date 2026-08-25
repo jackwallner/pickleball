@@ -23,7 +23,24 @@ final class ShotAdvisorTests: XCTestCase {
         }
     }
 
-    func testThirdShotDropsWhenBothOpponentsAreSetAndTheBallIsLow() {
+    func testThirdShotDropsCrossCourtFromWideWhenBothOpponentsAreSet() {
+        let position = makePosition(
+            phase: .thirdShot,
+            you: CourtPoint(x: 3, y: 3),
+            opponentLeft: CourtPoint(x: 6, y: 29.5),
+            opponentRight: CourtPoint(x: 14, y: 29.5),
+            ballHeight: .belowNet
+        )
+        let verdict = ShotAdvisor.verdict(for: position)
+        XCTAssertEqual(verdict.best, Shot(.drop, .crossCourtKitchen))
+        // Hitting from the left side, the long diagonal is the right opponent.
+        XCTAssertEqual(verdict.targetOpponent, .right)
+    }
+
+    func testThirdShotDropsStraightFromTheMiddleWhereNoDiagonalExists() {
+        // Lateral position is load-bearing, not decoration: from the middle of
+        // the court the cross-court ball is barely longer than the straight one,
+        // so the answer changes.
         let position = makePosition(
             phase: .thirdShot,
             you: CourtPoint(x: 10, y: 3),
@@ -31,8 +48,7 @@ final class ShotAdvisorTests: XCTestCase {
             opponentRight: CourtPoint(x: 14, y: 29.5),
             ballHeight: .belowNet
         )
-        let verdict = ShotAdvisor.verdict(for: position)
-        XCTAssertEqual(verdict.best, Shot(.drop, .crossCourtKitchen))
+        XCTAssertEqual(ShotAdvisor.verdict(for: position).best, Shot(.drop, .straightKitchen))
     }
 
     func testThirdShotDrivesAtTheOpponentWhoIsNotSet() {
@@ -45,6 +61,7 @@ final class ShotAdvisorTests: XCTestCase {
         )
         let verdict = ShotAdvisor.verdict(for: position)
         XCTAssertEqual(verdict.best, Shot(.drive, .atFeet))
+        XCTAssertEqual(verdict.targetOpponent, .right, "the answer must name the player it means")
     }
 
     func testTransitionNeverDrivesALowBall() {
@@ -115,5 +132,95 @@ final class ShotAdvisorTests: XCTestCase {
             ballHeight: ballHeight,
             yourScore: 4, theirScore: 6, isServingTeam: true
         )
+    }
+
+    // MARK: - Lateral geometry
+
+    func testAnOpenMiddleChangesTheAnswerInADinkRally() {
+        // Same phase, same ball height, same zones: only the seam between the
+        // two opponents moves. If the answer does not move with it, the exact
+        // feet on the diagram are decoration.
+        let tight = makePosition(
+            phase: .dinkRally,
+            you: CourtPoint(x: 4, y: 14.2),
+            opponentLeft: CourtPoint(x: 9, y: 29.5),
+            opponentRight: CourtPoint(x: 12, y: 29.5),
+            ballHeight: .belowNet
+        )
+        let wide = makePosition(
+            phase: .dinkRally,
+            you: CourtPoint(x: 4, y: 14.2),
+            opponentLeft: CourtPoint(x: 3.5, y: 29.5),
+            opponentRight: CourtPoint(x: 16.5, y: 29.5),
+            ballHeight: .belowNet
+        )
+        XCTAssertEqual(ShotAdvisor.verdict(for: tight).best, Shot(.dink, .crossCourtKitchen))
+        XCTAssertEqual(ShotAdvisor.verdict(for: wide).best, Shot(.dink, .middle))
+    }
+
+    func testAnOpenMiddleChangesTheAnswerOnAnAttack() {
+        let tight = makePosition(
+            phase: .attack,
+            you: CourtPoint(x: 4, y: 14.2),
+            opponentLeft: CourtPoint(x: 9, y: 29.5),
+            opponentRight: CourtPoint(x: 12, y: 29.5),
+            ballHeight: .aboveNet
+        )
+        let wide = makePosition(
+            phase: .attack,
+            you: CourtPoint(x: 4, y: 14.2),
+            opponentLeft: CourtPoint(x: 3.5, y: 29.5),
+            opponentRight: CourtPoint(x: 16.5, y: 29.5),
+            ballHeight: .aboveNet
+        )
+        XCTAssertEqual(ShotAdvisor.verdict(for: tight).best, Shot(.putAway, .atFeet))
+        XCTAssertEqual(ShotAdvisor.verdict(for: wide).best, Shot(.putAway, .middle))
+    }
+
+    func testTheAnswerIsUnchangedUnderALeftRightMirror() {
+        // The single property that proves the drill trains a decision rather
+        // than a side: reflect the whole court and the shot must be identical,
+        // aimed at the marker that is now in the mirrored place.
+        for phase in RallyPhase.allCases {
+            for seed in sampleSeeds {
+                let position = PositionGenerator.question(phase: phase, seed: seed).position
+                // A contact exactly on the center line is its own mirror, so
+                // no side choice can be antisymmetric there.
+                guard position.contact.x != Court.centerX else { continue }
+                let original = ShotAdvisor.verdict(for: position)
+                let mirrored = ShotAdvisor.verdict(for: position.mirrored)
+                XCTAssertEqual(original.best, mirrored.best,
+                               "\(phase)/\(seed) changed shot under a mirror")
+                XCTAssertEqual(original.principle, mirrored.principle,
+                               "\(phase)/\(seed) changed principle under a mirror")
+                XCTAssertEqual(original.targetOpponent?.opposite, mirrored.targetOpponent,
+                               "\(phase)/\(seed) did not follow the target across the mirror")
+            }
+        }
+    }
+
+    func testAnAnswerThatNamesAnOpponentAlwaysCarriesTheSide() {
+        // "Hit the player who isn't set" is only coaching if the app can point
+        // at that player. Every lagging-opponent verdict must carry the side.
+        for phase in RallyPhase.allCases {
+            for seed in sampleSeeds {
+                let question = PositionGenerator.question(phase: phase, seed: seed)
+                guard let lagging = question.position.laggingOpponentSide else { continue }
+                XCTAssertEqual(question.verdict.targetOpponent, lagging,
+                               "\(phase)/\(seed) grades a lagging opponent without naming them")
+            }
+        }
+    }
+
+    func testAnyNamedTargetIsAnOpponentThatActuallyExists() {
+        for phase in RallyPhase.allCases {
+            for seed in sampleSeeds {
+                let question = PositionGenerator.question(phase: phase, seed: seed)
+                guard let target = question.verdict.targetOpponent else { continue }
+                let point = question.position.opponent(target)
+                XCTAssertGreaterThan(point.y, Court.netY,
+                                     "\(phase)/\(seed) targets a marker on our own side")
+            }
+        }
     }
 }
