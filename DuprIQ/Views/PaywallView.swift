@@ -43,17 +43,19 @@ struct PaywallView: View {
                     Text("Every ball, every phase")
                         .font(.largeTitle.bold())
 
-                    ForEach(Self.benefits, id: \.self) { benefit in
-                        Label(benefit, systemImage: "checkmark.circle.fill")
-                            .font(.callout)
-                    }
-
                     if subscriptions.storeState == .unavailable {
                         unavailableCard
                     }
 
                     ForEach(PaywallPlan.allCases) { option in
                         planRow(option)
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Self.benefits, id: \.self) { benefit in
+                            Label(benefit, systemImage: "checkmark.circle.fill")
+                                .font(.callout)
+                        }
                     }
                 }
                 .padding()

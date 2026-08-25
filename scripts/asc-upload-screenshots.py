@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Upload fastlane/screenshots/<locale>/*.png to the draft ASC version.
 
-The app ships for iPhone AND iPad, so a shot is routed to its display type by
+The current release is iPhone-only. A shot is routed to its display type by
 PIXEL SIZE, not by filename: 1320x2868 is the iPhone 6.9" set, 2064x2752 the
-iPad 13" set. Every display type present in the folder is replaced wholesale;
-types with no matching file are left alone. A file of any other size is a
-mistake and stops the run rather than being uploaded to the wrong set.
+iPad 13" set for a future universal release. Every display type present in the
+folder is replaced wholesale; types with no matching file are left alone. A
+file of any other size is a mistake and stops the run rather than being
+uploaded to the wrong set.
 
     python3 scripts/asc-upload-screenshots.py [--locale en-US]
 """

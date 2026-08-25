@@ -77,14 +77,14 @@ struct DrillSessionView: View {
 
     private func drill(_ question: DrillQuestion) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 header(question)
 
                 CourtDiagramView(
                     position: question.position,
                     highlight: picked == nil ? nil : question.verdict.targetOpponent
                 )
-                .frame(maxHeight: picked == nil ? 340 : 240)
+                .frame(maxHeight: picked == nil ? 300 : 240)
 
                 situationLine(question.position)
 
@@ -179,7 +179,8 @@ struct DrillSessionView: View {
                         .foregroundStyle(isAnswer ? .green : (isPicked ? .red : .secondary))
                 }
             }
-            .padding()
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(background(isAnswer: isAnswer, isPicked: isPicked))
             .clipShape(RoundedRectangle(cornerRadius: 12))

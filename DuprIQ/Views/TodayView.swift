@@ -27,10 +27,14 @@ struct TodayView: View {
                 if !subscriptions.isPro { upgradeSection }
             }
             .navigationTitle("DUPR IQ")
+            .listSectionSpacing(.compact)
+            .listRowSpacing(0)
             .navigationDestination(for: DrillRoute.self) { route in
                 DrillSessionView(phase: route.phase)
             }
-            .contentMargins(.bottom, 60, for: .scrollContent)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 88)
+            }
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(isPresented: $showEnjoymentGate) { EnjoymentGateSheet() }
             .sheet(isPresented: $showPrimer) { CourtPrimerView() }
@@ -99,28 +103,41 @@ struct TodayView: View {
 
     private var roomsSection: some View {
         Section("Rooms") {
-            ForEach(RallyPhase.allCases) { phase in
-                Button {
-                    start(phase: phase)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(phase.title).foregroundStyle(.primary)
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 12),
+                    GridItem(.flexible(), spacing: 12)
+                ],
+                spacing: 12
+            ) {
+                ForEach(RallyPhase.allCases) { phase in
+                    Button {
+                        start(phase: phase)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .top, spacing: 4) {
+                                Text(phase.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                Spacer(minLength: 0)
+                                PhaseSignalBadge(signal: progress.signal(for: phase))
+                            }
                             Text(phase.subtitle)
-                                .font(.caption).foregroundStyle(.secondary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
-                        Spacer()
-                        PhaseSignalBadge(signal: progress.signal(for: phase))
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .topLeading)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 4)
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("room-\(phase.rawValue)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("room-\(phase.rawValue)")
             }
+            .padding(.vertical, 4)
         }
     }
 

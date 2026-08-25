@@ -15,7 +15,10 @@ struct ProgressDashboardView: View {
                 missedSection
             }
             .navigationTitle("Progress")
-            .contentMargins(.bottom, 60, for: .scrollContent)
+            .listSectionSpacing(.compact)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 88)
+            }
             .sheet(isPresented: $showPaywall) { PaywallView() }
         }
     }

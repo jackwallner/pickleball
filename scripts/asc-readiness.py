@@ -25,6 +25,21 @@ def main() -> int:
 
     version = find_editable_version(client, app_id)
     if not version:
+        # A dry-run review submission moves the draft to READY_FOR_REVIEW,
+        # which is no longer returned by find_editable_version. Keep this
+        # read-only report useful while the submission remains unsubmitted.
+        ready = [
+            item
+            for item in list_all(client, f"/apps/{app_id}/appStoreVersions")
+            if item.get("attributes", {}).get("appStoreState") == "READY_FOR_REVIEW"
+        ]
+        if ready:
+            version = sorted(
+                ready,
+                key=lambda item: item.get("attributes", {}).get("versionString", ""),
+                reverse=True,
+            )[0]
+    if not version:
         print("NO editable version found.")
         return 1
     vid = version["id"]
