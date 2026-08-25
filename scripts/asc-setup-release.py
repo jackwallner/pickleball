@@ -21,7 +21,7 @@ SUBS = [
         "name": "DUPR IQ Pro Monthly",
         "period": "ONE_MONTH",
         "price": "9.99",
-        "desc": "Unlimited graded balls and every drill phase, billed monthly.",
+        "desc": "Unlimited graded balls, every phase. Billed monthly.",
         "trial": True,
     },
     {
@@ -29,7 +29,7 @@ SUBS = [
         "name": "DUPR IQ Pro Yearly",
         "period": "ONE_YEAR",
         "price": "59.99",
-        "desc": "Unlimited graded balls and every drill phase, billed yearly.",
+        "desc": "Unlimited graded balls, every phase. Billed yearly.",
         "trial": True,
     },
 ]

@@ -2,7 +2,7 @@
 """Create the Pro Lifetime non-consumable in App Store Connect.
 
 Creates com.jackwallner.pickleball.pro.lifetime, adds the en-US localization, sets a
-$29.99 USA-based price schedule (other territories auto-equalize from the base
+$99.99 USA-based price schedule (other territories auto-equalize from the base
 territory), and makes it available in all territories. Idempotent-ish: skips
 steps whose object already exists. Review screenshot + submission happen with
 the next app version.
