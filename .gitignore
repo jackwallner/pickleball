@@ -1,9 +1,21 @@
+# Xcode
 build/
 DerivedData/
 *.xcodeproj
-*.xcarchive
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
 .DS_Store
+
+# Secrets and local state
 .env*
+scripts/.asc-state.json
+scripts/.astro-app.json
+*.p8
+
+# fastlane
 fastlane/report.xml
 fastlane/README.md
+fastlane/Preview.html
+fastlane/test_output/
 metadata.bak.*
