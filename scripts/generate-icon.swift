@@ -65,19 +65,88 @@ NSColor.white.setStroke()
 courtPath.lineWidth = 18
 courtPath.stroke()
 
-let ballR: CGFloat = 78
+NSGraphicsContext.saveGraphicsState()
+let paddleTransform = NSAffineTransform()
+paddleTransform.translateX(by: 485, yBy: 510)
+paddleTransform.rotate(byDegrees: -18)
+paddleTransform.concat()
+
+let handle = NSBezierPath(
+    roundedRect: NSRect(x: -58, y: -330, width: 116, height: 230),
+    xRadius: 34,
+    yRadius: 34
+)
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setFill()
+handle.fill()
+
+let grip = NSBezierPath(
+    roundedRect: NSRect(x: -48, y: -315, width: 96, height: 145),
+    xRadius: 28,
+    yRadius: 28
+)
+NSColor(red: 0.72, green: 0.31, blue: 0.22, alpha: 1).setFill()
+grip.fill()
+
+let paddle = NSBezierPath(
+    roundedRect: NSRect(x: -190, y: -140, width: 380, height: 480),
+    xRadius: 120,
+    yRadius: 120
+)
+NSColor(red: 0.91, green: 0.35, blue: 0.20, alpha: 1).setFill()
+paddle.fill()
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setStroke()
+paddle.lineWidth = 14
+paddle.stroke()
+
+let paddleFace = NSBezierPath(
+    roundedRect: NSRect(x: -160, y: -100, width: 320, height: 400),
+    xRadius: 98,
+    yRadius: 98
+)
+NSColor(red: 0.98, green: 0.90, blue: 0.73, alpha: 1).setFill()
+paddleFace.fill()
+
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 0.72).setFill()
+let holeCenters: [(CGFloat, CGFloat)] = [
+    (-72, 205), (0, 225), (72, 205),
+    (-82, 125), (0, 145), (82, 125),
+    (-62, 45), (0, 25), (62, 45)
+]
+for (x, y) in holeCenters {
+    NSBezierPath(ovalIn: NSRect(x: x - 12, y: y - 12, width: 24, height: 24)).fill()
+}
+NSGraphicsContext.restoreGraphicsState()
+
+let ballR: CGFloat = 92
+let ballCenter = NSPoint(x: 715, y: 760)
 let ball = NSRect(
-    x: court.midX + 70,
-    y: court.minY + court.height * 0.28 - ballR,
+    x: ballCenter.x - ballR,
+    y: ballCenter.y - ballR,
     width: ballR * 2,
     height: ballR * 2
 )
 NSColor(red: 0.85, green: 0.95, blue: 0.20, alpha: 1).setFill()
 NSBezierPath(ovalIn: ball).fill()
-NSColor.black.withAlphaComponent(0.45).setStroke()
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setStroke()
 let ballStroke = NSBezierPath(ovalIn: ball)
-ballStroke.lineWidth = 8
+ballStroke.lineWidth = 10
 ballStroke.stroke()
+
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 0.55).setFill()
+let ballHoles: [(CGFloat, CGFloat)] = [
+    (-30, 28), (0, 35), (30, 28),
+    (-36, -12), (0, -20), (36, -12)
+]
+for (x, y) in ballHoles {
+    NSBezierPath(
+        ovalIn: NSRect(
+            x: ballCenter.x + x - 9,
+            y: ballCenter.y + y - 9,
+            width: 18,
+            height: 18
+        )
+    ).fill()
+}
 
 NSGraphicsContext.restoreGraphicsState()
 
