@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Upload fastlane/screenshots/<locale>/*.png to the draft ASC version.
 
-The current release is iPhone-only. A shot is routed to its display type by
-PIXEL SIZE, not by filename: 1320x2868 is the iPhone 6.9" set, 2064x2752 the
-iPad 13" set for a future universal release. Every display type present in the
-folder is replaced wholesale; types with no matching file are left alone. A
-file of any other size is a mistake and stops the run rather than being
-uploaded to the wrong set.
+A shot is routed to its display type by PIXEL SIZE, not by filename:
+1320x2868 is the iPhone 6.9" set and 2064x2752 is the iPad 13" set. Every
+display type present in the folder is replaced wholesale; types with no
+matching file are left alone. A file of any other size is a mistake and stops
+the run rather than being uploaded to the wrong set.
 
-    python3 scripts/asc-upload-screenshots.py [--locale en-US]
+    python3 scripts/asc-upload-screenshots.py [--locale en-US] [--version 1.0]
 """
 from __future__ import annotations
 
@@ -80,6 +79,10 @@ def upload(c: L.ASCClient, set_id: str, png: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--locale", default="en-US")
+    ap.add_argument(
+        "--version",
+        help="upload to this exact ASC version instead of creating or finding a draft",
+    )
     args = ap.parse_args()
 
     shots = sorted((L.ROOT / "fastlane/screenshots" / args.locale).glob("*.png"))
@@ -100,7 +103,12 @@ def main() -> None:
 
     c = L.ASCClient(L.bearer_token(*L.load_credentials()))
     app_id = L.find_app(c, BUNDLE)["id"]
-    version = L.ensure_draft_version(c, app_id, None)
+    if args.version:
+        version = L.find_version_by_string(c, app_id, args.version)
+        if version is None:
+            raise SystemExit(f"error: ASC version {args.version} does not exist")
+    else:
+        version = L.ensure_draft_version(c, app_id, None)
     locs = {
         x["attributes"]["locale"]: x
         for x in L.list_all(c, f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations")

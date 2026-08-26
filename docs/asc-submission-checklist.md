@@ -29,7 +29,7 @@ Run in this order for a first release. Each is idempotent.
 | Prices | `scripts/asc-set-prices.py` | 9.99 / 59.99 / 99.99 across all territories |
 | Release prerequisites | `scripts/asc-finish-submission.py` | content rights, free app price schedule, copyright, support URL, review contact email |
 | Build | `scripts/testflight.sh` | archive and upload, then attach the processed build |
-| Screenshots | `scripts/capture-screenshots.sh --strict` then `scripts/asc-upload-screenshots.py` | the five iPhone shots |
+| Screenshots | `scripts/capture-screenshots.sh --strict` then `scripts/asc-upload-screenshots.py` | the five iPhone shots and five iPad shots |
 
 **Subscription prices do not equalise; the lifetime IAP's do.** One
 `/subscriptionPrices` row per territory is required, which is what
@@ -74,15 +74,17 @@ Resulting rating: **4+**.
 
 ## 4. Version review information (web UI only)
 
-Version 1.0 review information was saved on 2026-08-25. The review detail is
-complete and the sign-in checkbox is off:
+Version 1.0 review information is partially complete as of 2026-08-26. The
+sign-in checkbox is off, the reviewer notes are saved, and the contact fields
+still need to be completed in the web UI:
 
 - **Sign-in required: OFF.** The app has no account and no login screen. Leaving
   the checkbox on hands App Review an impossible credential requirement, and it
   is enough on its own to fail the submission.
 - **First name / last name:** the account holder.
-- **Phone number:** the fleet review contact saved in App Store Connect.
-- **Email:** the release contact in `scripts/asc-finish-submission.py`.
+- **Phone number:** the fleet review contact, pending web-UI entry.
+- **Email:** the release contact in `scripts/asc-finish-submission.py`, pending
+  web-UI entry.
 - **Notes:** something close to this, which describes the real reviewer path:
 
   > No account or login is required. Open the app, tap "Today's rally" on the
@@ -92,7 +94,11 @@ complete and the sign-in checkbox is off:
   > go to Settings and tap "See Pro"; Restore Purchases is on the same screen
   > and on the paywall. All practice data is stored locally on the device.
 
-The saved review detail was confirmed through the API and the dry run:
+The saved sign-in setting and notes were confirmed through the browser. The
+contact fields require action-time confirmation before transmitting them to
+Apple.
+
+The version item was prepared through the API without submitting it:
 
 ```sh
 python3 scripts/asc-readiness.py
@@ -130,7 +136,7 @@ produce the same asset:
 ```sh
 UDID=$(agent-sim checkout pickleball | tail -1)
 ./scripts/capture-screenshots.sh --strict "$UDID" build/shots
-python3 scripts/asc-upload-screenshots.py build/shots
+python3 scripts/asc-upload-screenshots.py --locale en-US --version 1.0
 agent-sim checkin pickleball
 ```
 
@@ -142,9 +148,9 @@ The set is, in order: the practice lobby, the court question, the graded answer
 with its principle, progress by phase, and the paywall. The sixth capture (the
 first-run court primer) is a spare.
 
-**iPad:** version 1.0 is intentionally iPhone-only. The target uses
-`TARGETED_DEVICE_FAMILY "1"`, so no iPad screenshot set is required for this
-submission.
+**iPad:** version 1.0 ships universal. The target uses
+`TARGETED_DEVICE_FAMILY "1,2"`, so upload the 13-inch iPad set alongside the
+iPhone set.
 
 ---
 
@@ -163,8 +169,9 @@ submission.
 ## 8. Do not submit until
 
 - [x] `scripts/asc-readiness.py` is clean.
-- [x] Version review information is saved, with sign-in **off** and a real phone
-      number.
+- [ ] Version review information is saved, with sign-in **off** and a real phone
+      number. The phone and release email still need to be entered in the web UI
+      after action-time confirmation.
 - [x] All four IAP items are attached to the submission.
 - [x] Screenshots came from a `--strict` capture run.
 - [x] The iPad decision above is made and acted on.
