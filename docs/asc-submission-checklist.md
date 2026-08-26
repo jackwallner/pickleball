@@ -74,17 +74,17 @@ Resulting rating: **4+**.
 
 ## 4. Version review information (web UI only)
 
-Version 1.0 review information is partially complete as of 2026-08-26. The
-sign-in checkbox is off, the reviewer notes are saved, and the contact fields
-still need to be completed in the web UI:
+Version 1.0 review information was saved as of 2026-08-26. The sign-in
+checkbox is off, the reviewer notes are saved, and the contact fields are
+complete:
 
 - **Sign-in required: OFF.** The app has no account and no login screen. Leaving
   the checkbox on hands App Review an impossible credential requirement, and it
   is enough on its own to fail the submission.
 - **First name / last name:** the account holder.
-- **Phone number:** the fleet review contact, pending web-UI entry.
-- **Email:** the release contact in `scripts/asc-finish-submission.py`, pending
-  web-UI entry.
+- **Phone number:** the fleet review contact, saved in App Store Connect.
+- **Email:** the release contact in `scripts/asc-finish-submission.py`, saved in
+  App Store Connect.
 - **Notes:** something close to this, which describes the real reviewer path:
 
   > No account or login is required. Open the app, tap "Today's rally" on the
@@ -94,9 +94,9 @@ still need to be completed in the web UI:
   > go to Settings and tap "See Pro"; Restore Purchases is on the same screen
   > and on the paywall. All practice data is stored locally on the device.
 
-The saved sign-in setting and notes were confirmed through the browser. The
-contact fields require action-time confirmation before transmitting them to
-Apple.
+The saved sign-in setting, notes, and contact fields were confirmed through the
+browser after reloading the version page. The ASC page no longer shows a review
+blocker for contact information, screenshots, or App Privacy.
 
 The version item was prepared through the API without submitting it:
 
@@ -169,9 +169,8 @@ iPhone set.
 ## 8. Do not submit until
 
 - [x] `scripts/asc-readiness.py` is clean.
-- [ ] Version review information is saved, with sign-in **off** and a real phone
-      number. The phone and release email still need to be entered in the web UI
-      after action-time confirmation.
+- [x] Version review information is saved, with sign-in **off** and a real phone
+      number.
 - [x] All four IAP items are attached to the submission.
 - [x] Screenshots came from a `--strict` capture run.
 - [x] The iPad decision above is made and acted on.
