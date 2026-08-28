@@ -100,17 +100,24 @@ class ScreenshotHarness: XCTestCase {
     /// The four shot options are plain buttons carrying the shot label, so the
     /// stable handle is position: take the first button inside the scroll view.
     @discardableResult
+    /// Taps one of the four aim targets on the court.
+    ///
+    /// Addressed by identifier rather than by "the first button inside a scroll
+    /// view", which is how this used to find them and which silently stopped
+    /// working the day the drill became a full-bleed court with no scroll view
+    /// in it. The run still passed and reported "no shot options on screen",
+    /// which is exactly the kind of green-but-wrong result --strict exists for.
+    ///
+    /// Any option grades the ball; a wrong pick shows the same answer card.
     func tapFirstOption() -> Bool {
-        let buttons = app.scrollViews.buttons
-        guard buttons.firstMatch.waitForExistence(timeout: 6) else {
-            return report("no shot options on screen")
+        for index in 0..<4 {
+            let candidate = app.buttons["shot-\(index)"]
+            guard candidate.waitForExistence(timeout: index == 0 ? 6 : 1) else { continue }
+            guard candidate.isHittable else { continue }
+            candidate.tap()
+            return true
         }
-        let candidate = buttons.element(boundBy: 0)
-        guard candidate.exists, candidate.isHittable else {
-            return report("the first shot option was not hittable")
-        }
-        candidate.tap()
-        return true
+        return report("no aim target on the court was hittable")
     }
 
     // MARK: - Reporting

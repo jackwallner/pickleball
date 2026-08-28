@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Home is the lobby: today's rally, the six phases, then the rooms as doors.
-/// The authored drills live one level down in `RoomView`.
+/// Home is the lobby: today's rally, the six phases, then the courts as doors.
+/// The authored drills live one level down in `CourtView`.
 ///
 /// The generated practice sits at the TOP rather than behind a tile, because
 /// the generator is the product. The shell this was ported from buried its
@@ -30,7 +30,7 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showWhatsNew = false
     @State private var pendingAfterUpgrade: AppDestination?
-    @State private var highlightedRoomID: String?
+    @State private var highlightedCourtID: String?
 
     /// Where a generated-practice row goes. Routing through a value rather than
     /// a `NavigationLink` is what lets the free allowance be checked BEFORE a
@@ -42,11 +42,11 @@ struct HomeView: View {
     @AppStorage("duprIQ.skillLevel") private var skillLevel = ""
     /// Set once the primer has been read all the way through. After that it
     /// lives in Settings only; a permanent "How a rally works" card on Home is a
-    /// standing tax on the rooms below it.
+    /// standing tax on the courts below it.
     @AppStorage("duprIQ.hasReadPrimer") private var hasReadPrimer = false
     /// One-shot hint set by `HowToPlayView`'s end-of-primer recommendation:
-    /// the room id to highlight/scroll to the next time Home appears.
-    @AppStorage("duprIQ.recommendedRoomHint") private var recommendedRoomHint = ""
+    /// the court id to highlight/scroll to the next time Home appears.
+    @AppStorage("duprIQ.recommendedCourtHint") private var recommendedCourtHint = ""
 
     private var showsPrimerCard: Bool { skillLevel == "new" && !hasReadPrimer }
 
@@ -57,15 +57,16 @@ struct HomeView: View {
                     homeContent
                     .padding(.bottom, 24)
                 }
-                // Clearance for the tab bar. Without it the last card sits
-                // under the Practice/Progress/Settings bar and reads as cut off.
-                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 60) }
+                // Clearance for the floating tab bar. 60pt was measured
+                // against an older bar and left the last card sliced in half
+                // behind the Practice/Progress/Settings pill.
+                .safeAreaInset(edge: .bottom) { Color.clear.frame(height: 96) }
                 .onAppear {
-                    consumeRecommendedRoomHint(proxy: proxy)
+                    consumeRecommendedCourtHint(proxy: proxy)
                     consumePendingDestination()
                 }
                 .onChange(of: showSettings) { _, isShowing in
-                    if !isShowing { consumeRecommendedRoomHint(proxy: proxy) }
+                    if !isShowing { consumeRecommendedCourtHint(proxy: proxy) }
                 }
             }
             .background(Theme.background)
@@ -123,7 +124,7 @@ struct HomeView: View {
                 header
                 HStack(alignment: .top, spacing: 20) {
                     todayColumn
-                    roomsColumn
+                    courtsColumn
                 }
                 disclaimerFooter
             }
@@ -144,7 +145,7 @@ struct HomeView: View {
                 }
                 if showsPrimerCard { howToPlayCard }
                 trainingSection
-                roomsColumn
+                courtsColumn
                 if !subscriptions.isPro { upgradeCard }
                 disclaimerFooter
             }
@@ -156,7 +157,7 @@ struct HomeView: View {
     // MARK: - Generated practice
     //
     // The part of the app that never runs out, and the part the free tier is
-    // metered on. Authored rooms are deliberately NOT metered: two of them are
+    // metered on. Authored courts are deliberately NOT metered: two of them are
     // free forever, and counting a finite library against a daily cap would
     // quietly take back what the free tier promised.
 
@@ -171,10 +172,10 @@ struct HomeView: View {
                     .frame(width: 52, height: 52)
                     .background(Theme.court, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Today's rally")
+                    Text("Play a point")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                    Text("10 balls across every phase of the point")
+                    Text("Rallies across every phase, on the shot clock")
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -238,23 +239,27 @@ struct HomeView: View {
                                 Spacer(minLength: 0)
                                 PhaseSignalBadge(signal: progress.signal(for: phase))
                             }
+                            // Both lines reserve their space. A LazyVGrid
+                            // row is as tall as its tallest cell, so a
+                            // one-line subtitle next to a two-line one left
+                            // half the tile empty.
                             Text(phase.title)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
                                 .multilineTextAlignment(.leading)
-                                .lineLimit(2)
+                                .lineLimit(2, reservesSpace: true)
                             Text(phase.subtitle)
                                 .font(.caption2)
                                 .foregroundStyle(Theme.inkSecondary)
                                 .multilineTextAlignment(.leading)
-                                .lineLimit(2)
+                                .lineLimit(2, reservesSpace: true)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                         .padding(12)
                         .themedCard(corner: 16)
                     }
                     .buttonStyle(PressableCardStyle())
-                    .accessibilityIdentifier("room-\(phase.rawValue)")
+                    .accessibilityIdentifier("court-\(phase.rawValue)")
                 }
             }
         }
@@ -308,11 +313,11 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    private var roomsColumn: some View {
+    private var courtsColumn: some View {
         VStack(spacing: 14) {
-            roomsHeading
-            ForEach(orderedRooms) { room in
-                roomCard(room)
+            courtsHeading
+            ForEach(orderedCourts) { court in
+                courtCard(court)
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -332,7 +337,7 @@ struct HomeView: View {
             seen: progress.seenItems,
             missed: progress.missedItems,
             dueIDs: records.reviewQueue(),
-            weakestRoomID: records.weakestRoom()?.id
+            weakestCourtID: records.weakestCourt()?.id
         )
     }
 
@@ -379,21 +384,21 @@ struct HomeView: View {
     }
 
     /// Consumes the one-shot recommendation hint: scrolls to and briefly
-    /// highlights the recommended room's card, then clears the hint so it
+    /// highlights the recommended court's card, then clears the hint so it
     /// only ever fires once per recommendation.
-    private func consumeRecommendedRoomHint(proxy: ScrollViewProxy) {
-        guard !recommendedRoomHint.isEmpty else { return }
-        let roomID = recommendedRoomHint
-        recommendedRoomHint = ""
-        guard DrillLibrary.rooms.contains(where: { $0.id == roomID }) else { return }
+    private func consumeRecommendedCourtHint(proxy: ScrollViewProxy) {
+        guard !recommendedCourtHint.isEmpty else { return }
+        let courtID = recommendedCourtHint
+        recommendedCourtHint = ""
+        guard DrillLibrary.courts.contains(where: { $0.id == courtID }) else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 400_000_000)
             withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                proxy.scrollTo(roomID, anchor: .center)
-                highlightedRoomID = roomID
+                proxy.scrollTo(courtID, anchor: .center)
+                highlightedCourtID = courtID
             }
             try? await Task.sleep(nanoseconds: 2_200_000_000)
-            withAnimation(.easeOut(duration: 0.4)) { highlightedRoomID = nil }
+            withAnimation(.easeOut(duration: 0.4)) { highlightedCourtID = nil }
         }
     }
 
@@ -412,7 +417,7 @@ struct HomeView: View {
             Spacer(minLength: 8)
             // The chips were already the honest summary of practice, so they
             // are also the door to the full breakdown rather than yet another
-            // row competing with the rooms.
+            // row competing with the courts.
             NavigationLink {
                 ProgressDashboardView()
             } label: {
@@ -485,7 +490,7 @@ struct HomeView: View {
     }
 
     /// Today's Get Started is spent. Rather than hand back the same questions
-    /// (a repeat teaches nothing), the card rests and points at the rooms for
+    /// (a repeat teaches nothing), the card rests and points at the courts for
     /// more practice, and comes back fresh tomorrow.
     private var getStartedDoneCard: some View {
         HStack(spacing: 14) {
@@ -498,7 +503,7 @@ struct HomeView: View {
                 Text("Today's session is done")
                     .font(.headline)
                     .foregroundStyle(Theme.ink)
-                Text("A fresh mix lands tomorrow. Keep going in any room below.")
+                Text("A fresh mix lands tomorrow. Keep going in any court below.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -544,10 +549,10 @@ struct HomeView: View {
     /// Focus picks from onboarding float to the top. Nothing is hidden: the
     /// question was "what do you want to hit hardest", not "what should we
     /// take away", so this is an ordering, not a filter.
-    private var orderedRooms: [Room] {
-        guard !profile.focusAreas.isEmpty else { return DrillLibrary.rooms }
-        let focused = DrillLibrary.rooms.filter { profile.focusAreas.contains($0.id) }
-        let rest = DrillLibrary.rooms.filter { !profile.focusAreas.contains($0.id) }
+    private var orderedCourts: [Court] {
+        guard !profile.focusAreas.isEmpty else { return DrillLibrary.courts }
+        let focused = DrillLibrary.courts.filter { profile.focusAreas.contains($0.id) }
+        let rest = DrillLibrary.courts.filter { !profile.focusAreas.contains($0.id) }
         return focused + rest
     }
 
@@ -602,7 +607,7 @@ struct HomeView: View {
                     Text("Tell us about your game")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                    Text("Pick a level and the rooms you want first")
+                    Text("Pick a level and the courts you want first")
                         .font(.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
@@ -619,10 +624,10 @@ struct HomeView: View {
 
     // MARK: - Training modes
 
-    /// The cross-cutting practice modes. They sit above the rooms
+    /// The cross-cutting practice modes. They sit above the courts
     /// because they are what a returning player comes back FOR, but they ride
     /// in one scrolling row of compact tiles rather than three full-width
-    /// cards: Home's job is still the rooms, and everything else earns its
+    /// cards: Home's job is still the courts, and everything else earns its
     /// space.
     private var trainingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -773,9 +778,9 @@ struct HomeView: View {
         .themedCard(corner: 16)
     }
 
-    // MARK: - Rooms
+    // MARK: - Courts
 
-    private var roomsHeading: some View {
+    private var courtsHeading: some View {
         HStack {
             Text("THE ROOMS")
                 .font(.caption.weight(.heavy))
@@ -789,34 +794,34 @@ struct HomeView: View {
 
     /// Progress is a ring, not a sentence. "2 of 3 done · 2 free, 1 with DUPR IQ Pro"
     /// was three facts nobody asked for on a card whose job is to be a door.
-    private func roomCard(_ room: Room) -> some View {
-        let locked = !room.isFree && !subscriptions.isPro
-        let highlighted = highlightedRoomID == room.id
+    private func courtCard(_ court: Court) -> some View {
+        let locked = !court.isFree && !subscriptions.isPro
+        let highlighted = highlightedCourtID == court.id
         // Count only the drills this player can actually open. Putting the
         // locked DUPR IQ Pro set in the denominator would mean a free player's ring
         // can never close, which is a nag dressed up as progress.
-        let open = room.drills.filter { !room.isLocked($0, isMember: subscriptions.isPro) }
+        let open = court.drills.filter { !court.isLocked($0, isMember: subscriptions.isPro) }
         let total = open.count
         let done = open.filter { progress.completions(for: $0.id) > 0 }.count
         return NavigationLink {
-            RoomView(room: room)
+            CourtView(court: court)
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: room.icon)
+                Image(systemName: court.icon)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(room.accent)
+                    .foregroundStyle(court.accent)
                     .frame(width: 48, height: 48)
-                    .background(room.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(court.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(room.name)
+                        Text(court.name)
                             .font(.headline)
                             .foregroundStyle(Theme.ink)
                         if locked {
                             PlusBadge()
                         }
                     }
-                    Text(room.tagline)
+                    Text(court.tagline)
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkSecondary)
                         .lineLimit(2)
@@ -828,14 +833,14 @@ struct HomeView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.gold)
                 } else {
-                    ProgressRing(done: done, total: total, color: room.accent)
+                    ProgressRing(done: done, total: total, color: court.accent)
                 }
             }
             .padding(14)
             .themedCard()
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous)
-                    .strokeBorder(highlighted ? room.accent : Color.clear, lineWidth: 2.5)
+                    .strokeBorder(highlighted ? court.accent : Color.clear, lineWidth: 2.5)
             )
             .contentShape(RoundedRectangle(cornerRadius: Theme.cardCorner, style: .continuous))
         }
@@ -843,7 +848,7 @@ struct HomeView: View {
         .accessibilityHint(locked
             ? "Locked. \(total) drills, included with \(Membership.name)"
             : "\(done) of \(total) drills done")
-        .id(room.id)
+        .id(court.id)
     }
 
     private var upgradeCard: some View {
@@ -860,7 +865,7 @@ struct HomeView: View {
                     Text("Get \(Membership.name)")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                    Text("Targeted review, timed practice, and \(lockedDrillCount) more drills across the focused rooms")
+                    Text("Targeted review, timed practice, and \(lockedDrillCount) more drills across the focused courts")
                         .font(.caption)
                         .foregroundStyle(Theme.inkSecondary)
                         .multilineTextAlignment(.leading)
@@ -882,7 +887,7 @@ struct HomeView: View {
     }
 
     private var lockedDrillCount: Int {
-        DrillLibrary.rooms.reduce(0) { $0 + $1.plusDrillCount }
+        DrillLibrary.courts.reduce(0) { $0 + $1.plusDrillCount }
     }
 
     private var disclaimerFooter: some View {
@@ -894,7 +899,7 @@ struct HomeView: View {
     }
 }
 
-/// Room completion at a glance: a ring that fills as the room's drills get
+/// Court completion at a glance: a ring that fills as the court's drills get
 /// done, and becomes a seal once they all are.
 struct ProgressRing: View {
     let done: Int

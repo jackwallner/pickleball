@@ -23,28 +23,110 @@ every answer names the principle it came from. The money search term is
 
 ## Architecture
 
-**The app is the fleet shell plus this app's generator.** The first build
-(2026-08-24) was written from scratch and had none of the shell every other
-XcodeGen app in `~` inherited: no rooms, no onboarding, no feature tour, no
-What's New, no daily challenge, no drill library, no session builder. On
-2026-08-28 the shell was ported in from `~/electrician` (which is itself the
-`~/mahj` shell already retargeted once to a generator-first app) and the
-bespoke generator was grafted onto it. Read `~/electrician` when you need to
-know why a shell file is shaped the way it is; read this file for what changed
-on the way over.
+**The app is the fleet shell plus this app's generator, played in first
+person.** The first build (2026-08-24) was written from scratch and had none of
+the shell every other XcodeGen app in `~` inherited. On 2026-08-28 the shell was
+ported in from `~/electrician` (itself the `~/mahj` shell retargeted once
+already) and the generator was grafted onto it. Later that day the whole
+presentation was pivoted: the shell's flashcard shape was the problem, not the
+content. Read `~/electrician` when you need to know why a shell file is shaped
+the way it is; read this file for what changed on the way over and what was torn
+out afterwards.
 
-- `Shared/Models` — `Court`, `RallyPosition`, `Shot` (bespoke); `Drill`/`Room`,
-  `Given`, `Principle` (shell shape, this app's domain)
+- `Shared/Models` — `CourtGeometry`, `RallyPosition`, `Shot`, `ShotTargeting`
+  (bespoke); `Drill`/`Court`, `Given`, `Principle` (shell shape, this domain)
 - `Shared/Content` — `PositionGenerator` (the asset) and `ShotAdvisor` (the
-  rules engine), both total, deterministic and seedable; `EndlessPractice`
-  (the adapter), `SessionBuilder`, `DrillLibrary`, and the authored rooms
+  rules engine), both total, deterministic and seedable; `RallyBuilder` (points,
+  not balls), `EndlessPractice` (the adapter), `SessionBuilder`, `DrillLibrary`,
+  and the authored courts
 - `Shared/Services` — progress by phase and practice history, the 15-ball free
-  daily cap, `PracticeRecordStore` (item-level memory), `AppSettings`,
-  `PlayerProfile`, subscriptions, review funnel, `ContentReport`, and the
-  DEBUG-only `DebugFixtures` that gives screenshot runs a deterministic state
-- `DuprIQ/Views` — `HomeView` lobby, `DrillSessionView` (the generated loop),
-  `CourtDiagramView`, the shell's `Drills/` runners for authored content,
-  rooms, onboarding, tour, primer, progress, paywall, settings
+  daily cap, `PracticeRecordStore` (item-level memory), `AppSettings` (including
+  the shot clock), `PlayerProfile`, subscriptions, review funnel,
+  `ContentReport`, and the DEBUG-only `DebugFixtures`
+- `DuprIQ/Views/Court3D` — the first-person court: `CourtCamera` (the eye and
+  the projection), `CourtScene` (the SceneKit world), `CourtPOVView` (the
+  playable view), `AimLabelLayout` (keeping the four captions apart)
+- `DuprIQ/Views` — `HomeView` lobby, `DrillSessionView` (the rally loop),
+  `CourtDiagramView` (the overhead, now an explanation only), the shell's
+  `Drills/` runners for authored content, courts, onboarding, tour, primer,
+  progress, paywall, settings
+
+**Rooms are courts.** The shell arrived calling its four themed groups "rooms",
+which is `~/mahj` vocabulary. They are `Court` now, and the geometry namespace
+that used to own that name is `CourtGeometry`. Both were renamed together, in
+the code and in the copy, because a codebase that disagrees with the product is
+how the next person introduces a third word for the same thing.
+
+### The first-person court
+
+**The decision is made in 3D; the overhead is the whiteboard afterwards.** The
+old loop drew a plan-view diagram, printed the two decisive facts underneath it
+in words ("Below net height, hit from the right side"), and asked the player to
+pick one of four sentences. That is a flashcard: reading ball height off a
+caption is not the skill the app claims to train. Now `CourtPOVView` puts you on
+the court, the ball hangs at an actual height beside a net whose tape is at a
+known one, and the four options are RINGS on the paint where the shot would
+land. `CourtDiagramView` survives inside `VerdictCard`, behind a disclosure,
+which is exactly the role it should have had: the geometry a coach draws for you
+after the point, not the thing you play from.
+
+Grading did not change. A tap still resolves to an index into
+`DrillQuestion.options`, so `ShotAdvisor`, `PositionGenerator` and every test
+that pins them were untouched by the pivot.
+
+**SceneKit draws the world; SwiftUI names it.** There is no text in the scene.
+Player initials and the four captions are SwiftUI, positioned by projecting
+court points through `CourtCamera`, so they stay crisp, honour Dynamic Type and
+reach VoiceOver. `CourtCamera` owns the projection itself rather than calling
+`SCNSceneRenderer.projectPoint`, and it configures the `SCNCamera` from the same
+numbers: if the captions sit on the rings in a screenshot, the two agree.
+
+**Everything in the scene is procedural.** Boxes, capsules, spheres and tori,
+sized in feet from `CourtGeometry`. No models, no textures, no growth in binary
+size, and no way for the rendered court to drift from the rulebook the advisor
+reasons about.
+
+**A net is a mesh, not a panel.** This cost two rebuilds. Drawn as a
+semi-transparent panel it rendered as a solid black wall across the middle of
+the frame and hid the opponents, and each attempted fix (alpha, blend mode,
+depth writes, rendering order) looked like it should have worked. It is now
+about forty thin boxes with holes between them, which physically cannot occlude.
+The detour also produced a wrong camera: reasoning that a 34 inch net hides the
+far kitchen from anyone at their own baseline, the eye was raised to twelve feet
+to see over it, which squeezed the opponents into a thirteenth of the screen. Do
+not raise the camera. You look THROUGH a net.
+
+**The camera is fitted, not fixed.** One field of view cannot serve both ends of
+the court: from your baseline everything is distant and a narrow angle is right,
+while from the kitchen line an opponent at the far sideline is forty degrees off
+your nose. `CourtCamera.viewing` centres the head on what has to be visible and
+widens the angle until it fits, then walks the eye backwards only if widening
+runs out (a pulled-back eye misrepresents how close YOU are to the kitchen,
+which is itself a read). `CourtCameraTests` asserts on every phase that the
+ball, both opponents and all four rings are in frame, that depth runs up the
+screen and that left is left. Those are invisible failures otherwise: everything
+computes, the scene renders, and the one object the question is about is simply
+not there.
+
+**Optic yellow belongs to the ball and the aim rings.** Nothing else may use it.
+Your partner was painted in it and, standing a few feet from the eye, became the
+largest and brightest object on screen.
+
+### Points, not balls
+
+`RallyBuilder` builds POINTS. A correct decision advances the same rally to your
+next shot; a wrong one loses the point and skips the rest of it, the way a real
+one ends. `RallyBuilderTests` pins the part that would otherwise train an
+impossible sequence: the serving team never returns serve and the returning team
+never hits the third shot. Metering is unchanged — every graded ball still costs
+one from the daily allowance, and a session is still truncated to the allowance
+rather than promising balls it cannot grade.
+
+`AppSettings.ShotClock` is the other half. Shot selection with unlimited time to
+deliberate is a different skill from shot selection, and the app was training the
+wrong one; the clock defaults to match pace and a ball you did not decide about
+is graded as a miss, because that is what happens on a court. `off` exists as an
+accessibility escape hatch, not as the normal way to play.
 
 **`EndlessPractice` is the graft seam.** It turns a `DrillQuestion` into the
 same `QuickItem` the authored drills emit, so the session runners never have to
@@ -61,6 +143,11 @@ broken. Do not weaken those tests to land a generator change.
 `ServiceTests` is the equivalent contract for the daily cap, the streak rule,
 the accuracy sample threshold, the practice history and the review gate: none
 of those regressions show up in a generator test.
+`CourtCameraTests`, `ShotTargetingTests`, `AimLabelLayoutTests` and
+`RallyBuilderTests` are the contract for the first-person pivot: what must be in
+frame, where a shot lands, that four captions stay apart and tappable, and that
+a point is a sequence someone could actually play. Every one of them exists
+because of a failure a screenshot caught and no other test would have.
 `ContentTests` is the contract for everything the port brought in: that every
 authored question is answerable, that the Worked Reads room cannot disagree
 with the advisor, that generated balls roll up to one tracking row per phase,
@@ -78,11 +165,22 @@ identical, aimed at the marker now in the mirrored place. Any new rule has to
 keep that symmetry, and any verdict that names an opponent has to carry
 `targetOpponent` so the diagram can highlight the marker it means.
 
-**One kitchen contract.** `Court.kitchenDepth` (7 ft) is the line the rulebook
-and the diagram draw. `Court.kitchenReadyDepth` (8.5 ft) is how far back a
-player can stand and still count as "at the line", because nobody waits inside
-the non-volley zone. Generation, classification, the diagram and the tests all
-use those two constants; do not introduce a third threshold.
+**One kitchen contract.** `CourtGeometry.kitchenDepth` (7 ft) is the line the
+rulebook and both renderers draw. `CourtGeometry.kitchenReadyDepth` (8.5 ft) is
+how far back a player can stand and still count as "at the line", because nobody
+waits inside the non-volley zone. Generation, classification, the 3D scene, the
+overhead and the tests all use those two constants; do not introduce a third
+threshold.
+
+**Where a shot lands is a pure function.** `ShotTargeting` maps a `Shot` to a
+court point, and `ShotAiming` de-collides the four so two options can never draw
+one ring on top of another (the attack phase really does offer both "Put it
+away, at their feet" and "Drive, at their feet"). De-collide in COURT space
+only; screen space is `AimLabelLayout`'s job, and conflating them is what made
+all four captions pile into one unhittable stack at forty feet of depth. The
+fan lays a cluster out around its centre and slides the whole run inside the
+sidelines, because clamping each member independently collapsed the fan
+whenever it sat near an edge.
 
 ## Products
 Local StoreKit configuration (`DuprIQ/DuprIQ.storekit`):

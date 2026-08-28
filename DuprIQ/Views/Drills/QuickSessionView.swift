@@ -17,7 +17,7 @@ private enum QuickSessionPurpose {
 }
 
 /// The Get Started session: a short, UNIFORM run of single-select choice
-/// items pulled from across the rooms. Every item follows the same beat -
+/// items pulled from across the courts. Every item follows the same beat -
 /// pick, grade immediately, the correct answer highlights and HOLDS, then an
 /// explicit Next - so there's no interstitial or mixed grading path to fight
 /// the transition. (The old MixedSessionView packed flip-flashcards, quiz,
@@ -89,7 +89,7 @@ struct QuickSessionView: View {
             // which is both a lie and a dead end.
             SessionEmptyView(
                 title: "Nothing to practise here yet",
-                message: "This session could not find any questions. Open a room and answer a few, then try again.",
+                message: "This session could not find any questions. Open a court and answer a few, then try again.",
                 onDone: onClose
             )
         } else if finished {
@@ -123,6 +123,10 @@ struct QuickSessionView: View {
                     givens: item.givens,
                     position: item.position,
                     targetOpponent: item.targetOpponent,
+                    shots: item.shots,
+                    answerIndex: item.answerIndex,
+                    selection: selection,
+                    onPickShot: { grade($0) },
                     explanation: item.explanation,
                     steps: item.steps,
                     principle: item.principle,
@@ -208,7 +212,7 @@ struct QuickSessionView: View {
         // Fix My Mistakes had almost nothing to work with.
         PracticeRecordStore.shared.record(
             itemID: item.trackingID,
-            roomID: item.roomID,
+            courtID: item.courtID,
             correct: correct,
             isReviewable: item.isReviewable
         )

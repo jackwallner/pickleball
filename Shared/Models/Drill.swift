@@ -135,7 +135,7 @@ struct Drill: Identifiable, Sendable {
     let title: String
     let subtitle: String
     let kind: DrillKind
-    /// Extra practice sets inside an otherwise-free room: same mechanics, more
+    /// Extra practice sets inside an otherwise-free court: same mechanics, more
     /// original questions, locked behind DUPR IQ Pro. Nothing that was free
     /// became paid; these are additions.
     let isPlus: Bool
@@ -149,17 +149,17 @@ struct Drill: Identifiable, Sendable {
     }
 }
 
-struct Room: Identifiable, Sendable {
+struct Court: Identifiable, Sendable {
     let id: String
     let name: String
     let tagline: String
     let icon: String
-    /// A free room still opens for everyone; individual `isPlus` drills inside
-    /// it are the locked extras. A non-free room is locked whole.
+    /// A free court still opens for everyone; individual `isPlus` drills inside
+    /// it are the locked extras. A non-free court is locked whole.
     let isFree: Bool
     let drills: [Drill]
 
-    /// Drills a member unlocks here: the whole room if it's paid, otherwise
+    /// Drills a member unlocks here: the whole court if it's paid, otherwise
     /// just the extra sets.
     var plusDrillCount: Int {
         isFree ? drills.filter(\.isPlus).count : drills.count

@@ -63,7 +63,7 @@ enum HowToPlayContent {
             icon: "figure.walk",
             title: "Read their feet, not the ball",
             body: "Two opponents standing in different places is the most useful information on the court. A player who has not stopped moving cannot get low or get their paddle out in front, so the ball goes at their feet. Two players who have drifted apart have left a seam that neither of them owns.",
-            tip: "The diagram in every drill shows all four sets of feet. That is not decoration; it is the question."
+            tip: "Every ball puts you on the court looking at it. Where their feet are and how high the ball is against the net tape are not decoration; they are the question."
         ),
         HowToPlayPage(
             id: "htp-generated",
@@ -88,34 +88,34 @@ enum HowToPlayContent {
             // actually go is more useful than implying a curriculum that does
             // not exist yet, and a player who finds the gap themselves after
             // paying is right to be annoyed.
-            body: "Four rooms: the court and the rules, the soft game at the kitchen, the third shot and the walk in, and attack and defense. On top of those the generator runs all six rally phases without limit. That is the whole of it right now, and it is deliberately the part of the game that is pure decision-making.",
+            body: "Four courts: the court and the rules, the soft game at the kitchen, the third shot and the walk in, and attack and defense. On top of those the generator runs all six rally phases without limit. That is the whole of it right now, and it is deliberately the part of the game that is pure decision-making.",
             tip: "Serving strategy, stacking, singles and stroke technique are not covered. This app grades where the ball should go, not how to hit it."
         ),
     ]
 }
 
 extension HowToPlayContent {
-    /// Maps the onboarding experience level to the room recommended at the end
+    /// Maps the onboarding experience level to the court recommended at the end
     /// of the primer. Someone already playing tournaments does not need the
-    /// rules tour; they need the room where their rallies are actually lost.
-    static func recommendedRoom(forSkillLevel skillLevel: String) -> Room {
-        let roomID: String
+    /// rules tour; they need the court where their rallies are actually lost.
+    static func recommendedCourt(forSkillLevel skillLevel: String) -> Court {
+        let courtID: String
         switch ExperienceLevel(rawValue: skillLevel) {
-        case .rec: roomID = DrillLibrary.kitchenRoomID
-        case .improving: roomID = DrillLibrary.transitionRoomID
-        case .competitive, .coaching: roomID = DrillLibrary.pressureRoomID
-        case .new, .none: roomID = DrillLibrary.basicsRoomID
+        case .rec: courtID = DrillLibrary.kitchenCourtID
+        case .improving: courtID = DrillLibrary.transitionCourtID
+        case .competitive, .coaching: courtID = DrillLibrary.pressureCourtID
+        case .new, .none: courtID = DrillLibrary.basicsCourtID
         }
-        return DrillLibrary.rooms.first { $0.id == roomID } ?? DrillLibrary.rooms[0]
+        return DrillLibrary.courts.first { $0.id == courtID } ?? DrillLibrary.courts[0]
     }
 
     /// A player's focus picks win over the experience-level default: they were
     /// asked the question directly and answering it should do something.
-    static func recommendedRoom(forSkillLevel skillLevel: String,
-                                focusAreas: Set<String>) -> Room {
-        if let focused = DrillLibrary.rooms.first(where: { focusAreas.contains($0.id) }) {
+    static func recommendedCourt(forSkillLevel skillLevel: String,
+                                focusAreas: Set<String>) -> Court {
+        if let focused = DrillLibrary.courts.first(where: { focusAreas.contains($0.id) }) {
             return focused
         }
-        return recommendedRoom(forSkillLevel: skillLevel)
+        return recommendedCourt(forSkillLevel: skillLevel)
     }
 }

@@ -35,7 +35,7 @@ struct EndlessPickerView: View {
                             phaseCard(phase)
                         }
                         .buttonStyle(PressableCardStyle())
-                        .accessibilityIdentifier("room-\(phase.rawValue)")
+                        .accessibilityIdentifier("court-\(phase.rawValue)")
                     }
                     allowanceFooter
                 }
@@ -127,7 +127,7 @@ struct EndlessPickerView: View {
     }
 
     /// The allowance, stated before it runs out rather than at the moment it
-    /// does. Only the generated loop is metered: the authored rooms are finite
+    /// does. Only the generated loop is metered: the authored courts are finite
     /// and two of them are free forever, so counting them against a daily cap
     /// would quietly take back what the free tier promised.
     @ViewBuilder

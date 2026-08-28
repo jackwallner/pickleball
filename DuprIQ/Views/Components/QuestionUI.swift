@@ -47,6 +47,19 @@ struct QuestionPager<Choices: View>: View {
     /// The marker the graded answer is aimed at. Only passed once the question
     /// has been answered, so the highlight is a reveal rather than a hint.
     var targetOpponent: OpponentSide? = nil
+    /// The four options as shots, when this question came from the generator.
+    ///
+    /// When present the pager stops rendering a diagram above a list of text
+    /// rows and renders the first-person court instead, which IS both: the four
+    /// rings on the paint are the question and the answer control at once. A
+    /// generated ball played from Home and the same ball played inside Daily
+    /// Drill have to feel like the same game, and before this they did not.
+    var shots: [Shot] = []
+    /// Which option is right, and which one the player picked. Only used by the
+    /// first-person path, which has to colour its own rings.
+    var answerIndex: Int = 0
+    var selection: Int? = nil
+    var onPickShot: ((Int) -> Void)? = nil
     let explanation: String
     /// A calculation's working. When present it replaces the explanation
     /// paragraph with numbered steps, because a paragraph hides which step was
@@ -61,7 +74,7 @@ struct QuestionPager<Choices: View>: View {
     /// Non-nil once the question has been graded and can be reported.
     var reportContext: ContentReport.Context? = nil
     let answered: Bool
-    /// The room/source eyebrow. It belongs INSIDE the pager so it centres with
+    /// The court/source eyebrow. It belongs INSIDE the pager so it centres with
     /// the question: pinned above it on an iPad, the eyebrow sat alone at the
     /// top with a hand's width of empty cream between it and the prompt.
     var eyebrow: String? = nil
@@ -85,7 +98,24 @@ struct QuestionPager<Choices: View>: View {
                     .foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
-                if let position {
+                if let position, !shots.isEmpty {
+                    CourtPOVView(
+                        position: position,
+                        options: shots,
+                        aimPoints: ShotAiming.aimPoints(
+                            for: shots, in: position,
+                            answer: shots[safe: answerIndex],
+                            answerTarget: targetOpponent
+                        ),
+                        phase: selection.map {
+                            .graded(picked: $0, answer: answerIndex)
+                        } ?? .deciding,
+                        onPick: selection == nil ? onPickShot : nil
+                    )
+                    .frame(height: 340)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 4)
+                } else if let position {
                     CourtDiagramView(
                         position: position,
                         highlight: answered ? targetOpponent : nil
@@ -97,7 +127,12 @@ struct QuestionPager<Choices: View>: View {
                     GivensView(givens: givens)
                         .padding(.horizontal, 4)
                 }
-                choices()
+                // The court IS the choice control on the first-person path, so
+                // a row of text options underneath it would be a second way to
+                // answer the same question.
+                if shots.isEmpty {
+                    choices()
+                }
                 if answered {
                     VStack(spacing: 12) {
                         if let missNote {
@@ -132,7 +167,7 @@ struct QuestionPager<Choices: View>: View {
             // A ScrollView clips its content, so a row that scales up to the
             // full content width would get its sides sheared off (that was the
             // "glitchy edges" on the correct answer). The padding is what buys
-            // that room. Do NOT reach for `scrollClipDisabled()` instead: an
+            // that court. Do NOT reach for `scrollClipDisabled()` instead: an
             // unclipped scroll view draws its overflow straight through the
             // navigation bar above and the drill's Next button below.
             .padding(.horizontal, 10)
@@ -301,7 +336,7 @@ struct MissNoteView: View {
 /// The numbered working, and the article to check it against.
 ///
 /// Shared by `WorkedDrillView` and every generated calculation in a session, so
-/// the authored room and the paid generator explain a miss the same way. They
+/// the authored court and the paid generator explain a miss the same way. They
 /// used to differ: the generator flattened its steps into one paragraph.
 struct WorkedStepsView: View {
     let steps: [String]
@@ -337,10 +372,10 @@ struct WorkedStepsView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.worksheet, in: RoundedRectangle(cornerRadius: 14))
+        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Theme.worksheetEdge, lineWidth: 1)
+                .strokeBorder(Theme.panelEdge, lineWidth: 1)
         )
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }

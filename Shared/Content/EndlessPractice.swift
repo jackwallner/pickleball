@@ -27,13 +27,13 @@ extension RallyPhase {
         }
     }
 
-    /// The room this phase practises, for the stats breakdown.
-    var roomID: String {
+    /// The court this phase practises, for the stats breakdown.
+    var courtID: String {
         switch self {
-        case .serveReturn: return DrillLibrary.basicsRoomID
-        case .dinkRally: return DrillLibrary.kitchenRoomID
-        case .thirdShot, .transition: return DrillLibrary.transitionRoomID
-        case .attack, .defense: return DrillLibrary.pressureRoomID
+        case .serveReturn: return DrillLibrary.basicsCourtID
+        case .dinkRally: return DrillLibrary.kitchenCourtID
+        case .thirdShot, .transition: return DrillLibrary.transitionCourtID
+        case .attack, .defense: return DrillLibrary.pressureCourtID
         }
     }
 
@@ -73,7 +73,7 @@ enum EndlessPractice {
     }
 
     /// A mixed batch across every phase, which is what a real rally feels like
-    /// and what stops a player pattern-matching on the room title.
+    /// and what stops a player pattern-matching on the court title.
     static func mixedItems(count: Int, seed: UInt64? = nil) -> [QuickItem] {
         let base = seed ?? UInt64.random(in: 0..<UInt64.max)
         return PositionGenerator.session(count: count, seed: base).map { item(from: $0) }
@@ -82,7 +82,7 @@ enum EndlessPractice {
     /// Adapts a generated question into the session runner's shape.
     ///
     /// The read stays a LIST of steps. Flattening it into one paragraph would
-    /// throw away the thing the authored Worked Reads room does best: a miss is
+    /// throw away the thing the authored Worked Reads court does best: a miss is
     /// almost never a wild guess, it is one skipped step of the read, and a
     /// paragraph hides which one. The generator is the paid tier, so it gets
     /// the better explanation, not the worse one.
@@ -97,13 +97,14 @@ enum EndlessPractice {
             prompt: prompt(for: question.position),
             position: question.position,
             targetOpponent: verdict.targetOpponent,
+            shots: question.options,
             choices: question.options.map(\.label),
             answerIndex: question.answerIndex,
             explanation: verdict.why,
             steps: readSteps(for: question.position, verdict: verdict),
             principle: verdict.principle,
             sourceLabel: sourceLabel,
-            roomID: phase.roomID,
+            courtID: phase.courtID,
             phase: phase,
             // Every generated ball in a phase reports to one row, so an
             // unbounded stream of one-off ids cannot grow the store forever.

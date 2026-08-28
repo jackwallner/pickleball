@@ -1,6 +1,6 @@
 import Foundation
 
-/// The principle room's content.
+/// The principle court's content.
 ///
 /// The flashcards are generated from `Principle` itself rather than retyped,
 /// because the enum is already the single source of the system's vocabulary and
@@ -77,7 +77,7 @@ enum PrincipleContent {
             scenario: "Everyone is at the line, the ball is below net height, nobody is out of position, and you just need somewhere safe to put it.",
             choices: [.longestDiagonal, .middleSeam, .finishDown, .returnDeep],
             answer: .longestDiagonal,
-            explanation: "The cross-court dink travels the longest distance on the court and crosses the net at its lowest point, so it has the most margin of any ball available. When no read is screaming at you, take the shot with the most room for error."
+            explanation: "The cross-court dink travels the longest distance on the court and crosses the net at its lowest point, so it has the most margin of any ball available. When no read is screaming at you, take the shot with the most court for error."
         ),
         PrincipleMatchQuestion(
             id: "pm-low-drive-temptation",

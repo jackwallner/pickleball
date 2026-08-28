@@ -20,6 +20,15 @@ struct QuickItem: Identifiable, Sendable {
     /// Naming a target is only coaching if the player can see which of the two
     /// identical markers it means.
     let targetOpponent: OpponentSide?
+    /// The four options as SHOTS rather than as strings, when this item came
+    /// from the generator.
+    ///
+    /// A shot knows where it lands, and a string does not. This is what lets a
+    /// generated question inside one of the shell's session runners be played
+    /// the same way it is played from the lobby: on the court, by aiming.
+    /// Authored items leave it empty and keep their text choices, because a
+    /// rules quiz genuinely is a question about words.
+    let shots: [Shot]
     let choices: [String]
     let answerIndex: Int
     let explanation: String
@@ -32,9 +41,9 @@ struct QuickItem: Identifiable, Sendable {
     let principle: String?
     /// e.g. "The Kitchen Game", shown as a small tag above the prompt.
     let sourceLabel: String
-    /// The room this item came from, for per-room accuracy stats. Generated
-    /// items report the room whose phase they drill.
-    let roomID: String
+    /// The court this item came from, for per-court accuracy stats. Generated
+    /// items report the court whose phase they drill.
+    let courtID: String
     /// The rally phase this item trains, when it maps onto one. Generated items
     /// always do; authored ones do when they are about a specific phase. This
     /// is what keeps the shell's stats and the bespoke `ProgressStore` phase
@@ -58,13 +67,14 @@ struct QuickItem: Identifiable, Sendable {
         givens: [Given] = [],
         position: RallyPosition? = nil,
         targetOpponent: OpponentSide? = nil,
+        shots: [Shot] = [],
         choices: [String],
         answerIndex: Int,
         explanation: String,
         steps: [String] = [],
         principle: String? = nil,
         sourceLabel: String,
-        roomID: String,
+        courtID: String,
         phase: RallyPhase? = nil,
         trackingID: String? = nil,
         isReviewable: Bool = true,
@@ -75,13 +85,14 @@ struct QuickItem: Identifiable, Sendable {
         self.givens = givens
         self.position = position
         self.targetOpponent = targetOpponent
+        self.shots = shots
         self.choices = choices
         self.answerIndex = answerIndex
         self.explanation = explanation
         self.steps = steps
         self.principle = principle
         self.sourceLabel = sourceLabel
-        self.roomID = roomID
+        self.courtID = courtID
         self.phase = phase
         self.trackingID = trackingID ?? id
         self.isReviewable = isReviewable
@@ -96,7 +107,7 @@ struct QuickItem: Identifiable, Sendable {
 }
 
 /// Builds the Quick Session: a short run of choice-only items pulled from
-/// across the rooms, weighted so misses come back first and unseen material
+/// across the courts, weighted so misses come back first and unseen material
 /// beats review. Plain flip flashcards and worked reads are excluded; they
 /// aren't right/wrong in one tap and don't belong in a uniform choice flow.
 enum SessionBuilder {
@@ -171,7 +182,7 @@ enum SessionBuilder {
         return authored + generated
     }
 
-    /// A member's pre-match session. Due mistakes lead, then the weakest room,
+    /// A member's pre-match session. Due mistakes lead, then the weakest court,
     /// then unseen material. The final tier keeps the session full for a new
     /// player who has not built enough history to personalize yet.
     static func matchWarmUp(
@@ -179,7 +190,7 @@ enum SessionBuilder {
         seen: Set<String>,
         missed: Set<String>,
         dueIDs: [String],
-        weakestRoomID: String?
+        weakestCourtID: String?
     ) -> [QuickItem] {
         let due = Set(dueIDs)
         let pool = choicePool(includePro: true)
@@ -187,7 +198,7 @@ enum SessionBuilder {
         func tier(_ item: QuickItem) -> Int {
             if due.contains(item.id) { return 0 }
             if missed.contains(item.id) { return 1 }
-            if item.roomID == weakestRoomID { return 2 }
+            if item.courtID == weakestCourtID { return 2 }
             if !seen.contains(item.id) { return 3 }
             return 4
         }
@@ -199,10 +210,10 @@ enum SessionBuilder {
             .map(prepared)
     }
 
-    /// Used by deterministic daily features to draw from a particular room
+    /// Used by deterministic daily features to draw from a particular court
     /// without exposing locked content to callers that did not request it.
-    static func choiceItems(in roomID: String, includePro: Bool) -> [QuickItem] {
-        choicePool(includePro: includePro).filter { $0.roomID == roomID }
+    static func choiceItems(in courtID: String, includePro: Bool) -> [QuickItem] {
+        choicePool(includePro: includePro).filter { $0.courtID == courtID }
     }
 
     /// Answer-position variety: shuffle each item's choices deterministically
@@ -224,7 +235,7 @@ enum SessionBuilder {
             steps: item.steps,
             principle: item.principle,
             sourceLabel: item.sourceLabel,
-            roomID: item.roomID,
+            courtID: item.courtID,
             phase: item.phase,
             trackingID: item.trackingID,
             isReviewable: item.isReviewable,
@@ -232,12 +243,12 @@ enum SessionBuilder {
         )
     }
 
-    /// Every choice-gradeable item a player is entitled to: the free rooms'
-    /// free drills, plus (for members) the locked extra sets and the paid rooms.
+    /// Every choice-gradeable item a player is entitled to: the free courts'
+    /// free drills, plus (for members) the locked extra sets and the paid courts.
     static func choicePool(includePro: Bool) -> [QuickItem] {
         var pool: [QuickItem] = []
-        for room in DrillLibrary.rooms where room.isFree || includePro {
-            for drill in room.drills where !room.isLocked(drill, isMember: includePro) {
+        for court in DrillLibrary.courts where court.isFree || includePro {
+            for drill in court.drills where !court.isLocked(drill, isMember: includePro) {
                 switch drill.kind {
                 case .quiz(let questions):
                     pool += questions.map { question in
@@ -249,9 +260,9 @@ enum SessionBuilder {
                             answerIndex: question.answerIndex,
                             explanation: question.explanation,
                             principle: question.principle,
-                            sourceLabel: room.name,
-                            roomID: room.id,
-                            phase: DrillLibrary.phase(forRoomID: room.id)
+                            sourceLabel: court.name,
+                            courtID: court.id,
+                            phase: DrillLibrary.phase(forCourtID: court.id)
                         )
                     }
                 case .principleMatch(let questions):
@@ -265,9 +276,9 @@ enum SessionBuilder {
                             answerIndex: answerIndex,
                             explanation: question.explanation,
                             principle: question.answer.tag,
-                            sourceLabel: room.name,
-                            roomID: room.id,
-                            phase: DrillLibrary.phase(forRoomID: room.id)
+                            sourceLabel: court.name,
+                            courtID: court.id,
+                            phase: DrillLibrary.phase(forCourtID: court.id)
                         )
                     }
                 case .flashcards(let cards):
@@ -285,9 +296,9 @@ enum SessionBuilder {
                             answerIndex: choice.answerIndex,
                             explanation: card.backBody,
                             principle: card.principle,
-                            sourceLabel: room.name,
-                            roomID: room.id,
-                            phase: DrillLibrary.phase(forRoomID: room.id)
+                            sourceLabel: court.name,
+                            courtID: court.id,
+                            phase: DrillLibrary.phase(forCourtID: court.id)
                         )
                     }
                 case .worked:

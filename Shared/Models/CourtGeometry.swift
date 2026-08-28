@@ -7,7 +7,7 @@ import Foundation
 /// baseline) through 22 (the net) to 44 (their baseline). Every position the
 /// generator emits and every zone the advisor reasons about uses this frame,
 /// so a saved position renders the same way it was graded.
-enum Court {
+enum CourtGeometry {
     static let width: Double = 20
     static let length: Double = 44
     static let netY: Double = 22
@@ -69,7 +69,7 @@ enum CourtSide: String, Sendable {
     case far    // y > netY, the opponents
 }
 
-extension Court {
+extension CourtGeometry {
     /// Bucket a y coordinate into a zone. `side` decides which direction
     /// "toward the net" runs, so the same thresholds serve both teams.
     static func zone(forY y: Double, side: CourtSide) -> CourtZone {
@@ -109,19 +109,19 @@ struct CourtPoint: Equatable, Sendable {
         self.y = y
     }
 
-    var side: CourtSide { Court.side(forY: y) }
-    var zone: CourtZone { Court.zone(forY: y, side: side) }
+    var side: CourtSide { CourtGeometry.side(forY: y) }
+    var zone: CourtZone { CourtGeometry.zone(forY: y, side: side) }
 
     /// True when the point sits left of the center line from the drilling
     /// player's view. Used to work out which diagonal a cross-court ball takes.
-    var isLeftHalf: Bool { x < Court.centerX }
+    var isLeftHalf: Bool { x < CourtGeometry.centerX }
 
     /// How far off the center line this point is, in feet.
-    var offsetFromMiddle: Double { abs(x - Court.centerX) }
+    var offsetFromMiddle: Double { abs(x - CourtGeometry.centerX) }
 
     /// True when the contact is close enough to the middle that the cross-court
     /// diagonal is no longer meaningfully longer than the straight ball.
-    var isNearMiddle: Bool { offsetFromMiddle <= Court.middleContactHalfWidth }
+    var isNearMiddle: Bool { offsetFromMiddle <= CourtGeometry.middleContactHalfWidth }
 
-    var mirrored: CourtPoint { CourtPoint(x: Court.mirroredX(x), y: y) }
+    var mirrored: CourtPoint { CourtPoint(x: CourtGeometry.mirroredX(x), y: y) }
 }

@@ -14,15 +14,15 @@ final class PositionGeneratorTests: XCTestCase {
                 for (name, point) in [("you", p.you), ("partner", p.partner),
                                       ("left", p.opponentLeft), ("right", p.opponentRight),
                                       ("ball", p.contact)] {
-                    XCTAssertTrue((0...Court.width).contains(point.x),
+                    XCTAssertTrue((0...CourtGeometry.width).contains(point.x),
                                   "\(phase)/\(seed): \(name) x=\(point.x) off court")
-                    XCTAssertTrue((0...Court.length).contains(point.y),
+                    XCTAssertTrue((0...CourtGeometry.length).contains(point.y),
                                   "\(phase)/\(seed): \(name) y=\(point.y) off court")
                 }
-                XCTAssertLessThan(p.you.y, Court.netY, "\(phase)/\(seed): you crossed the net")
-                XCTAssertLessThan(p.partner.y, Court.netY, "\(phase)/\(seed): partner crossed the net")
-                XCTAssertGreaterThan(p.opponentLeft.y, Court.netY, "\(phase)/\(seed): opponent on our side")
-                XCTAssertGreaterThan(p.opponentRight.y, Court.netY, "\(phase)/\(seed): opponent on our side")
+                XCTAssertLessThan(p.you.y, CourtGeometry.netY, "\(phase)/\(seed): you crossed the net")
+                XCTAssertLessThan(p.partner.y, CourtGeometry.netY, "\(phase)/\(seed): partner crossed the net")
+                XCTAssertGreaterThan(p.opponentLeft.y, CourtGeometry.netY, "\(phase)/\(seed): opponent on our side")
+                XCTAssertGreaterThan(p.opponentRight.y, CourtGeometry.netY, "\(phase)/\(seed): opponent on our side")
             }
         }
     }
@@ -90,19 +90,19 @@ final class PositionGeneratorTests: XCTestCase {
         // coaching language and the drawn line disagree.
         for side in [CourtSide.near, CourtSide.far] {
             let atLine = side == .near
-                ? Court.netY - Court.kitchenReadyDepth + 0.2
-                : Court.netY + Court.kitchenReadyDepth - 0.2
+                ? CourtGeometry.netY - CourtGeometry.kitchenReadyDepth + 0.2
+                : CourtGeometry.netY + CourtGeometry.kitchenReadyDepth - 0.2
             let stepBack = side == .near
-                ? Court.netY - Court.kitchenReadyDepth - 0.2
-                : Court.netY + Court.kitchenReadyDepth + 0.2
-            XCTAssertEqual(Court.zone(forY: atLine, side: side), .kitchen, "\(side)")
-            XCTAssertEqual(Court.zone(forY: stepBack, side: side), .transition, "\(side)")
+                ? CourtGeometry.netY - CourtGeometry.kitchenReadyDepth - 0.2
+                : CourtGeometry.netY + CourtGeometry.kitchenReadyDepth + 0.2
+            XCTAssertEqual(CourtGeometry.zone(forY: atLine, side: side), .kitchen, "\(side)")
+            XCTAssertEqual(CourtGeometry.zone(forY: stepBack, side: side), .transition, "\(side)")
         }
         // The two sides are reflections of each other, not offset copies.
         for depth in stride(from: 0.5, through: 21.0, by: 0.5) {
             XCTAssertEqual(
-                Court.zone(forY: Court.netY - depth, side: .near),
-                Court.zone(forY: Court.netY + depth, side: .far),
+                CourtGeometry.zone(forY: CourtGeometry.netY - depth, side: .near),
+                CourtGeometry.zone(forY: CourtGeometry.netY + depth, side: .far),
                 "depth \(depth) classifies differently on the two sides"
             )
         }
@@ -160,11 +160,11 @@ final class PositionGeneratorTests: XCTestCase {
                 for (name, point) in [("you", p.you), ("partner", p.partner),
                                       ("left", p.opponentLeft), ("right", p.opponentRight),
                                       ("ball", p.contact)] {
-                    XCTAssertTrue((0...Court.width).contains(point.x), "\(phase)/\(seed): \(name)")
-                    XCTAssertTrue((0...Court.length).contains(point.y), "\(phase)/\(seed): \(name)")
+                    XCTAssertTrue((0...CourtGeometry.width).contains(point.x), "\(phase)/\(seed): \(name)")
+                    XCTAssertTrue((0...CourtGeometry.length).contains(point.y), "\(phase)/\(seed): \(name)")
                 }
-                XCTAssertLessThan(p.you.y, Court.netY)
-                XCTAssertGreaterThan(p.opponentLeft.y, Court.netY)
+                XCTAssertLessThan(p.you.y, CourtGeometry.netY)
+                XCTAssertGreaterThan(p.opponentLeft.y, CourtGeometry.netY)
                 XCTAssertLessThanOrEqual(p.opponentLeft.x, p.opponentRight.x,
                                          "\(phase)/\(seed): mirroring did not swap left and right")
             }

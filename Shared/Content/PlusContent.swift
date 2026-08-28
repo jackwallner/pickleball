@@ -1,6 +1,6 @@
 import Foundation
 
-/// The extra sets inside the free rooms.
+/// The extra sets inside the free courts.
 ///
 /// These are additions, not confiscations. Every drill that was free before is
 /// still free; these are more original questions with the same mechanics,

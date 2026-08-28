@@ -29,6 +29,39 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// How long you get to commit to a shot.
+    ///
+    /// The clock is the whole difference between studying a position and
+    /// playing one. The strongest evidence in racquet-sport perceptual training
+    /// is for temporal occlusion: show the situation, take it away, make the
+    /// player commit before they have finished deliberating. A position you can
+    /// stare at for a minute trains a different skill from the one that decides
+    /// points, so `match` is the default and `off` is an accessibility escape
+    /// hatch rather than the normal way to play.
+    enum ShotClock: String, CaseIterable, Identifiable {
+        case tournament, match, relaxed, off
+
+        var id: String { rawValue }
+
+        var seconds: Double? {
+            switch self {
+            case .tournament: return 3
+            case .match: return 5
+            case .relaxed: return 9
+            case .off: return nil
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case .tournament: return "Tournament (3s)"
+            case .match: return "Match (5s)"
+            case .relaxed: return "Relaxed (9s)"
+            case .off: return "No clock"
+            }
+        }
+    }
+
     enum MatchWarmUpDay: Int, CaseIterable, Identifiable {
         case sunday = 1, monday, tuesday, wednesday, thursday, friday, saturday
 
@@ -52,6 +85,7 @@ final class AppSettings: ObservableObject {
         static let haptics = "settings.haptics"
         static let sound = "settings.sound"
         static let celebrations = "settings.celebrations"
+        static let shotClock = "settings.shotClock"
         static let reminderEnabled = "settings.reminderEnabled"
         static let reminderHour = "settings.reminderHour"
         static let reminderMinute = "settings.reminderMinute"
@@ -90,6 +124,10 @@ final class AppSettings: ObservableObject {
     /// sound keep their own switches; this one is only the visual celebration.
     @Published var celebrationsEnabled: Bool {
         didSet { defaults.set(celebrationsEnabled, forKey: Keys.celebrations) }
+    }
+
+    @Published var shotClock: ShotClock {
+        didSet { defaults.set(shotClock.rawValue, forKey: Keys.shotClock) }
     }
 
     @Published var reminderEnabled: Bool {
@@ -152,6 +190,8 @@ final class AppSettings: ObservableObject {
         hapticsEnabled = defaults.object(forKey: Keys.haptics) as? Bool ?? true
         soundEnabled = defaults.object(forKey: Keys.sound) as? Bool ?? true
         celebrationsEnabled = defaults.object(forKey: Keys.celebrations) as? Bool ?? false
+        shotClock = ShotClock(rawValue: defaults.string(forKey: Keys.shotClock) ?? "")
+            ?? .match
         reminderEnabled = defaults.bool(forKey: Keys.reminderEnabled)
         let hour = defaults.object(forKey: Keys.reminderHour) as? Int ?? 9
         let minute = defaults.object(forKey: Keys.reminderMinute) as? Int ?? 0

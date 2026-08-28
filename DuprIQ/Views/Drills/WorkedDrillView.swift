@@ -136,7 +136,7 @@ struct WorkedDrillView: View {
             confettiTrigger += 1
         }
         progress.recordItem(id: scenario.id, correct: correct)
-        PracticeRecordStore.shared.record(itemID: scenario.id, roomID: roomID, correct: correct)
+        PracticeRecordStore.shared.record(itemID: scenario.id, courtID: courtID, correct: correct)
         if correct {
             Haptics.correctAnswer()
             SoundPlayer.play(.success)
@@ -157,7 +157,7 @@ struct WorkedDrillView: View {
         }
     }
 
-    /// The room a worked example belongs to, so its result lands in the same
+    /// The court a worked example belongs to, so its result lands in the same
     /// stats bucket as the generated practice for the same skill.
-    private var roomID: String { DrillLibrary.roomID(forDrillID: drill.id) }
+    private var courtID: String { DrillLibrary.courtID(forDrillID: drill.id) }
 }

@@ -15,7 +15,7 @@ struct PracticeRecord: Codable, Sendable {
     var dueDate: Date = .distantPast
     var intervalDays: Double = 0
     var ease: Double = 2.5
-    var roomID: String = ""
+    var courtID: String = ""
     /// Optional for backward-compatible decoding of records written before
     /// generated daily prompts existed.
     var reviewSuppressed: Bool?
@@ -49,7 +49,7 @@ struct MistakeTally: Codable, Sendable {
 }
 
 /// Per-item practice history, the spaced-repetition queue built on top of it,
-/// the mistake-pattern tallies behind targeted practice, and the room-level
+/// the mistake-pattern tallies behind targeted practice, and the court-level
 /// rollups the stats screen reads.
 @MainActor
 final class PracticeRecordStore: ObservableObject {
@@ -149,7 +149,7 @@ final class PracticeRecordStore: ObservableObject {
     /// the review queue.
     func record(
         itemID: String,
-        roomID: String,
+        courtID: String,
         correct: Bool,
         isReviewable: Bool = true,
         now: Date = Date()
@@ -159,7 +159,7 @@ final class PracticeRecordStore: ObservableObject {
 
         var record = records[key] ?? PracticeRecord()
         record.attempts += 1
-        record.roomID = roomID
+        record.courtID = courtID
         record.reviewSuppressed = !isReviewable || isGenerated
         record.lastAnswered = now
         if correct {
@@ -233,7 +233,7 @@ final class PracticeRecordStore: ObservableObject {
 
     // MARK: - Stats
 
-    struct RoomStat: Identifiable {
+    struct CourtStat: Identifiable {
         let id: String
         let name: String
         let attempts: Int
@@ -247,15 +247,15 @@ final class PracticeRecordStore: ObservableObject {
         totalAttempts == 0 ? 0 : Double(totalCorrect) / Double(totalAttempts)
     }
 
-    /// Accuracy per room, in library order, skipping rooms never practised.
-    func roomStats() -> [RoomStat] {
-        DrillLibrary.rooms.compactMap { room in
-            let mine = records.values.filter { $0.roomID == room.id }
+    /// Accuracy per court, in library order, skipping courts never practised.
+    func courtStats() -> [CourtStat] {
+        DrillLibrary.courts.compactMap { court in
+            let mine = records.values.filter { $0.courtID == court.id }
             let attempts = mine.reduce(0) { $0 + $1.attempts }
             guard attempts > 0 else { return nil }
-            return RoomStat(
-                id: room.id,
-                name: room.name,
+            return CourtStat(
+                id: court.id,
+                name: court.name,
                 attempts: attempts,
                 correct: mine.reduce(0) { $0 + $1.correct }
             )
@@ -266,10 +266,10 @@ final class PracticeRecordStore: ObservableObject {
     /// row per skill, so this is the finest breakdown the store can honestly
     /// report for them: "you are 58% on derating" is actionable in a way that
     /// "you are 71% in Conductors & Ampacity" is not.
-    func skillStats() -> [RoomStat] {
+    func skillStats() -> [CourtStat] {
         RallyPhase.allCases.compactMap { skill in
             guard let record = records[skill.rawValue], record.attempts > 0 else { return nil }
-            return RoomStat(
+            return CourtStat(
                 id: skill.rawValue,
                 name: skill.title,
                 attempts: record.attempts,
@@ -278,9 +278,9 @@ final class PracticeRecordStore: ObservableObject {
         }
     }
 
-    /// The room a player is worst at, once there is enough data to mean it.
-    func weakestRoom() -> RoomStat? {
-        roomStats().filter { $0.attempts >= 5 }.min { $0.accuracy < $1.accuracy }
+    /// The court a player is worst at, once there is enough data to mean it.
+    func weakestCourt() -> CourtStat? {
+        courtStats().filter { $0.attempts >= 5 }.min { $0.accuracy < $1.accuracy }
     }
 
     func resetAll() {

@@ -14,12 +14,12 @@ import XCTest
 final class ScreenshotTests: ScreenshotHarness {
 
     /// 01 Practice lobby: the daily rally, the recommended phase, and the six
-    /// phase rooms with their accuracy readouts.
+    /// phase courts with their accuracy readouts.
     func test01Lobby() {
         launch()
         guard selectTab("Practice") else { return }
         expect("mixed-rally", on: "lobby")
-        expect("room-dinkRally", on: "lobby")
+        expect("court-dinkRally", on: "lobby")
         settle()
         capture("01_lobby")
     }

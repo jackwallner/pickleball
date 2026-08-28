@@ -14,7 +14,7 @@ struct HowToPlayView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("duprIQ.skillLevel") private var skillLevel = ""
-    @AppStorage("duprIQ.recommendedRoomHint") private var recommendedRoomHint = ""
+    @AppStorage("duprIQ.recommendedCourtHint") private var recommendedCourtHint = ""
     /// Read to the end once: Home stops showing the primer card, and the
     /// primer becomes a Settings row like any other reference.
     @AppStorage("duprIQ.hasReadPrimer") private var hasReadPrimer = false
@@ -28,7 +28,7 @@ struct HowToPlayView: View {
     private var page: HowToPlayPage { pages[index] }
     private var isLast: Bool { index == pages.count - 1 }
     private var isFirst: Bool { index == 0 }
-    private var recommendedRoom: Room { HowToPlayContent.recommendedRoom(forSkillLevel: skillLevel) }
+    private var recommendedCourt: Court { HowToPlayContent.recommendedCourt(forSkillLevel: skillLevel) }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -124,7 +124,7 @@ struct HowToPlayView: View {
             }
             if let onSkip {
                 Button {
-                    recommendedRoomHint = recommendedRoom.id
+                    recommendedCourtHint = recommendedCourt.id
                     onSkip()
                 } label: {
                     Text("Skip for now")
@@ -177,26 +177,26 @@ struct HowToPlayView: View {
         .shine(trigger: shineTrigger, corner: 22)
     }
 
-    /// The primer's real next action: a tappable card recommending a room
+    /// The primer's real next action: a tappable card recommending a court
     /// based on the onboarding skill level. Tapping it drives the same
     /// `advance()` as the primary button below (dismiss standalone / finish
     /// onboarding), and both routes set the one-shot hint `HomeView` consumes
-    /// to highlight that room.
+    /// to highlight that court.
     private var recommendationCard: some View {
         Button {
             advance()
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: recommendedRoom.icon)
+                Image(systemName: recommendedCourt.icon)
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(recommendedRoom.accent)
+                    .foregroundStyle(recommendedCourt.accent)
                     .frame(width: 40, height: 40)
-                    .background(recommendedRoom.accent.opacity(0.14), in: Circle())
+                    .background(recommendedCourt.accent.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Recommended: \(recommendedRoom.name)")
+                    Text("Recommended: \(recommendedCourt.name)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
-                    Text(recommendedRoom.tagline)
+                    Text(recommendedCourt.tagline)
                         .font(.caption)
                         .foregroundStyle(Theme.inkSecondary)
                 }
@@ -207,10 +207,10 @@ struct HowToPlayView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity)
-            .background(recommendedRoom.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(recommendedCourt.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(recommendedRoom.accent.opacity(0.35), lineWidth: 1.2)
+                    .strokeBorder(recommendedCourt.accent.opacity(0.35), lineWidth: 1.2)
             )
         }
         .buttonStyle(.plain)
@@ -230,7 +230,7 @@ struct HowToPlayView: View {
         if isLast {
             Haptics.success()
             hasReadPrimer = true
-            recommendedRoomHint = recommendedRoom.id
+            recommendedCourtHint = recommendedCourt.id
             if let onDone {
                 onDone()
             } else {

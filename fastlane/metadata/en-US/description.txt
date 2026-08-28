@@ -1,6 +1,12 @@
-See a real doubles rally, pick the shot, and learn the principle behind the answer.
+Stand on the court, read the rally, and hit the shot before the clock runs out.
 
-DUPR IQ generates a new court position every ball: four players, the ball height, the score, and the phase of the point. You choose between four shots a real player would actually consider. Then you see why the answer is the answer, named as a coaching principle you can argue with.
+DUPR IQ puts you in the point. Every ball is a real doubles position seen from where you are standing: four players, a ball hanging at an actual height beside the net tape, and the score. Nothing is written down for you. How high the ball is and whether their feet have reached the kitchen line are things you look at, the same way you would on a court.
+
+You answer by aiming. Four rings sit on the paint where each shot would land, and you pick the place, not a sentence off a list. Then you see why the answer is the answer, named as a coaching principle you can argue with, with the geometry drawn from above if you want to see it.
+
+Points, not flashcards. Get the read right and the rally continues to your next shot. Get it wrong and you lose the point, the way you would in a game.
+
+There is a shot clock, because shot selection with unlimited time to think is a different skill from shot selection. Set it to tournament, match or relaxed pace, or turn it off.
 
 Practice by phase:
 - Return of serve

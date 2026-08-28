@@ -258,7 +258,7 @@ struct PracticeRunView: View {
         selection = pick
         attempted += 1
         let correct = pick == item.answerIndex
-        records.record(itemID: item.id, roomID: item.roomID, correct: correct, isReviewable: item.isReviewable)
+        records.record(itemID: item.id, courtID: item.courtID, correct: correct, isReviewable: item.isReviewable)
         // See QuickSessionView: a generated question is a one-off, its mistake
         // is not, so the PATTERN is what gets banked and worked back off.
         if correct {

@@ -1,12 +1,17 @@
 import SwiftUI
 
-/// How to read the diagram, shown once on first launch and available forever
-/// from the lobby and from Settings.
+/// How to read the court you are standing on, shown once on first launch and
+/// available forever from the lobby and from Settings.
 ///
-/// The product's whole task is reading four sets of feet. A player who has not
-/// been told which marker is theirs, where the kitchen is, or what "above net
-/// height" is deciding, is guessing at question one and will read the app as a
-/// quiz rather than as coaching.
+/// The product's whole task is reading a live situation. A player who has not
+/// been told which body is theirs, where the kitchen is, or that the ball's
+/// height against the net tape is the thing deciding the answer, is guessing at
+/// question one and will read the app as a quiz rather than as coaching.
+///
+/// This page used to teach a plan-view diagram and a caption that spelled the
+/// ball height out in words. Both are gone: the height is now something you
+/// look at, so the primer's job changed from "here is a legend" to "here is
+/// what to look at, and in what order".
 struct CourtPrimerView: View {
     static let seenKey = "onboarding.hasSeenCourtPrimer"
 
@@ -19,28 +24,44 @@ struct CourtPrimerView: View {
         self.isFirstRun = isFirstRun
     }
 
-    /// A fixed, legal example position so the legend points at something real.
+    /// A fixed, legal example position so the legend points at something real:
+    /// one opponent up at the line, one still short, and a ball sitting up.
     private static let example = RallyPosition(
         id: "primer", phase: .thirdShot,
         you: CourtPoint(x: 6.5, y: 3.5),
         partner: CourtPoint(x: 14, y: 4),
         opponentLeft: CourtPoint(x: 6, y: 29.6),
         opponentRight: CourtPoint(x: 14.5, y: 34.5),
-        contact: CourtPoint(x: 7, y: 4.5),
-        ballHeight: .belowNet,
+        contact: CourtPoint(x: 7, y: 6.2),
+        ballHeight: .aboveNet,
         yourScore: 4, theirScore: 6, isServingTeam: true
     )
+
+    private static let exampleOptions: [Shot] = [
+        Shot(.drop, .crossCourtKitchen),
+        Shot(.drive, .atFeet),
+    ]
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Every ball is one court, seen from behind your own baseline.")
+                    Text("Every ball is a rally position, seen from where you are standing.")
                         .font(.headline)
+                        .foregroundStyle(Theme.ink)
 
-                    CourtDiagramView(position: Self.example)
-                        .frame(maxHeight: 300)
-                        .accessibilityHidden(true)
+                    CourtPOVView(
+                        position: Self.example,
+                        options: Self.exampleOptions,
+                        aimPoints: ShotAiming.aimPoints(
+                            for: Self.exampleOptions, in: Self.example
+                        ),
+                        phase: .deciding,
+                        onPick: nil
+                    )
+                    .frame(height: 300)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .accessibilityHidden(true)
 
                     ForEach(Self.legend, id: \.title) { item in
                         HStack(alignment: .top, spacing: 12) {
@@ -50,35 +71,42 @@ struct CourtPrimerView: View {
                                 .frame(width: 24)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title).font(.subheadline.weight(.semibold))
+                                Text(item.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
                                 Text(item.detail)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Theme.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         .accessibilityElement(children: .combine)
                     }
 
                     Text("""
-                    Four shots are offered. One of them is the answer the \
-                    coaching system gives, and after you pick, the app names \
-                    the principle behind it. Shot selection is coached opinion, \
-                    so the principle is the thing to argue with.
+                    Four shots are offered, drawn where they would land. One of \
+                    them is the answer the coaching system gives, and after you \
+                    pick, the app names the principle behind it. Shot selection \
+                    is coached opinion, so the principle is the thing to argue \
+                    with.
                     """)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding()
+                .frame(maxWidth: Theme.readableContentWidth)
+                .frame(maxWidth: .infinity)
             }
+            .background(Theme.background)
             .safeAreaInset(edge: .bottom) {
-                Button(isFirstRun ? "Start drilling" : "Got it") {
+                Button(isFirstRun ? "Start playing" : "Got it") {
                     hasSeenPrimer = true
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .frame(maxWidth: .infinity)
-                .padding()
+                .primaryCTA(color: Theme.court)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
                 .background(.bar)
                 .accessibilityIdentifier("primer-done")
             }
@@ -104,34 +132,34 @@ struct CourtPrimerView: View {
 
     private static let legend: [LegendItem] = [
         LegendItem(
-            symbol: "circle.fill", tint: .yellow,
-            title: "You are the marker labelled You",
-            detail: "Bottom half of the court, always. Your partner is the paler yellow marker labelled P."
+            symbol: "arrow.up.and.down", tint: Theme.opticInk,
+            title: "Read the ball against the net tape",
+            detail: "The one fact that decides most answers. A ball above the white tape can be attacked; one at or below it cannot, whatever else is true. The line dropping from the ball to the paint is there so you can judge its height, not its distance."
         ),
         LegendItem(
-            symbol: "circle", tint: .secondary,
+            symbol: "circle.dashed", tint: Theme.court,
+            title: "Read their feet, not their bodies",
+            detail: "Each player stands in a lit ring. Whoever has not reached the kitchen line is the target, and how far apart the two of them are standing decides whether the seam beats either body."
+        ),
+        LegendItem(
+            symbol: "person.2.fill", tint: Theme.inkSecondary,
             title: "L and R are the two opponents",
-            detail: "Left and right as you look at the diagram. The answer names the one it is aimed at."
+            detail: "They are dressed identically on purpose: telling them apart is the read, not a colour code. Your own back is in the near field, and P is your partner."
         ),
         LegendItem(
-            symbol: "circle.fill", tint: Color(red: 0.85, green: 0.95, blue: 0.2),
-            title: "The small ball is your contact point",
-            detail: "It is where you are hitting from, not where the ball is going. Its height is written under the diagram."
+            symbol: "rectangle.split.3x1", tint: Theme.kitchen,
+            title: "The clay band is the kitchen",
+            detail: "Seven feet either side of the net. Nobody can volley in it, so who is standing at that line decides what is safe to hit."
         ),
         LegendItem(
-            symbol: "rectangle.split.3x1", tint: Color(red: 0.72, green: 0.31, blue: 0.22),
-            title: "The red band is the kitchen",
-            detail: "Seven feet either side of the net. You cannot volley in it, so who is standing at that line decides what is safe."
+            symbol: "scope", tint: Theme.opticInk,
+            title: "You answer by aiming",
+            detail: "The four rings are the four places you could put this ball. The caption on each says the shape of the shot; where the ring sits is the target."
         ),
         LegendItem(
-            symbol: "arrow.up.and.down", tint: .accentColor,
-            title: "Ball height decides everything",
-            detail: "Above net height is attackable, at or below it is not. It is the single most important line in the description."
-        ),
-        LegendItem(
-            symbol: "figure.walk", tint: .accentColor,
-            title: "Feet, not the score, pick the shot",
-            detail: "Whoever has not reached the kitchen line is the target. The score is shown as context, not as a hint."
+            symbol: "timer", tint: Theme.kitchen,
+            title: "There is a clock",
+            detail: "A ball you did not decide about is a ball you did not hit, so the clock counts as a miss. Change it, or turn it off, in Settings."
         ),
     ]
 }

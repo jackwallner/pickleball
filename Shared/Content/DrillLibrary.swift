@@ -1,20 +1,20 @@
 import Foundation
 
-/// The room structure. Two free rooms open the app, two paid rooms carry the
+/// The court structure. Two free courts open the app, two paid courts carry the
 /// parts of the game that actually decide rallies at 3.5 and up.
 ///
-/// Room ids are referenced by `RallyPhase.roomID` and by the stats breakdown,
+/// Court ids are referenced by `RallyPhase.courtID` and by the stats breakdown,
 /// so renaming one means updating both.
 enum DrillLibrary {
 
-    static let basicsRoomID = "basics-room"
-    static let kitchenRoomID = "kitchen-room"
-    static let transitionRoomID = "transition-room"
-    static let pressureRoomID = "pressure-room"
+    static let basicsCourtID = "basics-court"
+    static let kitchenCourtID = "kitchen-court"
+    static let transitionCourtID = "transition-court"
+    static let pressureCourtID = "pressure-court"
 
-    static let rooms: [Room] = [
-        Room(
-            id: basicsRoomID,
+    static let courts: [Court] = [
+        Court(
+            id: basicsCourtID,
             name: "Court Basics",
             tagline: "The rules and the vocabulary the rest of it rests on",
             icon: "sportscourt.fill",
@@ -60,8 +60,8 @@ enum DrillLibrary {
                 ),
             ]
         ),
-        Room(
-            id: kitchenRoomID,
+        Court(
+            id: kitchenCourtID,
             name: "The Kitchen Game",
             tagline: "Nobody wins from the baseline",
             icon: "hand.tap.fill",
@@ -88,8 +88,8 @@ enum DrillLibrary {
                 ),
             ]
         ),
-        Room(
-            id: transitionRoomID,
+        Court(
+            id: transitionCourtID,
             name: "Third Shot & Transition",
             tagline: "The two shots that get you to the line",
             icon: "figure.walk",
@@ -115,8 +115,8 @@ enum DrillLibrary {
                 ),
             ]
         ),
-        Room(
-            id: pressureRoomID,
+        Court(
+            id: pressureCourtID,
             name: "Attack & Defense",
             tagline: "Recognising the ball you can finish, and surviving the one you can't",
             icon: "bolt.fill",
@@ -150,24 +150,24 @@ enum DrillLibrary {
         ),
     ]
 
-    /// The room a given id belongs to, for stats labelling.
-    static func room(id: String) -> Room? {
-        rooms.first { $0.id == id }
+    /// The court a given id belongs to, for stats labelling.
+    static func court(id: String) -> Court? {
+        courts.first { $0.id == id }
     }
 
-    /// The room that owns a drill, for the per-room accuracy breakdown.
-    static func roomID(forDrillID drillID: String) -> String {
-        rooms.first { room in
-            room.drills.contains { $0.id == drillID }
-        }?.id ?? basicsRoomID
+    /// The court that owns a drill, for the per-court accuracy breakdown.
+    static func courtID(forDrillID drillID: String) -> String {
+        courts.first { court in
+            court.drills.contains { $0.id == drillID }
+        }?.id ?? basicsCourtID
     }
 
-    /// The phase a room's authored items train, when the room is about one
-    /// phase. `nil` for rooms that span several, which is what keeps a
+    /// The phase a court's authored items train, when the court is about one
+    /// phase. `nil` for courts that span several, which is what keeps a
     /// vocabulary question out of the transition accuracy number.
-    static func phase(forRoomID roomID: String) -> RallyPhase? {
-        switch roomID {
-        case kitchenRoomID: return .dinkRally
+    static func phase(forCourtID courtID: String) -> RallyPhase? {
+        switch courtID {
+        case kitchenCourtID: return .dinkRally
         default: return nil
         }
     }

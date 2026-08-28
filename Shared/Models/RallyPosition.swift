@@ -146,7 +146,7 @@ struct RallyPosition: Equatable, Sendable, Identifiable {
 
     /// Both of them have drifted wide, so the seam between them is the target
     /// rather than either body.
-    var isMiddleOpen: Bool { opponentSpread >= Court.openMiddleGap }
+    var isMiddleOpen: Bool { opponentSpread >= CourtGeometry.openMiddleGap }
 
     /// Contact near the center line has no long diagonal available.
     var isContactNearMiddle: Bool { contact.isNearMiddle }

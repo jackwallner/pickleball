@@ -36,7 +36,7 @@ struct ConfettiBurst: View {
     }
 
     private static let colors: [Color] = [
-        Theme.court, Theme.ball, Theme.gold, Theme.slate, Theme.rightGreen, Theme.worksheet,
+        Theme.court, Theme.optic, Theme.gold, Theme.kitchen, Theme.rightGreen, Theme.apron,
     ]
     private static let duration: Double = 2.0
     /// Air drag. Higher = the initial burst dies back faster into the drift.

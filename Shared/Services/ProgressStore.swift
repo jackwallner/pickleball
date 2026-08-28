@@ -248,7 +248,7 @@ final class ProgressStore: ObservableObject {
     //
     // The generated loop above keys everything on `RallyPhase`, because that is
     // what the advisor branches on and what a player can act on. The authored
-    // rooms need a second, finer memory: which individual drill has been
+    // courts need a second, finer memory: which individual drill has been
     // finished, which specific question has been seen, and which ones came back
     // wrong. Those are item ids, not phases, so they get their own maps.
     //
@@ -273,10 +273,10 @@ final class ProgressStore: ObservableObject {
 
     func completions(for drillID: String) -> Int { completions[drillID] ?? 0 }
 
-    func roomProgress(_ room: Room) -> Double {
-        guard !room.drills.isEmpty else { return 0 }
-        let done = room.drills.filter { completions(for: $0.id) > 0 }.count
-        return Double(done) / Double(room.drills.count)
+    func courtProgress(_ court: Court) -> Double {
+        guard !court.drills.isEmpty else { return 0 }
+        let done = court.drills.filter { completions(for: $0.id) > 0 }.count
+        return Double(done) / Double(court.drills.count)
     }
 
     /// A finished authored drill. Note this does NOT bump the streak on its

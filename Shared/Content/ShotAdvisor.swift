@@ -133,7 +133,7 @@ enum ShotAdvisor {
             below the net, so there is no drive available that does not sit up. \
             You are wide \(p.contactSideLabel.replacingOccurrences(of: "from ", with: "")), \
             so the drop to \(target.label) travels the longest diagonal, which \
-            gives it the most room to land soft and buys you the time to move up.
+            gives it the most court to land soft and buys you the time to move up.
             """,
             targetOpponent: target
         )
@@ -285,7 +285,7 @@ enum ShotAdvisor {
                 why: """
                 They are both leaning over the kitchen line and you have a ball \
                 at a height you can lift. The lob over \(target.label) travels \
-                the longest diagonal, so it has the most room to drop in, and it \
+                the longest diagonal, so it has the most court to drop in, and it \
                 makes them turn and run rather than step back and swing.
                 """,
                 targetOpponent: target

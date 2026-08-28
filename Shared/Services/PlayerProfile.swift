@@ -52,7 +52,7 @@ enum ExperienceLevel: String, CaseIterable, Identifiable, Sendable {
         case .rec:
             return "The Kitchen Game is where rec rallies are lost. Most of them go to whoever attacks a low ball first."
         case .improving:
-            return "Third Shot & Transition is the room. The drop-or-drive read is worth more points than any stroke change."
+            return "Third Shot & Transition is the court. The drop-or-drive read is worth more points than any stroke change."
         case .competitive:
             return "Run Endless Practice on mixed phases. The generator never repeats, so you are drilling the read rather than the picture."
         case .coaching:
@@ -101,7 +101,7 @@ final class PlayerProfile: ObservableObject {
         }
     }
 
-    /// Room ids the player asked to prioritise. Empty means "no preference",
+    /// Court ids the player asked to prioritise. Empty means "no preference",
     /// which is a real answer and not a missing one.
     @Published var focusAreas: Set<String> {
         didSet { defaults.set(Array(focusAreas).sorted(), forKey: Keys.focusAreas) }

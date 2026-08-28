@@ -1,9 +1,9 @@
 import Foundation
 
-/// The free opening room: the court, the rules that actually cost points, and
-/// the vocabulary every other room assumes you have.
+/// The free opening court: the court, the rules that actually cost points, and
+/// the vocabulary every other court assumes you have.
 ///
-/// This room is deliberately not "how to hold a paddle". Someone who downloads
+/// This court is deliberately not "how to hold a paddle". Someone who downloads
 /// a shot-selection trainer already plays. What they usually do not have is the
 /// precise version of the rules that decide close rallies, and the shared words
 /// for the parts of the court that the rest of the app uses without explaining.

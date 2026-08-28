@@ -110,9 +110,9 @@ struct FeatureTourView: View {
         [
             TourPage(
                 eyebrow: "THE ROOMS",
-                title: "Four rooms, four skills",
-                body: ShellCopy.Tour.roomsBody,
-                hero: AnyView(roomsHero)
+                title: "Four courts, four skills",
+                body: ShellCopy.Tour.courtsBody,
+                hero: AnyView(courtsHero)
             ),
             TourPage(
                 eyebrow: "KEEP IT LIT",
@@ -124,7 +124,7 @@ struct FeatureTourView: View {
                 ? TourPage(
                     eyebrow: "YOURS NOW",
                     title: "\(Membership.name) is open",
-                    body: "Your trial already includes the Daily Drill, a personalized Match Warm-Up, unlimited generated practice, the timed challenge, the extra sets in every room, and the worked reads.",
+                    body: "Your trial already includes the Daily Drill, a personalized Match Warm-Up, unlimited generated practice, the timed challenge, the extra sets in every court, and the worked reads.",
                     hero: AnyView(proHero(locked: false)),
                     accentGold: true
                 )
@@ -180,16 +180,16 @@ struct FeatureTourView: View {
         .buttonStyle(PressableCardStyle())
     }
 
-    private var roomsHero: some View {
+    private var courtsHero: some View {
         HStack(spacing: 10) {
-            roomChip("square.grid.3x3.fill", Theme.court)
-            roomChip("menucard.fill", Theme.ball)
-            roomChip("arrow.left.arrow.right", Theme.slate)
-            roomChip("person.3.fill", Theme.gold)
+            courtChip("square.grid.3x3.fill", Theme.court)
+            courtChip("menucard.fill", Theme.ball)
+            courtChip("arrow.left.arrow.right", Theme.slate)
+            courtChip("person.3.fill", Theme.gold)
         }
     }
 
-    private func roomChip(_ icon: String, _ color: Color) -> some View {
+    private func courtChip(_ icon: String, _ color: Color) -> some View {
         Image(systemName: icon)
             .font(.body.weight(.semibold))
             .foregroundStyle(color)

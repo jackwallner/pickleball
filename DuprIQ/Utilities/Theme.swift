@@ -3,81 +3,117 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Court design system: cool paper and slate surfaces, the deep blue of a
-/// painted court as the primary, optic-ball orange for energy, gold for the
-/// membership, and condensed sans display type. Every color adapts to dark mode
-/// via dynamic providers.
+/// The design system, taken from a pickleball court rather than from paper.
 ///
-/// The palette is deliberately *not* the one this shell arrived with. It came
-/// through two other apps in the fleet and each left its own vocabulary in the
-/// token names; a pickleball app's visual signals are the blue of the surface,
-/// the terracotta of a non-volley zone, the optic yellow of the ball, and the
-/// green of the surround. Names here follow those, not the previous domains.
+/// The shell arrived here through `~/mahj` and `~/electrician`, and it brought
+/// their look with it: cool drawing-paper grey, navy, and a faint ruled grid
+/// meant to read as engineering notebook stock. That is a studying surface, and
+/// this app is not a study aid. Everything below is named after a thing you can
+/// point at on a court under lights, and the 3D scene in `CourtScene` draws
+/// from the same `Surface` constants, so the rendered court and the chrome
+/// around it can never drift apart.
+///
+/// Light mode is an outdoor court on a bright morning: warm apron, saturated
+/// paint. Dark mode is an indoor club at night, which is the mode the first
+/// person view was drawn for.
 enum Theme {
+    // MARK: The court itself
+    //
+    // These are the physical colors of the surface, shared with the 3D scene.
+    // Nothing else in the app is allowed to invent a court color.
+
+    enum Surface {
+        /// The painted playing area, the blue-teal of a tournament surface.
+        static let play = Color(red: 0.078, green: 0.310, blue: 0.404)
+        /// The non-volley zone, in the clay terracotta it is nearly always
+        /// painted so it reads as a different place at a glance.
+        static let kitchen = Color(red: 0.647, green: 0.298, blue: 0.192)
+        /// The apron outside the lines.
+        static let apron = Color(red: 0.086, green: 0.243, blue: 0.180)
+        /// Line paint.
+        static let line = Color(red: 0.949, green: 0.965, blue: 0.961)
+        /// The net's dark mesh and its white tape.
+        static let netMesh = Color(red: 0.043, green: 0.063, blue: 0.075)
+        static let netTape = Color(red: 0.961, green: 0.973, blue: 0.973)
+        /// An optic ball. The single brightest object on a court, which is why
+        /// it is also the app's energy accent below.
+        static let ball = Color(red: 0.847, green: 0.933, blue: 0.180)
+    }
+
     // MARK: Brand
     //
-    // Every accent is named after the thing it comes from, and the room accents
-    // below use them semantically: blue for the court itself, green for the
-    // soft game, steel for the walk to the line, ball-orange for pressure.
+    // Court accents are semantic: teal is the court and the primary action,
+    // deep green is the soft game, fence grey is the walk to the line, and
+    // terracotta (the kitchen paint) is pressure.
 
-    /// Court blue. Primary actions, progress, selected states.
-    /// 6.6:1 on white with white text on the fill, so it works as a CTA.
-    static let court = Color(light: (0.05, 0.34, 0.64), dark: (0.42, 0.70, 1.0))
-    /// Optic-ball orange. Energy moments: streaks, celebration, the pressure room.
-    static let ball = Color(light: (0.70, 0.36, 0.15), dark: (0.91, 0.58, 0.33))
+    /// Court teal. Primary actions, progress, selected states. Dark enough in
+    /// light mode to carry white text on the fill and to pass AA as foreground.
+    static let court = Color(light: (0.043, 0.325, 0.420), dark: (0.416, 0.784, 0.867))
+    /// Kitchen terracotta. Pressure, attack, the room about hitting hard.
+    static let kitchen = Color(light: (0.596, 0.278, 0.157), dark: (0.898, 0.573, 0.427))
+    /// Deep surround green. The soft game.
+    static let apron = Color(light: (0.086, 0.376, 0.259), dark: (0.396, 0.784, 0.573))
+    /// Fence grey-green. Transition, the least loud accent.
+    static let slate = Color(light: (0.259, 0.353, 0.373), dark: (0.612, 0.729, 0.749))
     /// Gold. Locks, "best value", membership highlights.
-    static let gold = Color(light: (0.63, 0.47, 0.10), dark: (0.87, 0.72, 0.34))
-    /// Steel blue. The third shot and transition room.
-    static let slate = Color(light: (0.30, 0.36, 0.47), dark: (0.60, 0.69, 0.82))
-    /// Surround green. The kitchen room, and nothing else. Kept distinct from
-    /// `rightGreen` so a room accent never reads as a correctness mark.
-    static let turf = Color(light: (0.13, 0.45, 0.24), dark: (0.42, 0.76, 0.50))
+    static let gold = Color(light: (0.612, 0.463, 0.098), dark: (0.878, 0.729, 0.353))
+
+    /// Optic ball yellow-green. A FILL ONLY: streaks, celebration, the shot
+    /// clock, the live ball. Never use it as text on a light background, it
+    /// cannot pass contrast there. Use `opticInk` for that.
+    static let optic = Color(light: (0.788, 0.867, 0.129), dark: (0.847, 0.933, 0.250))
+    /// The text-safe darkening of `optic`, for a label that has to say the same
+    /// thing the yellow fill says.
+    static let opticInk = Color(light: (0.318, 0.365, 0.020), dark: (0.808, 0.898, 0.353))
+
+    /// The old name for the energy accent, kept pointing at the terracotta so
+    /// nothing that referenced it silently turns a different hue.
+    static let ball = kitchen
 
     // MARK: Surfaces
 
-    /// Cool drawing-paper background in light, slate in dark
-    /// (never pure white / pure black).
-    static let background = Color(light: (0.937, 0.949, 0.961), dark: (0.070, 0.078, 0.094))
+    /// Court apron in daylight, club floor at night. Never pure white or black.
+    static let background = Color(light: (0.961, 0.957, 0.941), dark: (0.043, 0.063, 0.067))
     /// Raised card surface.
-    static let card = Color(light: (0.996, 1.0, 1.0), dark: (0.125, 0.141, 0.169))
+    static let card = Color(light: (1.0, 0.998, 0.992), dark: (0.086, 0.114, 0.122))
     /// Slightly sunken surface for wells inside cards.
-    static let well = Color(light: (0.902, 0.922, 0.941), dark: (0.094, 0.106, 0.129))
+    static let well = Color(light: (0.925, 0.922, 0.902), dark: (0.063, 0.086, 0.094))
     /// Hairline stroke on cards.
-    static let rule = Color(light: (0.796, 0.827, 0.859), dark: (0.235, 0.259, 0.302))
+    static let rule = Color(light: (0.839, 0.831, 0.804), dark: (0.180, 0.227, 0.239))
 
     // MARK: Ink
 
     // Contrast is not a style knob here. This app's readers skew 50+ and read
     // it on a couch in bad light, and tertiary ink carries the money disclosure
     // and the swipe instructions. Every level below clears WCAG AA (4.5:1) on
-    // both backgrounds; tertiary used to sit at 2.8:1, which is decorative-text
-    // territory. Re-check with a contrast calculator before lightening the paper.
-    static let ink = Color(light: (0.09, 0.12, 0.16), dark: (0.93, 0.95, 0.97))
-    /// 6.7:1 light / 7.7:1 dark.
-    static let inkSecondary = Color(light: (0.31, 0.35, 0.41), dark: (0.70, 0.74, 0.79))
-    /// 4.7:1 light / 5.9:1 dark.
-    static let inkTertiary = Color(light: (0.39, 0.43, 0.49), dark: (0.60, 0.64, 0.70))
+    // both backgrounds. Re-check with a contrast calculator before warming the
+    // apron any further.
+    static let ink = Color(light: (0.086, 0.106, 0.106), dark: (0.941, 0.957, 0.949))
+    /// 6.7:1 light / 7.6:1 dark.
+    static let inkSecondary = Color(light: (0.318, 0.341, 0.341), dark: (0.702, 0.745, 0.737))
+    /// 4.7:1 light / 5.8:1 dark.
+    static let inkTertiary = Color(light: (0.396, 0.420, 0.420), dark: (0.596, 0.647, 0.639))
 
-    // MARK: Worksheet and grading
+    // MARK: Panels and grading
 
-    /// The card/working-panel stock, a shade cooler and brighter than `card`.
-    /// Used for the faces of flashcards and for the numbered working panel, so
-    /// both read as a page from a coach's notebook rather than another app
-    /// surface. Pair it with `ruledGrid()` on the working panel.
-    static let worksheet = Color(light: (0.980, 0.988, 1.0), dark: (0.918, 0.937, 0.957))
-    static let worksheetEdge = Color(light: (0.769, 0.812, 0.859), dark: (0.635, 0.678, 0.729))
-    /// The faint ruled grid drawn on worksheet surfaces. Low enough to sit
-    /// behind text without fighting it at any Dynamic Type size.
-    static let grid = Color(light: (0.05, 0.30, 0.55), dark: (0.10, 0.25, 0.45))
-    /// Grading colors. Deliberately not `court`/`ball`: right and wrong have
-    /// to read as a verdict, not as brand accents used elsewhere on the screen.
-    static let rightGreen = Color(red: 0.12, green: 0.47, blue: 0.29)
-    static let wrongRed = Color(red: 0.72, green: 0.17, blue: 0.16)
+    /// The inset panel stock: a court-tinted surface for a chip row or a worked
+    /// read. It replaces the notebook "worksheet" the shell arrived with, which
+    /// is the single most textbook-looking thing the port brought over.
+    static let panel = Color(light: (0.976, 0.980, 0.973), dark: (0.118, 0.153, 0.161))
+    static let panelEdge = Color(light: (0.812, 0.831, 0.816), dark: (0.208, 0.263, 0.271))
+
+    /// Grading colors. Deliberately not `court`/`kitchen`/`apron`: right and
+    /// wrong have to read as a verdict, not as brand accents used elsewhere on
+    /// the screen. `rightGreen` is kept bright and cool so it can never be
+    /// mistaken for the deep `apron` accent.
+    static let rightGreen = Color(light: (0.055, 0.514, 0.310), dark: (0.290, 0.851, 0.576))
+    static let wrongRed = Color(light: (0.702, 0.145, 0.153), dark: (1.0, 0.451, 0.435))
 
     // MARK: Type
 
     /// Display type for titles. Heavy condensed sans, the lettering of a
-    /// scoreboard and a tournament draw sheet, not the serif of a members' club. `.width` needs iOS 16; the fallback keeps the weight.
+    /// scoreboard and a tournament draw sheet. `.width` needs iOS 16; the
+    /// fallback keeps the weight.
     static func display(_ size: CGFloat, weight: Font.Weight = .heavy) -> Font {
         if #available(iOS 16.0, *) {
             return .system(size: size, weight: weight).width(.condensed)
@@ -85,14 +121,14 @@ enum Theme {
         return .system(size: size, weight: weight)
     }
 
-    /// Numbers read as instrument readings, not prose: ampacities, AWG sizes,
-    /// article numbers and percentages all use this so columns line up and a
-    /// value never reflows differently from the one above it.
+    /// Numbers read as instrument readings, not prose: scores, percentages, the
+    /// shot clock and ball counts all use this so columns line up and a value
+    /// never reflows differently from the one above it.
     static func numeric(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
         .system(size: size, weight: weight, design: .monospaced)
     }
 
-static let cardCorner: CGFloat = 20
+    static let cardCorner: CGFloat = 20
     static let deckCorner: CGFloat = 26
     /// Keeps reading and answering comfortable on iPad instead of stretching
     /// phone-sized interactions across the full window.
@@ -100,16 +136,16 @@ static let cardCorner: CGFloat = 20
     static let wideContentWidth: CGFloat = 1120
 }
 
-/// Room identity: each room keeps its own accent so the four doors feel like
+/// Court identity: each court keeps its own accent so the four doors feel like
 /// four places, not four list rows.
-extension Room {
+extension Court {
     var accent: Color {
         switch id {
-        case DrillLibrary.basicsRoomID: return Theme.court
-        case DrillLibrary.kitchenRoomID: return Theme.turf
-        case DrillLibrary.transitionRoomID: return Theme.slate
-        // The pressure room. Copper, the palette's energy accent, because it is
-        // the room about hitting the ball hard and surviving one hit hard at you.
+        case DrillLibrary.basicsCourtID: return Theme.court
+        case DrillLibrary.kitchenCourtID: return Theme.apron
+        case DrillLibrary.transitionCourtID: return Theme.slate
+        // The pressure court. Copper, the palette's energy accent, because it is
+        // the court about hitting the ball hard and surviving one hit hard at you.
         default: return Theme.ball
         }
     }
@@ -174,55 +210,9 @@ extension View {
     }
 }
 
-/// A faint ruled grid, the way a coach's notebook page is ruled.
-///
-/// This is the one piece of ornament in the app and it is load-bearing for the
-/// rebrand: a plain rounded rectangle reads as "any iOS app", while a ruled
-/// panel reads as engineering paper. It is drawn with `Canvas` rather than a
-/// tiled image so it stays crisp at any size and costs nothing to ship, and it
-/// is clipped to the caller's shape so it never bleeds past a card edge.
-struct RuledGrid: View {
-    var spacing: CGFloat = 14
-    var opacity: Double = 0.07
-    var lineWidth: CGFloat = 0.5
-
-    var body: some View {
-        Canvas { context, size in
-            var path = Path()
-            var x: CGFloat = spacing
-            while x < size.width {
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                x += spacing
-            }
-            var y: CGFloat = spacing
-            while y < size.height {
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                y += spacing
-            }
-            context.stroke(path, with: .color(Theme.grid.opacity(opacity)), lineWidth: lineWidth)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-extension View {
-    /// Overlays `RuledGrid` inside a rounded rect, for notebook surfaces.
-    func ruledGrid(corner: CGFloat = Theme.cardCorner,
-                       spacing: CGFloat = 14,
-                       opacity: Double = 0.07) -> some View {
-        overlay(
-            RuledGrid(spacing: spacing, opacity: opacity)
-                .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        )
-    }
-}
-
 /// The thin accent rule used as a section divider and under the onboarding
-/// progress. A gradient from `court` to `ball`, i.e. the two ends of the
-/// palette, so a 2pt line still carries the brand.
+/// progress. A gradient from the court teal to the optic ball, i.e. the two
+/// ends of the new palette, so a 3pt line still carries the brand.
 struct AccentRule: View {
     var height: CGFloat = 3
     var progress: Double = 1
@@ -233,7 +223,7 @@ struct AccentRule: View {
                 Capsule().fill(Theme.rule)
                 Capsule()
                     .fill(LinearGradient(
-                        colors: [Theme.court, Theme.ball],
+                        colors: [Theme.court, Theme.optic],
                         startPoint: .leading,
                         endPoint: .trailing
                     ))

@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// The profile screen: how the player describes their game, which rooms they
+/// The profile screen: how the player describes their game, which courts they
 /// want first, and an optional next-match date.
 ///
 /// Everything here changes something the app actually does. The level orders
-/// the primer's recommendation, the focus areas order the rooms on Home, and
+/// the primer's recommendation, the focus areas order the courts on Home, and
 /// the match date turns on the countdown and raises the daily target. A
 /// question whose answer changed nothing would not be worth asking.
 struct PlayerProfileView: View {
@@ -53,28 +53,28 @@ struct PlayerProfileView: View {
             }
 
             Section {
-                ForEach(DrillLibrary.rooms) { room in
+                ForEach(DrillLibrary.courts) { court in
                     Button {
-                        if profile.focusAreas.contains(room.id) {
-                            profile.focusAreas.remove(room.id)
+                        if profile.focusAreas.contains(court.id) {
+                            profile.focusAreas.remove(court.id)
                         } else {
-                            profile.focusAreas.insert(room.id)
+                            profile.focusAreas.insert(court.id)
                         }
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: room.icon)
+                            Image(systemName: court.icon)
                                 .foregroundStyle(Theme.ball)
                                 .frame(width: 28)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(room.name)
+                                Text(court.name)
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(Theme.ink)
-                                Text(room.tagline)
+                                Text(court.tagline)
                                     .font(.caption)
                                     .foregroundStyle(Theme.inkSecondary)
                             }
                             Spacer(minLength: 4)
-                            if profile.focusAreas.contains(room.id) {
+                            if profile.focusAreas.contains(court.id) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(Theme.ball)
                             }
@@ -88,7 +88,7 @@ struct PlayerProfileView: View {
                 // Worth being explicit: a player who reads this as a filter
                 // will not tick anything, because they do not want the rest
                 // taken away.
-                Text("This orders the rooms on Home. Nothing gets hidden.")
+                Text("This orders the courts on Home. Nothing gets hidden.")
             }
 
             Section {

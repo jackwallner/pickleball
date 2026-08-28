@@ -20,7 +20,7 @@ enum ShellCopy {
     }
 
     enum Tour {
-        static let roomsBody = "Each room holds its own drills: the court and the rules, the soft game at the kitchen, the third shot and the walk in, and attack and defense. The two opening rooms are free, forever."
+        static let courtsBody = "Each court holds its own drills: the court and the rules, the soft game at the kitchen, the third shot and the walk in, and attack and defense. The two opening courts are free, forever."
         static let proLockedBody = "Daily Drill gives every member the same five balls, Match Warm-Up targets your weakest phase before you play, and Endless Practice never runs out. Nothing you have now goes away. Unlock any time from Home or Settings."
     }
 
@@ -30,7 +30,7 @@ enum ShellCopy {
     }
 
     enum Onboarding {
-        static let freeRoomsBenefit = "Two full rooms, free forever"
+        static let freeCourtsBenefit = "Two full courts, free forever"
         static let generatorBenefit = "Positions that never repeat"
         static let principleBenefit = "Every answer names its principle"
     }
@@ -48,9 +48,9 @@ enum ShellCopy {
         [
             DailyReminder.title, DailyReminder.body,
             MatchWarmUpReminder.title, MatchWarmUpReminder.body,
-            Tour.roomsBody, Tour.proLockedBody,
+            Tour.courtsBody, Tour.proLockedBody,
             DrillComplete.flashcardsSubhead, DrillComplete.scoredSubhead,
-            Onboarding.freeRoomsBenefit, Onboarding.generatorBenefit,
+            Onboarding.freeCourtsBenefit, Onboarding.generatorBenefit,
             Onboarding.principleBenefit,
             Legal.duprDisclaimer,
         ]

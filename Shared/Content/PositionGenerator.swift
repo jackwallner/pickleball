@@ -70,7 +70,7 @@ enum PositionGenerator {
     }
 
     /// A mixed session across every phase, which is what a real rally feels
-    /// like and what stops a player pattern-matching on the room title.
+    /// like and what stops a player pattern-matching on the court title.
     static func session(count: Int, seed: UInt64) -> [DrillQuestion] {
         var rng = SeededGenerator(seed: seed)
         return (0..<count).map { index in
@@ -256,11 +256,11 @@ enum PositionGenerator {
     // MARK: - Point helpers
 
     private static func lateral(_ rng: inout SeededGenerator) -> Double {
-        .random(in: 1.5...(Court.width - 1.5), using: &rng)
+        .random(in: 1.5...(CourtGeometry.width - 1.5), using: &rng)
     }
 
     private static func point(x: Double, y: Double) -> CourtPoint {
-        Court.clamp(CourtPoint(x: x, y: y))
+        CourtGeometry.clamp(CourtPoint(x: x, y: y))
     }
 
     private static func kitchenPoint(

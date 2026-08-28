@@ -1,7 +1,7 @@
 import XCTest
 @testable import DuprIQ
 
-/// The contract for the authored rooms and the shell that frames them.
+/// The contract for the authored courts and the shell that frames them.
 ///
 /// `PositionGeneratorTests` and `ShotAdvisorTests` pin the generator. Nothing
 /// pinned the authored library or the chrome around it, and this app's shell
@@ -13,12 +13,12 @@ final class ContentTests: XCTestCase {
 
     // MARK: - Structure
 
-    func testRoomAndDrillIDsAreUnique() {
-        var roomIDs: Set<String> = []
+    func testCourtAndDrillIDsAreUnique() {
+        var courtIDs: Set<String> = []
         var drillIDs: Set<String> = []
-        for room in DrillLibrary.rooms {
-            XCTAssertTrue(roomIDs.insert(room.id).inserted, "duplicate room id \(room.id)")
-            for drill in room.drills {
+        for court in DrillLibrary.courts {
+            XCTAssertTrue(courtIDs.insert(court.id).inserted, "duplicate court id \(court.id)")
+            for drill in court.drills {
                 XCTAssertTrue(drillIDs.insert(drill.id).inserted, "duplicate drill id \(drill.id)")
             }
         }
@@ -31,29 +31,29 @@ final class ContentTests: XCTestCase {
         }
     }
 
-    /// Two free rooms is a promise the paywall copy, the tour and the marketing
-    /// page all repeat. If a room's `isFree` flips, this is the cheapest place
+    /// Two free courts is a promise the paywall copy, the tour and the marketing
+    /// page all repeat. If a court's `isFree` flips, this is the cheapest place
     /// to find out.
-    func testTwoRoomsAreFree() {
-        XCTAssertEqual(DrillLibrary.rooms.filter(\.isFree).count, 2)
+    func testTwoCourtsAreFree() {
+        XCTAssertEqual(DrillLibrary.courts.filter(\.isFree).count, 2)
     }
 
-    func testEveryRoomHasDrillsAndEveryDrillHasItems() {
-        for room in DrillLibrary.rooms {
-            XCTAssertFalse(room.drills.isEmpty, "\(room.id) has no drills")
-            for drill in room.drills {
+    func testEveryCourtHasDrillsAndEveryDrillHasItems() {
+        for court in DrillLibrary.courts {
+            XCTAssertFalse(court.drills.isEmpty, "\(court.id) has no drills")
+            for drill in court.drills {
                 XCTAssertGreaterThan(drill.kind.itemCount, 0, "\(drill.id) is empty")
             }
         }
     }
 
-    /// Every phase has to land in a room that exists, because the stats
+    /// Every phase has to land in a court that exists, because the stats
     /// breakdown looks its label up by that id and silently shows nothing when
     /// it misses.
-    func testEveryPhaseMapsToARealRoom() {
-        let ids = Set(DrillLibrary.rooms.map(\.id))
+    func testEveryPhaseMapsToARealCourt() {
+        let ids = Set(DrillLibrary.courts.map(\.id))
         for phase in RallyPhase.allCases {
-            XCTAssertTrue(ids.contains(phase.roomID), "\(phase.rawValue) points at \(phase.roomID)")
+            XCTAssertTrue(ids.contains(phase.courtID), "\(phase.rawValue) points at \(phase.courtID)")
         }
     }
 
@@ -80,7 +80,7 @@ final class ContentTests: XCTestCase {
         }
     }
 
-    /// The property that makes the Worked Reads room safe to author.
+    /// The property that makes the Worked Reads court safe to author.
     ///
     /// Its positions come from pinned generator seeds rather than hand-built
     /// coordinates, so the answer it teaches is by construction the answer the
@@ -101,8 +101,8 @@ final class ContentTests: XCTestCase {
         }
     }
 
-    /// The steps are the room's whole value. A worked read whose steps got
-    /// dropped renders as a bare answer, which is what the authored room exists
+    /// The steps are the court's whole value. A worked read whose steps got
+    /// dropped renders as a bare answer, which is what the authored court exists
     /// not to be.
     func testWorkedReadsShowTheirWorking() {
         for read in TransitionContent.workedReads {
@@ -193,10 +193,10 @@ final class ContentTests: XCTestCase {
         XCTAssertLessThan(free.count, pro.count, "Pro unlocks nothing")
     }
 
-    func testFreePoolContainsNoPaidRoomItems() {
-        let paidRoomIDs = Set(DrillLibrary.rooms.filter { !$0.isFree }.map(\.id))
+    func testFreePoolContainsNoPaidCourtItems() {
+        let paidCourtIDs = Set(DrillLibrary.courts.filter { !$0.isFree }.map(\.id))
         for item in SessionBuilder.choicePool(includePro: false) {
-            XCTAssertFalse(paidRoomIDs.contains(item.roomID), "\(item.id) leaked from a paid room")
+            XCTAssertFalse(paidCourtIDs.contains(item.courtID), "\(item.id) leaked from a paid court")
         }
     }
 

@@ -54,7 +54,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 benefit("infinity", ShellCopy.Onboarding.generatorBenefit)
                 benefit("quote.bubble.fill", ShellCopy.Onboarding.principleBenefit)
-                benefit("lock.open.fill", ShellCopy.Onboarding.freeRoomsBenefit)
+                benefit("lock.open.fill", ShellCopy.Onboarding.freeCourtsBenefit)
             }
         }
     }
@@ -108,7 +108,7 @@ struct OnboardingView: View {
         page(
             icon: "checkmark.seal.fill",
             title: profile.hasSelectedLevel ? profile.level.title : "You're set",
-            body: profile.hasSelectedLevel ? profile.level.emphasis : "Two rooms are free forever, and the free tier grades fifteen balls a day."
+            body: profile.hasSelectedLevel ? profile.level.emphasis : "Two courts are free forever, and the free tier grades fifteen balls a day."
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 benefit("calendar", "Fifteen graded balls a day, free")
@@ -130,14 +130,17 @@ struct OnboardingView: View {
         icon: String,
         title: String,
         body: String,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: @escaping () -> Content
     ) -> some View {
-        ScrollView {
+        // Centering, not top-aligned. A plain ScrollView pinned the welcome
+        // page's four short lines to the top and left the bottom 40% of the
+        // screen empty, which is the first thing a new player ever sees.
+        CenteringScrollView {
             VStack(spacing: 18) {
                 Image(systemName: icon)
                     .font(.system(size: 44, weight: .semibold))
                     .foregroundStyle(Theme.court)
-                    .padding(.top, 40)
+                    .padding(.top, 8)
                 Text(title)
                     .font(Theme.display(28))
                     .foregroundStyle(Theme.ink)
@@ -160,7 +163,7 @@ struct OnboardingView: View {
     private func benefit(_ icon: String, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
-                .foregroundStyle(Theme.ball)
+                .foregroundStyle(Theme.court)
                 .frame(width: 22)
             Text(text)
                 .font(.subheadline)

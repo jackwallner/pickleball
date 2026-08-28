@@ -35,7 +35,7 @@ struct DailyDrillView: View {
                 Text("Today's Daily Drill")
                     .font(Theme.display(27))
                     .foregroundStyle(Theme.ink)
-                Text("The same five for every member: two generated courts and three drawn from across the rooms.")
+                Text("The same five for every member: two generated courts and three drawn from across the courts.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)

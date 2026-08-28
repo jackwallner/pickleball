@@ -1,8 +1,8 @@
 import Foundation
 
-/// The second paid room: the two ends of the pressure scale.
+/// The second paid court: the two ends of the pressure scale.
 ///
-/// Attack and defense belong in one room because they are the same skill read
+/// Attack and defense belong in one court because they are the same skill read
 /// from opposite sides. Both come down to one question asked at contact: is
 /// this ball above the net or below it? Players who lose rallies at 3.5 are
 /// usually answering that question after they have chosen the shot.
@@ -68,7 +68,7 @@ enum ProContent {
                 "Lob it over them",
             ],
             answerIndex: 0,
-            explanation: "You already have the downward angle, so the extra risk of aiming at a line buys nothing. A ball at the body gives them no room to get a paddle face on it. Dinking it back declines the one attackable ball the rally has produced.",
+            explanation: "You already have the downward angle, so the extra risk of aiming at a line buys nothing. A ball at the body gives them no court to get a paddle face on it. Dinking it back declines the one attackable ball the rally has produced.",
             principle: Principle.finishDown.tag
         ),
         QuizQuestion(

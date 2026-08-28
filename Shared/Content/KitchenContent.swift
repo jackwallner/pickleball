@@ -1,8 +1,8 @@
 import Foundation
 
-/// The second free room: the soft game.
+/// The second free court: the soft game.
 ///
-/// This is the room that makes the app free-tier worth having on its own. Most
+/// This is the court that makes the app free-tier worth having on its own. Most
 /// players below 4.0 lose rallies at the kitchen for one of three reasons, and
 /// all three are decisions rather than strokes: they attack a ball that was
 /// never attackable, they aim at a body when a seam was open, or they run out

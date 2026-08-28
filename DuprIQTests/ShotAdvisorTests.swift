@@ -186,7 +186,7 @@ final class ShotAdvisorTests: XCTestCase {
                 let position = PositionGenerator.question(phase: phase, seed: seed).position
                 // A contact exactly on the center line is its own mirror, so
                 // no side choice can be antisymmetric there.
-                guard position.contact.x != Court.centerX else { continue }
+                guard position.contact.x != CourtGeometry.centerX else { continue }
                 let original = ShotAdvisor.verdict(for: position)
                 let mirrored = ShotAdvisor.verdict(for: position.mirrored)
                 XCTAssertEqual(original.best, mirrored.best,
@@ -218,7 +218,7 @@ final class ShotAdvisorTests: XCTestCase {
                 let question = PositionGenerator.question(phase: phase, seed: seed)
                 guard let target = question.verdict.targetOpponent else { continue }
                 let point = question.position.opponent(target)
-                XCTAssertGreaterThan(point.y, Court.netY,
+                XCTAssertGreaterThan(point.y, CourtGeometry.netY,
                                      "\(phase)/\(seed) targets a marker on our own side")
             }
         }

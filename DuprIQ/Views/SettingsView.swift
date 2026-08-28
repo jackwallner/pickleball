@@ -43,6 +43,18 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Picker("Shot clock", selection: $settings.shotClock) {
+                        ForEach(AppSettings.ShotClock.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                } header: {
+                    Text("Playing")
+                } footer: {
+                    Text("How long you get to commit to a shot. A ball you don't decide about counts as a miss, the same way it would on a court. Turn the clock off if you'd rather take your time.")
+                }
+
                 Section("Appearance") {
                     Picker("Theme", selection: $settings.appearance) {
                         ForEach(AppSettings.Appearance.allCases) { option in

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The first paid room: the third shot and the walk to the line.
+/// The first paid court: the third shot and the walk to the line.
 ///
 /// This is where a paid tier earns its keep, because the third shot is the
 /// single most consequential decision in doubles and the one most players get
@@ -153,7 +153,7 @@ enum TransitionContent {
     ///
     /// The positions, options and answers come from pinned generator seeds
     /// rather than hand-built coordinates. That is deliberate and it is the
-    /// only safe way to author this room: a hand-written position can drift
+    /// only safe way to author this court: a hand-written position can drift
     /// out of agreement with `ShotAdvisor`, and a worked example that teaches
     /// a different answer than the app grades is worse than no worked example.
     /// The authored part is the part that should be authored: the situation

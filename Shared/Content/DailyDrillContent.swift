@@ -98,7 +98,7 @@ enum DailyDrillContent {
                 steps: item.steps,
                 principle: item.principle,
                 sourceLabel: "Daily Drill",
-                roomID: item.roomID,
+                courtID: item.courtID,
                 phase: item.phase,
                 trackingID: "daily-drill-rollup",
                 isReviewable: false,
@@ -117,7 +117,7 @@ enum DailyDrillContent {
                 let picked = pool[Int(rng.next() % UInt64(pool.count))]
                 guard used.insert(picked.id).inserted else { continue }
                 questions.append(DailyDrillQuestion(
-                    category: category(forRoom: picked.roomID),
+                    category: category(forCourt: picked.courtID),
                     item: SessionBuilder.prepared(picked)
                 ))
             }
@@ -131,11 +131,11 @@ enum DailyDrillContent {
         )
     }
 
-    private static func category(forRoom roomID: String) -> DailyDrillCategory {
-        switch roomID {
-        case DrillLibrary.kitchenRoomID: return .softGame
-        case DrillLibrary.transitionRoomID: return .transition
-        case DrillLibrary.pressureRoomID: return .pressure
+    private static func category(forCourt courtID: String) -> DailyDrillCategory {
+        switch courtID {
+        case DrillLibrary.kitchenCourtID: return .softGame
+        case DrillLibrary.transitionCourtID: return .transition
+        case DrillLibrary.pressureCourtID: return .pressure
         default: return .softGame
         }
     }
