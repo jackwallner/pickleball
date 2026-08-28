@@ -86,6 +86,12 @@ final class ProgressStore: ObservableObject {
         static let missed = "progress.missed"
         static let ballsToday = "progress.ballsToday"
         static let ballsDay = "progress.ballsDay"
+        static let completions = "progress.completions"
+        static let totalSessions = "progress.totalSessions"
+        static let seenItems = "progress.seenItems"
+        static let missedItems = "progress.missedItems"
+        static let hasOnboarded = "progress.hasOnboarded"
+        static let lastQuickSessionDay = "progress.lastQuickSessionDay"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -102,6 +108,10 @@ final class ProgressStore: ObservableObject {
         sessions = decode([SessionRecord].self, Key.sessions) ?? []
         missed = decode([MissedPrinciple].self, Key.missed) ?? []
         ballsToday = defaults.integer(forKey: Key.ballsToday)
+        completions = (defaults.dictionary(forKey: Key.completions) as? [String: Int]) ?? [:]
+        totalSessions = defaults.integer(forKey: Key.totalSessions)
+        seenItems = Set(defaults.stringArray(forKey: Key.seenItems) ?? [])
+        missedItems = Set(defaults.stringArray(forKey: Key.missedItems) ?? [])
     }
 
     // MARK: - Recording
@@ -233,6 +243,77 @@ final class ProgressStore: ObservableObject {
         max(0, ProgressThreshold.ballsForPracticeDay - ballsToday)
     }
 
+
+    // MARK: - Authored drills
+    //
+    // The generated loop above keys everything on `RallyPhase`, because that is
+    // what the advisor branches on and what a player can act on. The authored
+    // rooms need a second, finer memory: which individual drill has been
+    // finished, which specific question has been seen, and which ones came back
+    // wrong. Those are item ids, not phases, so they get their own maps.
+    //
+    // They deliberately share one store and one streak. Two stores would mean
+    // two streaks, and a player who practised today would have to guess which
+    // number the app meant.
+
+    @Published private(set) var completions: [String: Int] = [:]
+    @Published private(set) var seenItems: Set<String> = []
+    @Published private(set) var missedItems: Set<String> = []
+    @Published private(set) var totalSessions: Int = 0
+
+    /// The shell reads the streak under this name. There is only one streak in
+    /// the app and it is the phase-practice one, which requires a real handful
+    /// of balls rather than a single tap.
+    var streakCount: Int { streak }
+
+    var hasOnboarded: Bool {
+        get { defaults.bool(forKey: Key.hasOnboarded) }
+        set { defaults.set(newValue, forKey: Key.hasOnboarded) }
+    }
+
+    func completions(for drillID: String) -> Int { completions[drillID] ?? 0 }
+
+    func roomProgress(_ room: Room) -> Double {
+        guard !room.drills.isEmpty else { return 0 }
+        let done = room.drills.filter { completions(for: $0.id) > 0 }.count
+        return Double(done) / Double(room.drills.count)
+    }
+
+    /// A finished authored drill. Note this does NOT bump the streak on its
+    /// own: the streak is earned by answering balls, and `record(phase:...)`
+    /// is what counts them. A drill you opened and closed is not a practice day.
+    func recordSession(drillID: String, now: Date = Date()) {
+        completions[drillID, default: 0] += 1
+        totalSessions += 1
+        defaults.set(completions, forKey: Key.completions)
+        defaults.set(totalSessions, forKey: Key.totalSessions)
+    }
+
+    /// Item-level memory that feeds Quick Session and Fix My Mistakes: anything
+    /// answered wrong comes back first, unseen items come next.
+    func recordItem(id: String, correct: Bool) {
+        seenItems.insert(id)
+        if correct {
+            missedItems.remove(id)
+        } else {
+            missedItems.insert(id)
+        }
+        defaults.set(Array(seenItems), forKey: Key.seenItems)
+        defaults.set(Array(missedItems), forKey: Key.missedItems)
+    }
+
+    /// Quick Session is a once-a-day ritual: a fresh mix each day, and once
+    /// today's is done the Home card rests until tomorrow rather than handing
+    /// back the same questions. Missed items still return on later days.
+    func quickSessionCompletedToday(now: Date = Date()) -> Bool {
+        guard let last = defaults.object(forKey: Key.lastQuickSessionDay) as? Date else { return false }
+        return Calendar.current.isDate(last, inSameDayAs: now)
+    }
+
+    func markQuickSessionCompleted(now: Date = Date()) {
+        defaults.set(Calendar.current.startOfDay(for: now), forKey: Key.lastQuickSessionDay)
+    }
+
     // MARK: - Persistence
 
     private func persist() {
@@ -259,7 +340,13 @@ final class ProgressStore: ObservableObject {
     func resetForTesting() {
         attempts = [:]; correct = [:]; streak = 0; lastPracticeDay = nil
         totalAnswered = 0; sessions = []; missed = []; ballsToday = 0
+        completions = [:]; totalSessions = 0; seenItems = []; missedItems = []
         defaults.removeObject(forKey: Key.ballsDay)
+        defaults.removeObject(forKey: Key.completions)
+        defaults.removeObject(forKey: Key.totalSessions)
+        defaults.removeObject(forKey: Key.seenItems)
+        defaults.removeObject(forKey: Key.missedItems)
+        defaults.removeObject(forKey: Key.lastQuickSessionDay)
         persist()
     }
 

@@ -22,14 +22,37 @@ every answer names the principle it came from. The money search term is
 - `DuprIQ` — `com.jackwallner.pickleball`
 
 ## Architecture
-- `Shared/Models` — `Court`, `RallyPosition`, `Shot`
-- `Shared/Content` — `PositionGenerator` (the asset) and `ShotAdvisor`
-  (the rules engine). Both are total, deterministic, and seedable.
+
+**The app is the fleet shell plus this app's generator.** The first build
+(2026-08-24) was written from scratch and had none of the shell every other
+XcodeGen app in `~` inherited: no rooms, no onboarding, no feature tour, no
+What's New, no daily challenge, no drill library, no session builder. On
+2026-08-28 the shell was ported in from `~/electrician` (which is itself the
+`~/mahj` shell already retargeted once to a generator-first app) and the
+bespoke generator was grafted onto it. Read `~/electrician` when you need to
+know why a shell file is shaped the way it is; read this file for what changed
+on the way over.
+
+- `Shared/Models` — `Court`, `RallyPosition`, `Shot` (bespoke); `Drill`/`Room`,
+  `Given`, `Principle` (shell shape, this app's domain)
+- `Shared/Content` — `PositionGenerator` (the asset) and `ShotAdvisor` (the
+  rules engine), both total, deterministic and seedable; `EndlessPractice`
+  (the adapter), `SessionBuilder`, `DrillLibrary`, and the authored rooms
 - `Shared/Services` — progress by phase and practice history, the 15-ball free
-  daily cap, subscriptions, review funnel, and the DEBUG-only `DebugFixtures`
-  that gives screenshot runs a deterministic state
-- `DuprIQ/Views` — `TodayView` lobby, `DrillSessionView` (the loop),
-  `CourtDiagramView`, progress, paywall, settings
+  daily cap, `PracticeRecordStore` (item-level memory), `AppSettings`,
+  `PlayerProfile`, subscriptions, review funnel, `ContentReport`, and the
+  DEBUG-only `DebugFixtures` that gives screenshot runs a deterministic state
+- `DuprIQ/Views` — `HomeView` lobby, `DrillSessionView` (the generated loop),
+  `CourtDiagramView`, the shell's `Drills/` runners for authored content,
+  rooms, onboarding, tour, primer, progress, paywall, settings
+
+**`EndlessPractice` is the graft seam.** It turns a `DrillQuestion` into the
+same `QuickItem` the authored drills emit, so the session runners never have to
+know whether a question was written by hand or generated a second ago. The one
+thing that could not be adapted away is the court: `QuickItem` carries an
+optional `position`, and `QuestionPager` renders `CourtDiagramView` when it
+finds one and a row of `Given` chips when it does not. Four sets of feet ARE
+the question; flattening them into prose would delete the app.
 
 `PositionGeneratorTests` and `ShotAdvisorTests` are the content contract.
 If a generated position is off-court, the answer is missing from the
@@ -38,6 +61,12 @@ broken. Do not weaken those tests to land a generator change.
 `ServiceTests` is the equivalent contract for the daily cap, the streak rule,
 the accuracy sample threshold, the practice history and the review gate: none
 of those regressions show up in a generator test.
+`ContentTests` is the contract for everything the port brought in: that every
+authored question is answerable, that the Worked Reads room cannot disagree
+with the advisor, that generated balls roll up to one tracking row per phase,
+and that no leftover word from the previous domains survives in the copy. It
+matches on WORD BOUNDARIES, because the first version used `contains` and
+failed on "tiebreaker".
 
 **Lateral position is load-bearing.** The advisor branches on where the contact
 sits relative to the center line (no long diagonal exists from the middle) and
@@ -158,6 +187,25 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
   the court is drawn: discovering the paywall after reading a position is a
   bait-and-switch, and a session never promises more balls than the allowance
   can grade.
+- **Only the GENERATED loop is metered.** The authored rooms are finite and two
+  of them are free forever, so counting them against a daily cap would quietly
+  take back what the free tier promised. The allowance covers Endless Practice,
+  Today's Rally and the phase drills, all of which route through
+  `start(phase:)` on `HomeView`/`EndlessPickerView` so the check happens before
+  a court is drawn. `DrillSessionView` re-checks on every tap because a session
+  can straddle midnight.
+- **Endless Practice is not a Pro mode.** Every other training tile on Home is
+  `trainingTile` (Pro-locked); the Endless tile is a plain `NavigationLink`,
+  because generated practice is the free tier's entire product and the daily
+  allowance is already its meter. If it ever gets a lock badge, the free tier
+  has become a demo.
+- **Generated misses come back as MISTAKES, not as questions.** A generated
+  position's id is a one-off, so `PracticeRecordStore` rolls every ball in a
+  phase onto one row and `isReviewable` is false. `MistakeCatalog` names the
+  reasoning error behind each wrong shot ("you attacked a ball that was not
+  above the net"), and `EndlessPractice.targetedItems` mints a NEW position of
+  the right phase that sets the same trap. Replaying a court whose answer they
+  now remember would test their memory, not the read that produced the miss.
 - **The free/Pro line is history, not accuracy.** Accuracy by phase is free and
   visible on the lobby, so selling it back as a Pro benefit was a claim the app
   could not keep. Pro is the unlimited cap plus session history and the ranked

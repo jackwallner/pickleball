@@ -8,6 +8,10 @@ struct DuprIQApp: App {
     @StateObject private var progress = ProgressStore.shared
     @StateObject private var limiter = PracticeLimiter.shared
     @StateObject private var reviews = ReviewPromptTracker.shared
+    @StateObject private var settings = AppSettings.shared
+    @StateObject private var router = AppRouter.shared
+    @StateObject private var profile = PlayerProfile.shared
+    @StateObject private var records = PracticeRecordStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +20,10 @@ struct DuprIQApp: App {
                 .environmentObject(progress)
                 .environmentObject(limiter)
                 .environmentObject(reviews)
+                .environmentObject(settings)
+                .environmentObject(router)
+                .environmentObject(profile)
+                .environmentObject(records)
                 .onAppear { limiter.rollOverIfNeeded() }
         }
         // A backgrounded app is the normal way a player crosses midnight, and

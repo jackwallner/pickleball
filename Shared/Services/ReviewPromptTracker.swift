@@ -1,5 +1,41 @@
 import Foundation
 
+enum AppStoreLinks {
+    /// Numeric Apple ID for `com.jackwallner.pickleball`.
+    static let appStoreID = "6804828001"
+
+    /// FLIP THIS THE DAY THE LISTING GOES READY FOR SALE, and not before.
+    ///
+    /// Having an Apple ID is not the same as having a listing. The ASC record
+    /// has existed since before there was anything to link to, and while it
+    /// sits in PREPARE_FOR_SUBMISSION every `apps.apple.com/app/id...` URL
+    /// built from it is a 404. Treating a non-empty id as "published" would
+    /// hand TestFlight testers a dead link and offer a store page that does not
+    /// exist, which is the worst first impression a funnel can make.
+    ///
+    /// While this is false the funnel uses `requestReview()` only. The feedback
+    /// path still works, and that is the one that matters pre-launch.
+    static let isListingLive = false
+
+    static var isPublished: Bool { isListingLive && !appStoreID.isEmpty }
+
+    static var productURL: URL? {
+        guard isPublished else { return nil }
+        return URL(string: "https://apps.apple.com/app/id\(appStoreID)")
+    }
+
+    /// The write-a-review page. No storefront prefix: the App Store resolves
+    /// the bare app id into the viewer's own storefront, and hardcoding one
+    /// only risks sending a reader to the wrong store.
+    static var writeReviewURL: URL? {
+        guard isPublished else { return nil }
+        return URL(string: "https://apps.apple.com/app/id\(appStoreID)?action=write-review")
+    }
+
+    /// Matches the address the marketing and support pages publish.
+    static let feedbackEmail = "jackwallner+p@gmail.com"
+}
+
 /// The fleet review funnel: never call `requestReview()` cold.
 ///
 /// A player has to finish enough drills to have an opinion, then answer an

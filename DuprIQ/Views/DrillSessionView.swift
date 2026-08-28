@@ -7,6 +7,7 @@ struct DrillSessionView: View {
 
     @EnvironmentObject private var subscriptions: SubscriptionService
     @EnvironmentObject private var progress: ProgressStore
+    @StateObject private var records = PracticeRecordStore.shared
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
     @Environment(\.dismiss) private var dismiss
@@ -344,6 +345,21 @@ struct DrillSessionView: View {
             wasCorrect: wasCorrect,
             principle: question.verdict.principle
         )
+        // Also report to the item store, which is what Fix My Mistakes reads.
+        // A generated position's id is a one-off, so the store rolls every ball
+        // in a phase onto one row; the MISTAKE is what comes back, not the
+        // question, and a re-run of a position whose answer they now remember
+        // would test their memory rather than the read that produced the miss.
+        records.record(
+            itemID: question.position.phase.itemPrefix + question.position.id,
+            roomID: question.position.phase.roomID,
+            correct: wasCorrect,
+            isReviewable: false
+        )
+        if !wasCorrect,
+           let pattern = MistakeCatalog.pattern(for: question.options[offset], in: question.position) {
+            records.recordMistake(pattern)
+        }
         limiter.consume(isPro: subscriptions.isPro)
     }
 

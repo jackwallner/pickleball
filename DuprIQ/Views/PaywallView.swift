@@ -22,6 +22,11 @@ struct PaywallView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
     @Environment(\.dismiss) private var dismiss
 
+    /// Where the sheet was opened from. Not sent anywhere: it exists so the
+    /// call sites read as distinct entry points and a future funnel question
+    /// ("which door do people buy from") has somewhere to hang.
+    var source: String = "unspecified"
+
     @State private var plan: PaywallPlan = .yearly
     @State private var isWorking = false
     @State private var error: String?
