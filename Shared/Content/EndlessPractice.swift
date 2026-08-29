@@ -119,11 +119,16 @@ enum EndlessPractice {
         item(from: PositionGenerator.question(phase: phase, seed: seed), sourceLabel: sourceLabel)
     }
 
-    /// The question line above the court. Deliberately short: the diagram is
-    /// carrying the situation, so repeating it in prose only gives the eye
-    /// somewhere else to look.
+    /// The question line above the court.
+    ///
+    /// The score and nothing else. It used to read "the ball is below net
+    /// height from the middle", which is the two facts the answer turns on
+    /// printed above a render whose entire job is to make the player read them
+    /// off the court. That was correct copy for the overhead diagram it was
+    /// written for and is a giveaway now that the same item draws a
+    /// first-person court in every mode.
     static func prompt(for position: RallyPosition) -> String {
-        "\(position.scoreLine). The ball is \(position.ballHeight.label.lowercased()) \(position.contactSideLabel). What do you hit?"
+        "\(position.scoreLine). Where do you hit it?"
     }
 
     /// The read, in the order a coach teaches it: how high, who is set, where

@@ -86,7 +86,7 @@ final class AimLabelLayoutTests: XCTestCase {
 
     /// Well-separated rings should not be dragged around: a caption only moves
     /// when it has to.
-    func testWellSpacedCaptionsSitAboveTheirOwnRings() {
+    func testWellSpacedCaptionsSitBelowTheirOwnRings() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 100, y: 300),
             CGPoint(x: 300, y: 560),
@@ -94,7 +94,27 @@ final class AimLabelLayoutTests: XCTestCase {
         for placement in place(anchors) {
             XCTAssertEqual(placement.label.x, placement.anchor.x, accuracy: 0.5)
             XCTAssertEqual(
-                placement.label.y, placement.anchor.y - AimLabelLayout.lift, accuracy: 0.5
+                placement.label.y, placement.anchor.y + AimLabelLayout.drop, accuracy: 0.5
+            )
+        }
+    }
+
+    /// Captions go DOWN the screen, into the empty near court, never up into
+    /// the far court where the opponents and the rings are. This is the whole
+    /// reason the layout exists: the build before it drew all four pills across
+    /// both opponents' bodies, so the render hid the feet the question asks
+    /// about.
+    func testCaptionsStayOutOfTheFarCourt() {
+        let anchors: [CGPoint?] = [
+            CGPoint(x: 120, y: 360),
+            CGPoint(x: 150, y: 366),
+            CGPoint(x: 260, y: 358),
+            CGPoint(x: 280, y: 364),
+        ]
+        for placement in place(anchors) {
+            XCTAssertGreaterThan(
+                placement.label.y, placement.anchor.y,
+                "caption \(placement.index) was pushed above the ring it names"
             )
         }
     }

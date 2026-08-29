@@ -122,6 +122,10 @@ struct DrillSessionView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 if picked != nil || timedOut {
+                    // The card runs to the physical bottom of the screen. Left
+                    // inside the safe area it floated with a band of court
+                    // showing under it, which read as a sheet that had not
+                    // finished animating in.
                     VerdictCard(
                         ball: ball,
                         picked: picked,
@@ -134,12 +138,21 @@ struct DrillSessionView: View {
                     prompt(ball)
                 }
             }
+            .ignoresSafeArea(edges: .bottom)
         }
         // The one animation on this screen, and it moves only the card. The
         // court underneath is untouched, which is the entire point.
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: picked)
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: timedOut)
         .background(Theme.Surface.apron)
+        // The court runs edge to edge under a dark sky, and the app's default
+        // appearance is light, so iOS drew the clock and the battery in
+        // near-black on near-black at the top of every ball. `.preferredColorScheme`
+        // does not reach the status bar from a pushed view, and there is no
+        // light band up there to put dark glyphs on. The screen is a game
+        // screen with its own scoreboard, shot counter and clock, so it takes
+        // the whole display and gives the state back in the HUD.
+        .statusBarHidden(true)
     }
 
     private func povPhase(for ball: RallyBall) -> CourtPOVView.Phase {
@@ -180,6 +193,11 @@ struct DrillSessionView: View {
                 }
             }
             .padding(.horizontal, 14)
+            // Capped and centred, or the scoreboard and the shot clock end up
+            // at opposite corners of a 13 inch iPad with three feet of court
+            // between them.
+            .frame(maxWidth: Theme.readableContentWidth)
+            .frame(maxWidth: .infinity)
 
             HStack(spacing: 10) {
                 Text(ball.position.phase.title.uppercased())
@@ -198,6 +216,8 @@ struct DrillSessionView: View {
             }
             .foregroundStyle(.white.opacity(0.9))
             .padding(.horizontal, 16)
+            .frame(maxWidth: Theme.readableContentWidth)
+            .frame(maxWidth: .infinity)
         }
         .padding(.top, 4)
         .padding(.bottom, 10)
@@ -464,6 +484,10 @@ struct ShotClockRing: View {
 /// untouched and still shows the rings, so the explanation and the thing it is
 /// explaining are on screen together.
 struct VerdictCard: View {
+    /// The card ignores the bottom safe area so no court shows under it, which
+    /// means the button has to keep clear of the home indicator itself.
+    static let homeIndicatorClearance: CGFloat = 22
+
     let ball: RallyBall
     let picked: Int?
     let timedOut: Bool
@@ -522,25 +546,59 @@ struct VerdictCard: View {
                 .padding(.horizontal, 18)
                 .padding(.bottom, 14)
             }
-            // Capped so the card can never swallow the court it is explaining.
-            .frame(maxHeight: 260)
+            // Capped so the card can never swallow the court it is explaining,
+            // and capped to the same band `CourtPOVView` reserved for it: the
+            // four captions sit in the near court now, and a card that grew
+            // past this would cover the answer it is talking about.
+            .frame(maxHeight: 210)
+            // Without this the explanation is guillotined mid-word against the
+            // button and nothing says it continues. The fade is the only cue
+            // that the card scrolls.
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 0.88),
+                        .init(color: .black.opacity(0), location: 1),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
 
+            // The identifier goes on the Button itself, before the layout
+            // modifiers. Applied after `.padding` it lands on the padded
+            // container, which SwiftUI exports as an "Other" element: the
+            // screenshot harness looked it up with `app.buttons["next-ball"]`,
+            // found nothing, and every capture run walked exactly one ball
+            // while still reporting success.
             Button(buttonTitle, action: onNext)
+                .accessibilityIdentifier("next-ball")
                 .primaryCTA(color: Theme.court)
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
-                .accessibilityIdentifier("next-ball")
+                .padding(.bottom, VerdictCard.homeIndicatorClearance)
         }
         .padding(.top, 14)
+        // Reading width, centred. Full bleed on an iPad put a two-line
+        // explanation on one 1000 point line, which is a paragraph nobody
+        // tracks across.
+        .frame(maxWidth: Theme.readableContentWidth)
+        .frame(maxWidth: .infinity)
         .background(Theme.card)
         .clipShape(UnevenRoundedRectangle(
             topLeadingRadius: 26, bottomLeadingRadius: 0,
             bottomTrailingRadius: 0, topTrailingRadius: 26, style: .continuous
         ))
         .shadow(color: .black.opacity(0.35), radius: 18, y: -6)
-        .accessibilityIdentifier("answer-card")
     }
 
+    /// The identifier lives on the headline, not on the whole card.
+    ///
+    /// An identifier applied to a container is inherited by every view inside
+    /// it, and the inherited one WINS: with `answer-card` on the card, the
+    /// primary button reported `answer-card` too and `next-ball` did not exist
+    /// anywhere in the tree. Every capture run walked exactly one ball and then
+    /// gave up, while still reporting success.
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: wasCorrect ? "checkmark.circle.fill"
@@ -552,6 +610,8 @@ struct VerdictCard: View {
         .foregroundStyle(wasCorrect ? Theme.rightGreen : Theme.wrongRed)
         .padding(.horizontal, 18)
         .padding(.bottom, 10)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("answer-card")
     }
 
     private var headline: String {
@@ -614,8 +674,8 @@ struct RallySummaryView: View {
 
             Spacer()
             Button("Done", action: onDone)
-                .primaryCTA(color: Theme.court)
                 .accessibilityIdentifier("session-done")
+                .primaryCTA(color: Theme.court)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

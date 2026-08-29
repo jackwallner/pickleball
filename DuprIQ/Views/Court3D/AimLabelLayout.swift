@@ -14,8 +14,17 @@ import CoreGraphics
 /// way a tactics board moves its labels off the players it is naming.
 enum AimLabelLayout {
 
-    /// How far above its ring a caption floats before collisions are resolved.
-    static let lift: CGFloat = 34
+    /// How far BELOW its ring a caption sits before collisions are resolved.
+    ///
+    /// Below, not above, and this is the fix for the worst thing in the first
+    /// build. A caption lifted above its ring lands on the far court, which is
+    /// where the opponents are: on a portrait phone the four pills covered both
+    /// players' bodies and most of the rings they named, so the render was
+    /// hiding the exact four sets of feet the question is about. The near court
+    /// under the rings is empty by construction, it is the half of the frame
+    /// nothing informative ever occupies, and a leader line back up to the ring
+    /// costs one hairline.
+    static let drop: CGFloat = 46
     /// The step a colliding caption is pushed by, per pass.
     static let step: CGFloat = 7
     /// Breathing room required between two captions.
@@ -37,8 +46,10 @@ enum AimLabelLayout {
         labelSize: CGSize,
         in size: CGSize,
         topInset: CGFloat = 96,
-        bottomInset: CGFloat = 96
+        bottomInset: CGFloat = 96,
+        drop: CGFloat = AimLabelLayout.drop
     ) -> [Placement] {
+        guard size.width > 0, size.height > 0 else { return [] }
         let halfW = labelSize.width / 2
         let halfH = labelSize.height / 2
         let minX = halfW + 8
@@ -66,13 +77,13 @@ enum AimLabelLayout {
 
         for index in order {
             guard let anchor = anchors[index] else { continue }
-            let start = clamp(CGPoint(x: anchor.x, y: anchor.y - lift))
+            let start = clamp(CGPoint(x: anchor.x, y: anchor.y + drop))
 
             var candidate = start
             var moved = 0
-            // Push toward the viewer first: down the screen is empty near court,
-            // and a caption that drifts that way still points back up its
-            // leader line at the ring it names.
+            // Push further toward the viewer first: down the screen is more
+            // empty near court, and a caption that drifts that way still points
+            // back up its leader line at the ring it names.
             while taken.contains(where: { $0.intersects(rect(at: candidate)) }),
                   moved < 60, candidate.y < maxY {
                 candidate.y += step

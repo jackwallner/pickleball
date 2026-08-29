@@ -110,7 +110,8 @@ struct QuestionPager<Choices: View>: View {
                         phase: selection.map {
                             .graded(picked: $0, answer: answerIndex)
                         } ?? .deciding,
-                        onPick: selection == nil ? onPickShot : nil
+                        onPick: selection == nil ? onPickShot : nil,
+                        chrome: .embedded
                     )
                     .frame(height: 340)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))

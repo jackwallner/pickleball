@@ -41,15 +41,45 @@ struct CourtCamera {
     /// looks at where they are hitting, not at the wall in front of them.
     let yaw: Double
 
-    /// How far behind your own contact point the eye sits, in feet. Small: this
-    /// is your head, not a camera on a boom.
-    static let shoulderOffset: Double = 1.6
+    /// How far behind your own stance the eye sits, in feet.
+    ///
+    /// This used to be 1.6, i.e. a head on a body, and it produced a frame
+    /// nobody could read. From five feet away a ball at 1.7 ft sits forty
+    /// degrees below the horizon while the opponents sit on it, so the two
+    /// things the question compares (this ball, and the net over there) end up
+    /// at opposite ends of the screen with thirty percent of the frame of
+    /// empty near court between them. Stepping the eye back to a shoulder's
+    /// view closes that gap: the same ball is now twenty-five degrees down and
+    /// the whole subject fits in one glance.
+    ///
+    /// The read this used to protect, how close YOU are to the kitchen, is not
+    /// lost. `CourtScene` draws a ring on the paint where you are standing, so
+    /// your own position is a thing you can see rather than a thing inferred
+    /// from how low the camera is.
+    static let shoulderOffset: Double = 8.5
+
+    /// Where the subject's vertical centre should sit in the frame, measured
+    /// from the top.
+    ///
+    /// The previous build aimed the surplus at the top of the frame on the
+    /// reasoning that empty sky is worse than empty court. It is, but the
+    /// version that fixed it went too far and pinned the opponents into the
+    /// top fifth of the screen with the ball alone at the bottom. Just above
+    /// centre is the honest answer: the HUD lives in the band above, and the
+    /// four captions live in the near court below.
+    static let subjectCentreFraction: Double = 0.46
 
     /// The narrowest and widest vertical angles the fit below is allowed to
     /// choose. Below the floor the court stops feeling like a place; above the
     /// ceiling the edges of a phone frame distort badly enough to misrepresent
     /// where someone is standing, which is the one thing this view must not do.
-    static let minimumFieldOfView: Double = 58
+    /// The floor was 58, chosen when the fit was framing a synthetic region
+    /// spanning the whole far court and therefore never came near it. Now that
+    /// the fit sees only the four rings this question draws, 58 was the binding
+    /// constraint on most balls and it was throwing away the reach it had
+    /// earned: the opponents and the rings sat small in the middle of the frame
+    /// with nothing gained. The clamps below are guard rails, not a look.
+    static let minimumFieldOfView: Double = 46
     static let maximumFieldOfView: Double = 92
 
     /// The aspect ratio the camera is fitted for when the caller has not
@@ -67,10 +97,9 @@ struct CourtCamera {
     /// wrong: a pickleball net is a MESH, drawn as one in `CourtScene`, and you
     /// look through it. The eye stays where a head is.
     ///
-    /// **The ball has to be in front of it.** `you` and `contact` are generated
-    /// independently, so a legal position can put the ball level with your own
-    /// shoes, which the overhead diagram drew without complaint and which in
-    /// first person would put the ball inside the lens.
+    /// **The ball has to be in front of it.** The contact is a reach from your
+    /// stance rather than an independent draw, so this is a step back rather
+    /// than a rescue, but a ball level with the lens is unrecoverable.
     ///
     /// **The angle is fitted, not fixed.** A single field of view cannot serve
     /// both ends of the court. From your own baseline everything is far away
@@ -80,9 +109,11 @@ struct CourtCamera {
     /// every phase, because it is invisible until it is the one ball where the
     /// read was a player you could not see.
     static func viewing(
-        _ position: RallyPosition, aspect: Double = defaultAspect
+        _ position: RallyPosition,
+        aiming aimPoints: [CourtPoint] = [],
+        aspect: Double = defaultAspect
     ) -> CourtCamera {
-        let mustSee = framingPoints(for: position)
+        let mustSee = framingPoints(for: position, aiming: aimPoints)
         var pullBack = 0.0
 
         // Widen first; only walk the eye backwards when widening runs out. A
@@ -99,12 +130,32 @@ struct CourtCamera {
         return fitted(position, pullBack: pullBack, aspect: aspect, mustSee: mustSee)
     }
 
+    /// The camera for a whole question, which knows where its four rings are.
+    static func viewing(
+        _ question: DrillQuestion, aspect: Double = defaultAspect
+    ) -> CourtCamera {
+        viewing(
+            question.position,
+            aiming: ShotAiming.aimPoints(
+                for: question.options, in: question.position,
+                answer: question.answer,
+                answerTarget: question.verdict.targetOpponent
+            ),
+            aspect: aspect
+        )
+    }
+
     /// Everything that has to be inside the frame: both opponents head to toe,
-    /// the ball, and the whole region an aim ring can land in for this
-    /// position. The aim region is derived rather than passed in, so the camera
-    /// does not have to know which four options the generator happened to pick.
+    /// the ball, and the four rings this question actually draws.
+    ///
+    /// The four rings are PASSED IN now. The first version derived a synthetic
+    /// grid of every place any option could ever land, which spanned almost the
+    /// whole far court on every single ball, so the fit below ran into its
+    /// widest allowed angle every time and squeezed the real subject into a
+    /// band across the top of the screen. Framing what is drawn instead of what
+    /// might have been drawn is most of the difference between the two builds.
     private static func framingPoints(
-        for position: RallyPosition
+        for position: RallyPosition, aiming aimPoints: [CourtPoint]
     ) -> [(point: CourtPoint, height: Double)] {
         var points: [(CourtPoint, Double)] = []
 
@@ -113,34 +164,38 @@ struct CourtCamera {
             points.append((opponent, 0))
             points.append((opponent, 5.6))
         }
+        // Both the ball and the tape reference beside it: the comparison
+        // between the two is the question, so half of it in frame is no use.
         points.append((position.contact, ballHeightForFraming(position.ballHeight)))
+        points.append((position.contact, netHeightForFraming))
+        points.append((position.contact, 0))
+        // Your own feet, so the ring `CourtScene` draws under them is somewhere
+        // you can actually see. Without it the stance ring fell off the left
+        // edge whenever you were reaching to the side, which is exactly when
+        // knowing where your feet are matters.
+        points.append((position.you, 0))
 
-        let contactIsLeft = position.contact.isLeftHalf
-        // Each candidate x, plus the room `ShotAiming` needs to fan two rings
-        // apart when two options land on the same spot. Without the spread the
-        // fit was computed against where a shot lands and the ring was then
-        // drawn up to three feet to the side of it, off the frame.
-        let spread = ShotAiming.maximumFanOffset
-        let baseXs: [Double] = [
-            contactIsLeft ? CourtGeometry.width * 0.75 : CourtGeometry.width * 0.25,
-            contactIsLeft ? CourtGeometry.width * 0.25 : CourtGeometry.width * 0.75,
-            CourtGeometry.centerX,
-            position.opponentLeft.x, position.opponentRight.x,
-            position.opponentLeft.x + 2.4, position.opponentRight.x + 2.4,
-        ]
-        let xs = baseXs.flatMap { [$0 - spread, $0, $0 + spread] }
-        let ys: [Double] = [
-            CourtGeometry.netY + 2.6,
-            CourtGeometry.length - 4.0,
-            position.opponentLeft.y - 1.4,
-            position.opponentRight.y - 1.4,
-        ]
-        for x in xs {
-            for y in ys {
-                points.append((CourtPoint(
-                    x: min(max(x, 1.2), CourtGeometry.width - 1.2),
-                    y: min(max(y, CourtGeometry.netY + 1.2), CourtGeometry.length - 1.2)
-                ), 0))
+        // The whole ring, not just its centre. The fit used to frame the point
+        // a shot lands on, and the ring drawn around it is nearly two feet
+        // across: on the App Store capture the outermost option was a yellow
+        // arc sliced off by the right edge of the screen.
+        for point in aimPoints {
+            for dx in [-aimRingRadiusForFraming, 0, aimRingRadiusForFraming] {
+                for dy in [-aimRingRadiusForFraming, 0, aimRingRadiusForFraming] {
+                    points.append((CourtPoint(x: point.x + dx, y: point.y + dy), 0))
+                }
+            }
+        }
+
+        // A fallback for callers with no options to hand (previews, and the
+        // camera tests that only care about the players). The far kitchen and
+        // the two deep corners are where a ring can be.
+        if aimPoints.isEmpty {
+            for x in [CourtGeometry.width * 0.25, CourtGeometry.centerX,
+                      CourtGeometry.width * 0.75] {
+                for y in [CourtGeometry.netY + 2.6, CourtGeometry.length - 4.0] {
+                    points.append((CourtPoint(x: x, y: y), 0))
+                }
             }
         }
         return points.map { (point: $0.0, height: $0.1) }
@@ -150,6 +205,13 @@ struct CourtCamera {
     /// in the model layer of this feature and must not depend on the renderer,
     /// and `CourtCameraTests` asserts the ball is in frame using the renderer's
     /// value, so the two cannot drift apart unnoticed.
+    /// The net tape, which `CourtScene` also draws as a reference hoop beside
+    /// the ball. Same duplication argument as `ballHeightForFraming`.
+    private static let netHeightForFraming: Double = 34.0 / 12.0
+
+    /// Mirrors the largest ring `CourtScene.aimTarget` draws, plus its pipe.
+    private static let aimRingRadiusForFraming: Double = 1.8
+
     private static func ballHeightForFraming(_ height: BallHeight) -> Double {
         switch height {
         case .belowNet: return 1.7
@@ -164,23 +226,20 @@ struct CourtCamera {
         aspect: Double,
         mustSee: [(point: CourtPoint, height: Double)]
     ) -> CourtCamera {
-        // Far enough back that the ball is a thing you look at rather than a
-        // sphere filling the lens.
-        let minimumReach = 4.5
-        let standing = min(position.you.y, position.contact.y - minimumReach)
-        let eyeY = max(-9.0, standing - shoulderOffset - pullBack)
-        // Line the eye up behind the CONTACT, not behind your feet.
-        //
-        // You turn your shoulders to the ball before you hit it. Lining up on
-        // `you`, or splitting the difference, put the ball at an impossible
-        // angle whenever the two were far apart: the generator treats
-        // `you` and `contact` as independent draws, so it can place a contact
-        // eight feet to the side of the player, which at six feet of depth is
-        // fifty-odd degrees off the nose and outside any sane frame. The
-        // overhead diagram hid that by drawing two dots. Centring on the
-        // contact makes the ball framing independent of it.
+        // Behind your own stance, and never level with the ball. The contact is
+        // generated as a reach from `you` now, so the two are always within a
+        // stride of each other and this is a step back rather than a rescue.
+        let standing = min(position.you.y, position.contact.y - 0.8)
+        let eyeY = max(-13.0, standing - shoulderOffset - pullBack)
+        // Line the eye up behind the CONTACT, not behind your feet: you turn
+        // your shoulders to the ball before you hit it.
         let eye = CourtPoint(x: position.contact.x, y: eyeY)
-        let eyeHeight = 5.9
+        // A shade under standing height. The ball is the low thing in this
+        // frame and the far court is the high thing, so every inch the eye
+        // comes down pulls the two closer together: at 5.9 a ball on your
+        // shoetops sat thirty degrees below the court you were aiming at, and
+        // the frame had to stretch across both.
+        let eyeHeight = 5.2
 
         // Centre the head on what has to be seen, rather than pointing it at a
         // fixed spot and hoping.
@@ -232,22 +291,31 @@ struct CourtCamera {
             )
         }
 
-        // Spend the surplus on court, not on sky.
+        // Put the subject where the eye looks, and spend the surplus on the two
+        // things that want it.
         //
         // A portrait phone is twice as tall as it is wide, so the angle needed
-        // to fit the court's WIDTH forces a vertical angle far larger than the
-        // subject needs. Centring the head on the subject then splits that
-        // surplus evenly and the half above the horizon is empty darkness, a
-        // third of the screen on every ball. Tilting down until the horizon
-        // sits near the top moves all of it below the skyline, where at worst
-        // it is your own court. The clamps keep the subject inside the frame,
-        // so this only ever reallocates space the fit proved was spare.
-        var pitch = (minV + maxV) / 2
+        // to fit the court's WIDTH always leaves vertical room to spare. The
+        // build before this one pushed all of that spare room downward, which
+        // pinned the opponents and all four rings into a band across the top
+        // fifth of the screen with nothing but empty near court under them.
+        // Landing the subject's centre just above the middle of the frame gives
+        // the HUD a dark band to sit in and leaves the near court below the
+        // rings for the four captions, which is exactly where they belong.
+        //
+        // The clamps still win: they only ever give back space the fit proved
+        // was spare, so containment is never traded for composition.
+        let subjectCentre = (minV + maxV) / 2
+        let offset = 1 - 2 * subjectCentreFraction
+        var pitch = subjectCentre
         var fov = minimumFieldOfView
         for _ in 0..<4 {
             fov = fit(pitch: pitch)
             let half = fov * .pi / 180 / 2
-            pitch = min(max(0.74 * half, maxV - half), minV + half)
+            pitch = min(
+                max(subjectCentre + offset * half, maxV - half * 0.96),
+                minV + half * 0.96
+            )
         }
         // One last fit at the pitch actually being used, so containment is a
         // property of the returned camera rather than of the last iteration.

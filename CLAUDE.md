@@ -86,25 +86,82 @@ sized in feet from `CourtGeometry`. No models, no textures, no growth in binary
 size, and no way for the rendered court to drift from the rulebook the advisor
 reasons about.
 
-**A net is a mesh, not a panel.** This cost two rebuilds. Drawn as a
-semi-transparent panel it rendered as a solid black wall across the middle of
-the frame and hid the opponents, and each attempted fix (alpha, blend mode,
-depth writes, rendering order) looked like it should have worked. It is now
-about forty thin boxes with holes between them, which physically cannot occlude.
-The detour also produced a wrong camera: reasoning that a 34 inch net hides the
-far kitchen from anyone at their own baseline, the eye was raised to twelve feet
-to see over it, which squeezed the opponents into a thirteenth of the screen. Do
-not raise the camera. You look THROUGH a net.
+**A net is a mesh, not a panel, and the mesh has to be a haze.** This cost three
+rebuilds. Drawn as a semi-transparent panel it rendered as a solid black wall
+across the middle of the frame and hid the opponents, and each attempted fix
+(alpha, blend mode, depth writes, rendering order) looked like it should have
+worked. Rebuilt as thin boxes with holes between them it still read as a
+chain-link fence across the opponents' legs: cords thin enough to be cords
+render near black under a physically-based material whatever colour they are
+given, and forty of them at that distance close up. They are `.constant` lit,
+grey-green, 42% opaque, `writesToDepthBuffer = false`, and spaced 1.5 ft by
+0.7 ft. The detour also produced a wrong camera: reasoning that a 34 inch net
+hides the far kitchen from anyone at their own baseline, the eye was raised to
+twelve feet to see over it, which squeezed the opponents into a thirteenth of
+the screen. Do not raise the camera. You look THROUGH a net.
+
+**The ball is measured against a bar, not against the net.** The app's whole
+claim is that "can I attack this" is something you SEE, and for one build it
+was not: the net is twenty-five feet away and the ball is at your shoulder, so
+comparing their heights across that much perspective is guesswork and players
+were back to reading the caption. `CourtScene.ball` draws a white bar at exactly
+net height on the ball's own drop line, with the pole carried up through it when
+the ball is lower. Ball above the bar is a ball you can hit down on, and nothing
+writes that down. Two earlier shapes were wrong and both are instructive: a
+torus of net-tape radius projects as a four-hundred-pixel ellipse lying across
+the near court, and a smaller disc still reads as a puck on the paint, because a
+disc seen from above is a disc. Only a bar reads as a height.
+
+**The camera is framed on the four rings this question draws.** It used to be
+framed on a synthetic region covering every place any option could ever land,
+which spanned most of the far court on every ball, so the fit ran into its
+widest allowed angle every time and pinned both opponents and all four rings
+into a band across the top fifth of the screen. `CourtCamera.viewing` takes the
+aim points; `CourtCamera.viewing(_ question:)` computes them. It frames the
+whole RING, not the point a shot lands on, because a ring is nearly two feet
+across and the outermost option was being sliced off by the edge of the screen.
+
+**Composition is a contract, not taste.** `CourtCameraTests` now asserts that
+the opponents are not jammed against the top or bottom of the frame and that
+every ring leaves room under it for its caption. Containment tests all passed
+while the screen was unreadable; only a screenshot caught it, which is exactly
+the kind of failure this file exists to stop recurring.
+
+**The eye is a step back and a shade low.** 8.5 ft behind your stance at 5.2 ft,
+not 1.6 ft at 5.9. From a head on a body, a ball on your shoetops sits forty
+degrees below the horizon while the opponents sit on it, and the frame has to
+stretch across both with a third of the screen of empty near court in between.
+`CourtScene.stanceRing` draws a quiet ring where you are standing so the read
+the old close eye protected, how close YOU are to the kitchen, is a thing you
+can see. Quiet is the operative word: the first version had a bright ring and a
+vertical stake eight feet from the lens and became a fifth glowing target on our
+own side of the net.
+
+**The captions go BELOW their rings.** Lifted above them, on a portrait phone,
+all four pills landed on the far court and covered both opponents' bodies and
+most of the rings they named: the render was hiding the four sets of feet the
+question is about. The near court below is empty by construction.
+`CourtPOVView.verdictBandHeight` reserves the strip the verdict card will cover
+so the captions are laid out clear of it and nothing reflows when a ball is
+graded. That reserve is a cap in POINTS, not a fraction: 40% of a 13 inch iPad
+is 546 points held for a card that is never taller than 330.
+
+**A caption says the shot shape, unless two options share one.** The place is
+the ring, and printing "cross-court kitchen" on a pill sitting on the
+cross-court kitchen hands back the answer. But the third shot routinely offers a
+drive at their feet AND a drive down the line, which captioned by shape alone is
+two identical pills and a question nobody can answer. `ShotAiming.captions`
+adds the place only where it is the thing telling two options apart, and
+`ShotTargetingTests` pins that no two options ever caption identically.
 
 **The camera is fitted, not fixed.** One field of view cannot serve both ends of
 the court: from your baseline everything is distant and a narrow angle is right,
 while from the kitchen line an opponent at the far sideline is forty degrees off
 your nose. `CourtCamera.viewing` centres the head on what has to be visible and
 widens the angle until it fits, then walks the eye backwards only if widening
-runs out (a pulled-back eye misrepresents how close YOU are to the kitchen,
-which is itself a read). `CourtCameraTests` asserts on every phase that the
-ball, both opponents and all four rings are in frame, that depth runs up the
-screen and that left is left. Those are invisible failures otherwise: everything
+runs out. `CourtCameraTests` asserts on every phase that the ball, the net-height
+bar beside it, both opponents and all four rings are in frame and not jammed
+against an edge, that depth runs up the screen and that left is left. Those are invisible failures otherwise: everything
 computes, the scene renders, and the one object the question is about is simply
 not there.
 
@@ -128,6 +185,20 @@ wrong one; the clock defaults to match pace and a ball you did not decide about
 is graded as a miss, because that is what happens on a court. `off` exists as an
 accessibility escape hatch, not as the normal way to play.
 
+**Every mode that plays a generated ball draws the same court.** The pivot
+changed `DrillSessionView` and `QuickSessionView` and missed `PracticeRunView`,
+so Timed Challenge and Fix My Mistakes, both Pro-locked, went on serving the
+overhead diagram above a list of sentences that the pivot had replaced
+everywhere else. The fix was one call site: `QuestionPager` already renders
+`CourtPOVView` when it is handed `shots`, and that runner was not handing them
+over. `CourtPOVView.Chrome` is what makes the same view work in both places: a
+full-bleed drill reserves the HUD band and the verdict card's strip and draws
+your paddle, an embedded 340 point card reserves almost nothing, shrinks the
+captions, and culls the paddle (in a card it is a dark notch in the corner that
+reads as a clipping artefact). `EndlessPractice.prompt` lost its ball height and
+contact side at the same time: correct copy above an overhead diagram, a
+giveaway printed over a render whose whole job is to make you read them.
+
 **`EndlessPractice` is the graft seam.** It turns a `DrillQuestion` into the
 same `QuickItem` the authored drills emit, so the session runners never have to
 know whether a question was written by hand or generated a second ago. The one
@@ -145,8 +216,9 @@ the accuracy sample threshold, the practice history and the review gate: none
 of those regressions show up in a generator test.
 `CourtCameraTests`, `ShotTargetingTests`, `AimLabelLayoutTests` and
 `RallyBuilderTests` are the contract for the first-person pivot: what must be in
-frame, where a shot lands, that four captions stay apart and tappable, and that
-a point is a sequence someone could actually play. Every one of them exists
+frame AND where in the frame, where a shot lands, that four captions stay apart,
+below their rings and distinguishable from each other, and that a point is a
+sequence someone could actually play. Every one of them exists
 because of a failure a screenshot caught and no other test would have.
 `ContentTests` is the contract for everything the port brought in: that every
 authored question is answerable, that the Worked Reads room cannot disagree
@@ -154,6 +226,16 @@ with the advisor, that generated balls roll up to one tracking row per phase,
 and that no leftover word from the previous domains survives in the copy. It
 matches on WORD BOUNDARIES, because the first version used `contains` and
 failed on "tiebreaker".
+
+**A contact is a reach from a stance.** `you` and `contact` used to be
+independent draws, which routinely put the ball eight feet to the side of the
+feet supposed to be hitting it. A plan-view diagram drew that as two dots near
+each other; in first person it is a ball fifty degrees off your nose that no
+human could reach, and it was the one generator bug the overhead view was
+hiding. `PositionGenerator.contactPoint` derives the contact from `you` as a
+reach, signed forward offset per phase (in front at the kitchen, late and low on
+defense), and `partnerPoint` puts your partner across the center line from you
+instead of, sometimes, inside your own head.
 
 **Lateral position is load-bearing.** The advisor branches on where the contact
 sits relative to the center line (no long diagonal exists from the middle) and
@@ -250,6 +332,21 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
   test action on purpose, so the unit-test loop stays instant. Drive it with
   `scripts/capture-screenshots.sh <udid> <out>` (six shots) and
   `scripts/capture-paywall.sh <udid> <out>` (the paywall alone, with prices).
+- **An identifier on a container beats the ones inside it.** `answer-card` was
+  applied to the whole `VerdictCard`, and SwiftUI handed it down to every view
+  in the card: the primary button reported `answer-card` and `next-ball` did not
+  exist anywhere in the tree, so every capture run walked exactly one ball and
+  reported success. Identifiers go on the control, before the layout modifiers.
+- **SceneKit publishes an accessibility element per node.** The court exported
+  roughly two hundred unlabelled elements (forty net strands, every line box,
+  both players' limbs); VoiceOver had to be swiped through all of it and
+  XCUITest queries slowed to the point of timing out. `.accessibilityHidden` on
+  the SwiftUI wrapper does not reach inside a hosted `UIView`, so `SCNView`
+  gets `accessibilityElementsHidden` directly.
+- **`DuprIQScreenshots/AuditTests` is the audit tool, not part of the set.** It
+  walks the real loop slowly enough for a host-side `simctl io screenshot` loop
+  to record it. That is how the framing failures above were found; none of them
+  showed up in a passing suite.
 - **Screenshot state is a fixture, not the simulator's leftovers.**
   `DebugFixtures` reads DEBUG-only launch arguments through the `UserDefaults`
   argument domain: `-uitest.reset YES` wipes progress, the cap and review state,

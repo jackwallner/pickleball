@@ -158,6 +158,25 @@ enum ShotAiming {
         return points
     }
 
+    /// The caption for each option, in the same order.
+    ///
+    /// The caption says the SHAPE only, because the place is the ring, and
+    /// printing "cross-court kitchen" on a pill sitting on the cross-court
+    /// kitchen hands back the answer the render is asking someone to find.
+    ///
+    /// But a question can legitimately offer the same shape to two different
+    /// places, and the third shot does it constantly: a drive at their feet and
+    /// a drive down the line are a real decision. Captioned by shape alone
+    /// those are two pills both reading "Drive", which is not a hint withheld,
+    /// it is a question with two options nobody can tell apart. So the place is
+    /// added only to the options where it is the thing separating them.
+    static func captions(for options: [Shot]) -> [(title: String, detail: String?)] {
+        options.map { shot in
+            let shared = options.filter { $0.type == shot.type }.count > 1
+            return (shot.type.label, shared ? shot.target.shortLabel : nil)
+        }
+    }
+
     private static func distance(_ a: CourtPoint, _ b: CourtPoint) -> Double {
         ((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)).squareRoot()
     }

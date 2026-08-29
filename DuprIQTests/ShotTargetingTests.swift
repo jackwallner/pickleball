@@ -44,6 +44,23 @@ final class ShotTargetingTests: XCTestCase {
     /// an option the player cannot pick. The attack phase really does offer
     /// "Put it away, at their feet" and "Drive, at their feet", so this is not
     /// hypothetical.
+    /// Two options a player cannot tell apart.
+    ///
+    /// The captions say the shot shape, so a question offering "Drive, at their
+    /// feet" and "Drive, deep down the line" drew two identical pills. That is
+    /// not a hard question, it is a broken one, and it happens on the third
+    /// shot often enough that it was on screen in the first audit capture.
+    func testNoTwoOptionsShowTheSameCaption() {
+        everyGeneratedQuestion { question in
+            let captions = ShotAiming.captions(for: question.options)
+                .map { [$0.title, $0.detail ?? ""].joined(separator: "|") }
+            XCTAssertEqual(
+                Set(captions).count, captions.count,
+                "\(question.position.id): two options caption identically: \(captions)"
+            )
+        }
+    }
+
     func testNoTwoOptionsShareAnAimPoint() {
         everyGeneratedQuestion { question in
             let points = ShotAiming.aimPoints(

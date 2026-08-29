@@ -40,13 +40,19 @@ enum CourtScene {
 
     // MARK: - Assembly
 
-    static func make(for position: RallyPosition, camera: CourtCamera) -> SCNScene {
+    /// `showsPaddle` is false inside a session runner. Your own paddle is a
+    /// first-person flourish that works when the court IS the screen; in a 340
+    /// point card it is a dark notch in the bottom corner and reads as a
+    /// clipping artefact.
+    static func make(
+        for position: RallyPosition, camera: CourtCamera, showsPaddle: Bool = true
+    ) -> SCNScene {
         let scene = SCNScene()
         let root = scene.rootNode
 
         scene.background.contents = skyGradient()
         let cameraNode = cameraNode(camera)
-        cameraNode.addChildNode(paddleInHand())
+        if showsPaddle { cameraNode.addChildNode(paddleInHand()) }
         root.addChildNode(cameraNode)
         addLighting(to: root)
         addGround(to: root)
@@ -60,6 +66,7 @@ enum CourtScene {
         if camera.distance(to: position.partner) > minimumDrawDistance {
             root.addChildNode(player(at: position.partner, kind: .partner))
         }
+        root.addChildNode(stanceRing(at: position.you))
         root.addChildNode(ball(at: position.contact, height: ballHeight(position.ballHeight)))
 
         return scene
@@ -75,8 +82,8 @@ enum CourtScene {
         let size = CGSize(width: 4, height: 256)
         return UIGraphicsImageRenderer(size: size).image { context in
             let colors = [
-                UIColor(red: 0.016, green: 0.031, blue: 0.035, alpha: 1).cgColor,
-                UIColor(red: 0.047, green: 0.094, blue: 0.086, alpha: 1).cgColor,
+                UIColor(red: 0.043, green: 0.086, blue: 0.106, alpha: 1).cgColor,
+                UIColor(red: 0.086, green: 0.157, blue: 0.153, alpha: 1).cgColor,
                 uiColor(Theme.Surface.apron).cgColor,
             ]
             guard let gradient = CGGradient(
@@ -230,34 +237,40 @@ enum CourtScene {
     private static func addNet(to root: SCNNode) {
         let net = SCNNode()
         net.name = "net"
-        let cord = 0.028
+        let cord = 0.022
 
         // Verticals, one per foot across.
         var x = 0.0
         while x <= CourtGeometry.width + 0.001 {
             let strand = box(width: cord, height: netHeight, length: cord,
                              color: Theme.Surface.netMesh)
+            strand.geometry?.firstMaterial = cordMaterial()
             strand.position = CourtCamera.scenePoint(
                 x: x, y: CourtGeometry.netY, height: netHeight / 2
             )
             net.addChildNode(strand)
-            x += 1.0
+            x += 1.5
         }
 
-        // Horizontals, every four inches.
+        // Horizontals, every six inches. Four was denser than a real net and,
+        // at the distance the opponents stand, the strands closed up into a
+        // near-solid dark grid across their legs: the mesh that exists so it
+        // cannot occlude was occluding.
         var h = 0.0
         while h < netHeight - 0.05 {
             let strand = box(width: CourtGeometry.width, height: cord, length: cord,
                              color: Theme.Surface.netMesh)
+            strand.geometry?.firstMaterial = cordMaterial()
             strand.position = CourtCamera.scenePoint(
                 x: CourtGeometry.centerX, y: CourtGeometry.netY, height: h
             )
             net.addChildNode(strand)
-            h += 1.0 / 3.0
+            h += 0.7
         }
         root.addChildNode(net)
 
         // The tape. Bright and solid, because it is the reference edge.
+        // (Cord material is below, in Primitives.)
         let tape = box(width: CourtGeometry.width + 0.1, height: 0.17, length: 0.11,
                        color: Theme.Surface.netTape)
         tape.position = CourtCamera.scenePoint(
@@ -333,18 +346,23 @@ enum CourtScene {
         // an eleven foot black wall that filled the middle of the frame and
         // read as a rendering fault; a fence is something you see the court
         // against, not something that replaces it.
-        let fenceColor = Color(red: 0.114, green: 0.180, blue: 0.176)
-        let back = box(width: 86, height: 7, length: 0.25, color: fenceColor)
-        back.geometry?.firstMaterial?.transparency = 0.55
+        let fenceColor = Color(red: 0.129, green: 0.204, blue: 0.196)
+        // Ten feet, which is what a real court fence is. Seven was chosen when
+        // the camera was pitched hard down and anything taller filled the
+        // frame; with the eye level the fence now tops out just under the HUD
+        // and the band above it reads as evening sky rather than as a void.
+        let fenceHeight = 10.0
+        let back = box(width: 86, height: fenceHeight, length: 0.25, color: fenceColor)
+        back.geometry?.firstMaterial?.transparency = 0.5
         back.position = CourtCamera.scenePoint(
-            x: CourtGeometry.centerX, y: CourtGeometry.length + 14, height: 3.5
+            x: CourtGeometry.centerX, y: CourtGeometry.length + 14, height: fenceHeight / 2
         )
         root.addChildNode(back)
 
         for x in [-30.0, CourtGeometry.width + 30.0] {
-            let side = box(width: 0.25, height: 7, length: 130, color: fenceColor)
-            side.geometry?.firstMaterial?.transparency = 0.5
-            side.position = CourtCamera.scenePoint(x: x, y: 20, height: 3.5)
+            let side = box(width: 0.25, height: fenceHeight, length: 130, color: fenceColor)
+            side.geometry?.firstMaterial?.transparency = 0.45
+            side.position = CourtCamera.scenePoint(x: x, y: 20, height: fenceHeight / 2)
             root.addChildNode(side)
         }
     }
@@ -363,8 +381,17 @@ enum CourtScene {
         let face = SCNNode(geometry: SCNBox(
             width: 0.55, height: 0.72, length: 0.05, chamferRadius: 0.13
         ))
-        face.geometry?.firstMaterial = material(Color(red: 0.086, green: 0.105, blue: 0.125))
+        // Not black. Clipped by the frame edge, a black rectangle reads as a
+        // rendering fault rather than as a paddle; the court teal reads as kit.
+        face.geometry?.firstMaterial = material(Color(red: 0.129, green: 0.286, blue: 0.353))
         node.addChildNode(face)
+
+        let edge = SCNNode(geometry: SCNBox(
+            width: 0.61, height: 0.78, length: 0.03, chamferRadius: 0.15
+        ))
+        edge.geometry?.firstMaterial = material(Color(red: 0.055, green: 0.129, blue: 0.161))
+        edge.position = SCNVector3(0, 0, -0.02)
+        node.addChildNode(edge)
 
         let grip = SCNNode(geometry: SCNCylinder(radius: 0.075, height: 0.42))
         grip.geometry?.firstMaterial = material(Color(red: 0.16, green: 0.17, blue: 0.19))
@@ -381,8 +408,39 @@ enum CourtScene {
         // it reads as a paddle rather than as a black slab across the corner:
         // the field of view here is wide, so anything close to the lens is
         // enormous.
-        node.position = SCNVector3(1.15, -1.12, -2.85)
-        node.eulerAngles = SCNVector3(-0.20, -0.34, 0.16)
+        // Held low and out to the side so it frames the court instead of
+        // covering it, and far enough from the lens that it reads as a paddle
+        // rather than as a slab across the corner of the screen.
+        node.position = SCNVector3(1.42, -1.62, -3.1)
+        node.eulerAngles = SCNVector3(-0.24, -0.40, 0.20)
+        return node
+    }
+
+    /// Where YOU are standing, as a ring on the paint.
+    ///
+    /// The eye sits a step behind this, so without it your own position is the
+    /// one thing on the court you cannot see, and "am I at the line or still a
+    /// stride short" is a read the transition and third-shot phases turn on.
+    /// A ring is also what a coach points at, and it costs nothing: a body this
+    /// close to a head-height camera is a wall across a quarter of the frame,
+    /// which is why the first build drew one and then deleted it.
+    static func stanceRing(at point: CourtPoint) -> SCNNode {
+        let node = SCNNode()
+        node.name = "stance"
+
+        // Deliberately quiet. The first version was a bright ring with a
+        // vertical stake through it, standing eight feet from the lens, and it
+        // became the loudest object on screen: a fifth glowing target on our
+        // own side of the net, competing with the four you are meant to pick
+        // between. Where you are standing is CONTEXT, not the question.
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.9, pipeRadius: 0.05))
+        let material = glowing(PlayerKind.you.ring, intensity: 0.25)
+        material.transparency = 0.45
+        ring.geometry?.firstMaterial = material
+        ring.position = SCNVector3(0, 0.07, 0)
+        node.addChildNode(ring)
+
+        node.position = CourtCamera.scenePoint(point)
         return node
     }
 
@@ -448,18 +506,70 @@ enum CourtScene {
         let node = SCNNode()
         node.name = "ball"
 
-        // Drawn larger than a real 2.9 inch ball. At this distance a true-scale
-        // ball is a few pixels, and the ball is the subject of the question.
+        // The tape, brought to the ball.
+        //
+        // This is the single most important object in the scene and the first
+        // build did not have it. The app's whole claim is that "can I attack
+        // this" becomes something you SEE, and it was not: the net is twenty
+        // feet away and the ball is at your shoulder, so comparing their
+        // heights across that much perspective is guesswork, and players were
+        // back to reading the caption. A thin hoop at exactly net height,
+        // around the ball's own drop line, makes the comparison local: ball
+        // above the hoop is a ball you can hit down on, and no text says so.
+        //
+        // It is not a hint. Net height is a fact about the court that a player
+        // standing on one can see in their peripheral vision for free, and
+        // taking it away is what made the render dishonest rather than hard.
+        // A bar on the drop line, at exactly net height.
+        //
+        // Two versions of this were wrong before it. A torus of net-tape radius
+        // projected as a four-hundred-pixel ellipse lying across the near
+        // court; shrinking it to a disc still read as a white puck on the
+        // paint, because a disc seen from above is a disc. A BAR across the
+        // ball's own drop line reads as one thing only: a height. Ball above
+        // the bar is a ball you can hit down on, and no caption says so.
+        //
+        // It is not a hint. Net height is a fact a player standing on a court
+        // has in their peripheral vision for free, and taking it away is what
+        // made the render dishonest rather than hard.
+        let tape = box(width: 0.95, height: 0.055, length: 0.14, color: Theme.Surface.netTape)
+        tape.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
+        tape.position = SCNVector3(0, Float(netHeight), 0)
+        node.addChildNode(tape)
+
+        for side in [-0.47, 0.47] {
+            let cap = SCNNode(geometry: SCNBox(
+                width: 0.05, height: 0.20, length: 0.14, chamferRadius: 0.01
+            ))
+            cap.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
+            cap.position = SCNVector3(Float(side), Float(netHeight), 0)
+            node.addChildNode(cap)
+        }
+
         let sphere = SCNNode(geometry: SCNSphere(radius: 0.30))
         sphere.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 1.0)
         sphere.position = SCNVector3(0, Float(height), 0)
         node.addChildNode(sphere)
 
-        let drop = SCNNode(geometry: SCNCylinder(radius: 0.028, height: CGFloat(height)))
-        drop.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.3)
-        drop.geometry?.firstMaterial?.transparency = 0.5
+        let drop = SCNNode(geometry: SCNCylinder(radius: 0.032, height: CGFloat(height)))
+        drop.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.55)
+        drop.geometry?.firstMaterial?.transparency = 0.8
         drop.position = SCNVector3(0, Float(height / 2), 0)
         node.addChildNode(drop)
+
+        // Carry the pole past the ball when the tape bar is above it, so the
+        // two are one object. Without this the bar floated by itself somewhere
+        // over the far court and read as a fifth thing on the screen rather
+        // than as the mark this ball is being measured against.
+        if netHeight > height {
+            let extension_ = SCNNode(geometry: SCNCylinder(
+                radius: 0.022, height: CGFloat(netHeight - height)
+            ))
+            extension_.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.4)
+            extension_.geometry?.firstMaterial?.transparency = 0.35
+            extension_.position = SCNVector3(0, Float((height + netHeight) / 2), 0)
+            node.addChildNode(extension_)
+        }
 
         let shadow = SCNNode(geometry: SCNCylinder(radius: 0.26, height: 0.02))
         shadow.geometry?.firstMaterial = material(Color(red: 0.02, green: 0.05, blue: 0.06))
@@ -506,6 +616,24 @@ enum CourtScene {
         )
         geometry.firstMaterial = material(color)
         return SCNNode(geometry: geometry)
+    }
+
+    /// One cord of the net.
+    ///
+    /// Unlit and half transparent, and it took three passes to get here. Lit
+    /// with the same physically-based material as everything else, a cord thin
+    /// enough to be a cord renders almost black whatever colour it is given,
+    /// and forty of them close into a grid that hides the opponents' legs. It
+    /// also does not write depth, so nothing behind the net can be occluded by
+    /// it even where the strands cross.
+    private static func cordMaterial() -> SCNMaterial {
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = uiColor(Theme.Surface.netMesh)
+        m.transparency = 0.42
+        m.writesToDepthBuffer = false
+        m.isDoubleSided = true
+        return m
     }
 
     private static func material(_ color: Color) -> SCNMaterial {

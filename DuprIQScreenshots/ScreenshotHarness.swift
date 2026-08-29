@@ -55,6 +55,11 @@ class ScreenshotHarness: XCTestCase {
             "-subscription.localProOverride", "NO",
             "-uitest.reset", "YES",
             "-uitest.skipPrimer", "YES",
+            // The App Store set is captured a couple of seconds after the court
+            // appears, and on the default match clock that is a shot clock ring
+            // two thirds drained and turning red. A store asset should not open
+            // on "you are about to lose this ball".
+            "-settings.shotClock", "relaxed",
         ]
         if let fixture { arguments += ["-uitest.fixture", fixture] }
         if let seed { arguments += ["-uitest.seed", String(seed)] }

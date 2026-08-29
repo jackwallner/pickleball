@@ -32,8 +32,13 @@ enum Theme {
         static let apron = Color(red: 0.086, green: 0.243, blue: 0.180)
         /// Line paint.
         static let line = Color(red: 0.949, green: 0.965, blue: 0.961)
-        /// The net's dark mesh and its white tape.
-        static let netMesh = Color(red: 0.043, green: 0.063, blue: 0.075)
+        /// The net's mesh and its white tape.
+        ///
+        /// Grey-green, not near-black. At the distance the opponents stand,
+        /// black cords closed up into a solid grid across their legs, which is
+        /// the exact failure the mesh exists to avoid: you are supposed to look
+        /// THROUGH a net.
+        static let netMesh = Color(red: 0.416, green: 0.463, blue: 0.459)
         static let netTape = Color(red: 0.961, green: 0.973, blue: 0.973)
         /// An optic ball. The single brightest object on a court, which is why
         /// it is also the app's energy accent below.

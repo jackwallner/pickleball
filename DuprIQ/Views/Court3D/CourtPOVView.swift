@@ -28,6 +28,41 @@ struct CourtPOVView: View {
         var isGraded: Bool { if case .graded = self { return true }; return false }
     }
 
+    /// Where this court is drawn, which is the only thing that changes between
+    /// the two callers.
+    ///
+    /// The full-bleed drill screen has a HUD across the top and a verdict card
+    /// that slides up over the bottom, and the captions have to be laid out
+    /// clear of both. Inside a session runner the same court is a 340 point box
+    /// in a scrolling column with neither: reserving the drill screen's forty
+    /// percent there left the four captions a forty point strip to share, which
+    /// is one on top of another.
+    enum Chrome {
+        case fullBleedDrill
+        case embedded
+
+        func topInset(in size: CGSize) -> CGFloat {
+            self == .fullBleedDrill ? 104 : 10
+        }
+
+        func bottomInset(in size: CGSize) -> CGFloat {
+            self == .fullBleedDrill
+                ? max(120, CourtPOVView.verdictBandHeight(in: size))
+                : 10
+        }
+
+        /// Caption geometry has to shrink with the box. A 46 point drop under a
+        /// 44 point pill is a tenth of a full screen and a quarter of a 340
+        /// point card, and at a quarter the captions land on the ball.
+        var labelSize: CGSize {
+            self == .fullBleedDrill
+                ? CGSize(width: 118, height: 44)
+                : CGSize(width: 100, height: 34)
+        }
+
+        var drop: CGFloat { self == .fullBleedDrill ? 46 : 24 }
+    }
+
     let position: RallyPosition
     let options: [Shot]
     let aimPoints: [CourtPoint]
@@ -35,8 +70,26 @@ struct CourtPOVView: View {
     /// Nil while the ball is being graded, which is how the view is made
     /// read-only without `.disabled()` dimming the captions.
     var onPick: ((Int) -> Void)?
+    var chrome: Chrome = .fullBleedDrill
 
-    private static let labelSize = CGSize(width: 118, height: 44)
+    /// No player initial is drawn above this, because the HUD lives up there.
+    private static let playerLabelFloor: CGFloat = 152
+
+    /// How much of the bottom of the frame the verdict card will cover, in
+    /// points.
+    ///
+    /// The captions live in the near court under their rings, and the card
+    /// slides up over exactly that part of the screen. Reserving the band here
+    /// rather than moving the captions when the card appears is what keeps the
+    /// promise the whole screen is built on: nothing reflows on a tap.
+    ///
+    /// A cap in points and not a fraction, because the card is a fixed amount
+    /// of reading. A flat 40% reserved 546 points on a 13 inch iPad for a card
+    /// that is never taller than 330, and pushed all four captions up into the
+    /// far court to buy space nothing was going to use.
+    static func verdictBandHeight(in size: CGSize) -> CGFloat {
+        min(size.height * 0.44, 372)
+    }
 
     /// The camera is fitted to the frame it will actually be drawn in.
     ///
@@ -49,6 +102,7 @@ struct CourtPOVView: View {
     private func camera(for size: CGSize) -> CourtCamera {
         CourtCamera.viewing(
             position,
+            aiming: aimPoints,
             aspect: size.height > 0 ? Double(size.width / size.height) : CourtCamera.defaultAspect
         )
     }
@@ -62,7 +116,8 @@ struct CourtPOVView: View {
                     camera: camera,
                     aimPoints: aimPoints,
                     colors: options.indices.map { ringColor(for: $0) },
-                    emphasised: emphasisedIndex
+                    emphasised: emphasisedIndex,
+                    showsPaddle: chrome == .fullBleedDrill
                 )
                 .accessibilityHidden(true)
 
@@ -70,6 +125,7 @@ struct CourtPOVView: View {
 
                 leaderLines(placements)
                 playerLabels(with: camera, in: geo.size)
+                ringTargets(placements)
                 aimButtons(placements)
             }
             .contentShape(Rectangle())
@@ -87,8 +143,11 @@ struct CourtPOVView: View {
     ) -> [AimLabelLayout.Placement] {
         AimLabelLayout.place(
             anchors: aimPoints.map { camera.project($0, height: 0.1, in: size) },
-            labelSize: Self.labelSize,
-            in: size
+            labelSize: chrome.labelSize,
+            in: size,
+            topInset: chrome.topInset(in: size),
+            bottomInset: chrome.bottomInset(in: size),
+            drop: chrome.drop
         )
     }
 
@@ -105,7 +164,7 @@ struct CourtPOVView: View {
                 context.stroke(
                     path,
                     with: .color(lineColor(for: placement.index)),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
+                    style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [4, 4])
                 )
             }
         }
@@ -123,8 +182,15 @@ struct CourtPOVView: View {
             // Just above the head the scene actually draws. Projecting at a
             // nominal 6 feet put the initial a body's length above a nearby
             // player, pointing at empty court.
-            if let screen = camera.project(point, height: 5.3, in: size),
-               isOnScreen(screen, in: size) {
+            // Clamped clear of the HUD. An opponent at their own baseline
+            // projects high in the frame, and the initial floating over their
+            // head landed on top of "SHOT 1 OF 4"; a badge that collides with
+            // the scoreboard names nobody and breaks the header at the same
+            // time. Pushed down it sits on the body instead, which still reads.
+            if let raw = camera.project(point, height: 5.3, in: size),
+               isOnScreen(raw, in: size) {
+                let floor = chrome == .fullBleedDrill ? Self.playerLabelFloor : 14
+                let screen = CGPoint(x: raw.x, y: max(raw.y, floor))
                 Text(text)
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(Theme.Surface.play)
@@ -150,13 +216,52 @@ struct CourtPOVView: View {
         return entries
     }
 
+    /// The rings themselves, as tap targets.
+    ///
+    /// The caption is the labelled handle, but the app's claim is that you
+    /// answer by AIMING, and the natural gesture for that is a tap on the ring
+    /// you want. A ring only gets its own target when no other ring is close
+    /// enough for the two to be confused, so a cluster in the far kitchen still
+    /// has to be picked by its caption rather than by a coin flip.
+    @ViewBuilder
+    private func ringTargets(_ placements: [AimLabelLayout.Placement]) -> some View {
+        ForEach(placements, id: \.index) { placement in
+            if onPick != nil, isolated(placement, among: placements) {
+                Circle()
+                    .fill(.clear)
+                    .contentShape(Circle())
+                    .frame(width: 56, height: 56)
+                    .position(placement.anchor)
+                    .onTapGesture { onPick?(placement.index) }
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func isolated(
+        _ placement: AimLabelLayout.Placement, among placements: [AimLabelLayout.Placement]
+    ) -> Bool {
+        placements.allSatisfy { other in
+            if other.index == placement.index { return true }
+            let dx = other.anchor.x - placement.anchor.x
+            let dy = other.anchor.y - placement.anchor.y
+            return (dx * dx + dy * dy).squareRoot() > 66
+        }
+    }
+
     /// The four aim targets, as buttons sitting over their rings.
     @ViewBuilder
     private func aimButtons(_ placements: [AimLabelLayout.Placement]) -> some View {
         ForEach(placements, id: \.index) { placement in
-            if let shot = options[safe: placement.index] {
-                AimTargetLabel(shot: shot, state: state(for: placement.index))
-                    .frame(width: Self.labelSize.width, height: Self.labelSize.height)
+            if let shot = options[safe: placement.index],
+               let caption = captions[safe: placement.index] {
+                AimTargetLabel(
+                    title: caption.title,
+                    detail: caption.detail,
+                    state: state(for: placement.index),
+                    compact: chrome == .embedded
+                )
+                    .frame(width: chrome.labelSize.width, height: chrome.labelSize.height)
                     .position(placement.label)
                     .onTapGesture { onPick?(placement.index) }
                     .allowsHitTesting(onPick != nil)
@@ -167,6 +272,10 @@ struct CourtPOVView: View {
                     .accessibilityIdentifier("shot-\(placement.index)")
             }
         }
+    }
+
+    private var captions: [(title: String, detail: String?)] {
+        ShotAiming.captions(for: options)
     }
 
     private func state(for index: Int) -> AimTargetLabel.State {
@@ -230,25 +339,43 @@ struct CourtPOVView: View {
 struct AimTargetLabel: View {
     enum State { case open, correct, wrong, dimmed }
 
-    let shot: Shot
+    let title: String
+    /// The place, added only when two options share a shape. See
+    /// `ShotAiming.captions`.
+    var detail: String?
     let state: State
+    /// Set inside a session runner, where the court is a card rather than the
+    /// whole screen.
+    var compact: Bool = false
+
+    private var titleSize: CGFloat {
+        if compact { return detail == nil ? 12 : 11 }
+        return detail == nil ? 15 : 14
+    }
 
     var body: some View {
-        Text(shot.type.label)
-            .font(.system(size: 15, weight: .heavy))
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(maxWidth: .infinity)
-            .background(background, in: Capsule())
-            .overlay(Capsule().strokeBorder(stroke, lineWidth: 1.5))
-            .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
-            // The tap area is the whole allotted box, not the drawn pill, so a
-            // short caption like "Lob" is no harder to hit than "Put it away".
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.system(size: titleSize, weight: .heavy))
+            if let detail {
+                Text(detail)
+                    .font(.system(size: compact ? 8 : 10, weight: .bold))
+                    .opacity(0.85)
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .foregroundStyle(foreground)
+        .padding(.horizontal, compact ? 9 : 11)
+        .padding(.vertical, detail == nil ? (compact ? 5 : 7) : (compact ? 3 : 5))
+        .frame(maxWidth: .infinity)
+        .background(background, in: Capsule())
+        .overlay(Capsule().strokeBorder(stroke, lineWidth: 1.5))
+        .shadow(color: .black.opacity(0.5), radius: 6, y: 3)
+        // The tap area is the whole allotted box, not the drawn pill, so a
+        // short caption like "Lob" is no harder to hit than "Put it away".
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
     }
 
     private var foreground: Color {
@@ -288,6 +415,7 @@ private struct CourtSceneView: UIViewRepresentable {
     let aimPoints: [CourtPoint]
     let colors: [Color]
     let emphasised: Int?
+    let showsPaddle: Bool
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
@@ -298,14 +426,28 @@ private struct CourtSceneView: UIViewRepresentable {
         view.rendersContinuously = false
         view.isUserInteractionEnabled = false
         view.preferredFramesPerSecond = 30
-        context.coordinator.rebuild(view, position: position, camera: camera)
+        // SceneKit publishes an accessibility element for EVERY node, so the
+        // court exported roughly two hundred unlabelled "Other" elements: forty
+        // net strands, every line box, both players' limbs. VoiceOver had to be
+        // swiped through all of it to reach the four options, and XCUITest
+        // queries slowed to the point of timing out. `.accessibilityHidden` on
+        // the SwiftUI wrapper does not reach inside a hosted UIView, so it is
+        // set on the view itself. Nothing is lost: the court's description is
+        // spoken by `CourtPOVView` as one label.
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        context.coordinator.rebuild(
+            view, position: position, camera: camera, showsPaddle: showsPaddle
+        )
         context.coordinator.updateAims(view, points: aimPoints, colors: colors, emphasised: emphasised)
         return view
     }
 
     func updateUIView(_ view: SCNView, context: Context) {
         if context.coordinator.positionID != position.id {
-            context.coordinator.rebuild(view, position: position, camera: camera)
+            context.coordinator.rebuild(
+                view, position: position, camera: camera, showsPaddle: showsPaddle
+            )
         }
         context.coordinator.updateAims(view, points: aimPoints, colors: colors, emphasised: emphasised)
     }
@@ -316,8 +458,12 @@ private struct CourtSceneView: UIViewRepresentable {
         var positionID: String?
         private var aimRoot: SCNNode?
 
-        func rebuild(_ view: SCNView, position: RallyPosition, camera: CourtCamera) {
-            let scene = CourtScene.make(for: position, camera: camera)
+        func rebuild(
+            _ view: SCNView, position: RallyPosition, camera: CourtCamera, showsPaddle: Bool
+        ) {
+            let scene = CourtScene.make(
+                for: position, camera: camera, showsPaddle: showsPaddle
+            )
             let aims = SCNNode()
             aims.name = "aims"
             scene.rootNode.addChildNode(aims)

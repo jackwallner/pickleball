@@ -672,12 +672,14 @@ struct HomeView: View {
                 locked: false
             )
         }
+        .accessibilityIdentifier("tile-endless")
         .buttonStyle(PressableCardStyle())
         trainingTile(
             title: "Daily\nDrill",
             icon: "calendar.badge.clock",
             color: Theme.ball,
-            badge: minuteStore.result(for: Date()).map { "\($0.score)/\($0.total) today" } ?? "Daily"
+            badge: minuteStore.result(for: Date()).map { "\($0.score)/\($0.total) today" } ?? "Daily",
+            identifier: "tile-daily"
         ) {
             DailyDrillView()
         }
@@ -685,7 +687,8 @@ struct HomeView: View {
             title: "Match\nWarm-Up",
             icon: "person.2.fill",
             color: Theme.slate,
-            badge: settings.matchWarmUpReminderEnabled ? settings.matchWarmUpDay.displayName : "Weekly"
+            badge: settings.matchWarmUpReminderEnabled ? settings.matchWarmUpDay.displayName : "Weekly",
+            identifier: "tile-warmup"
         ) {
             QuickSessionView(matchWarmUp: matchWarmUpItems)
         }
@@ -693,7 +696,8 @@ struct HomeView: View {
             title: "Timed\nChallenge",
             icon: "timer",
             color: Theme.ball,
-            badge: records.bestChallengeScore > 0 ? "Best \(records.bestChallengeScore)" : nil
+            badge: records.bestChallengeScore > 0 ? "Best \(records.bestChallengeScore)" : nil,
+            identifier: "tile-timed"
         ) {
             PracticeRunView(mode: .timed)
         }
@@ -711,7 +715,8 @@ struct HomeView: View {
                 title: "Fix My\nMistakes",
                 icon: "arrow.trianglehead.counterclockwise",
                 color: Theme.slate,
-                badge: subscriptions.isPro ? "\(records.fixableCount) to fix" : "Unlock"
+                badge: subscriptions.isPro ? "\(records.fixableCount) to fix" : "Unlock",
+                identifier: "tile-fix"
             ) {
                 PracticeRunView(mode: .review, items: fixMyMistakesItems)
             }
@@ -726,6 +731,11 @@ struct HomeView: View {
         icon: String,
         color: Color,
         badge: String?,
+        // Stable handle for the capture and audit runs. The tiles carry
+        // multi-line titles and a badge that changes with progress, so
+        // addressing them by label meant a harness that broke whenever the copy
+        // or the streak did.
+        identifier: String,
         @ViewBuilder destination: @escaping () -> Destination
     ) -> some View {
         let locked = !subscriptions.isPro
@@ -733,12 +743,14 @@ struct HomeView: View {
             Button { showPaywall = true } label: {
                 trainingTileLabel(title: title, icon: icon, color: color, badge: badge, locked: true)
             }
+            .accessibilityIdentifier(identifier)
             .buttonStyle(PressableCardStyle())
             .accessibilityHint("Included with \(Membership.name)")
         } else {
             NavigationLink { destination() } label: {
                 trainingTileLabel(title: title, icon: icon, color: color, badge: badge, locked: false)
             }
+            .accessibilityIdentifier(identifier)
             .buttonStyle(PressableCardStyle())
         }
     }

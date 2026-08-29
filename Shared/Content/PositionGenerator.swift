@@ -102,13 +102,14 @@ enum PositionGenerator {
         switch phase {
         case .serveReturn:
             // You are back returning serve; your partner is already at the line.
+            let you = point(x: lateral(&rng), y: .random(in: 1...5, using: &rng))
             return RallyPosition(
                 id: id, phase: phase,
-                you: point(x: lateral(&rng), y: .random(in: 1...5, using: &rng)),
-                partner: kitchenPoint(&rng, side: .near),
-                opponentLeft: farPoint(&rng, x: 3...9, y: 38...43),
-                opponentRight: farPoint(&rng, x: 11...17, y: 38...43),
-                contact: point(x: lateral(&rng), y: .random(in: 1...5, using: &rng)),
+                you: you,
+                partner: partnerPoint(across: you, y: 13.7...14.9, &rng),
+                opponentLeft: farPoint(&rng, x: opponentLeftX, y: 38...43),
+                opponentRight: farPoint(&rng, x: opponentRightX, y: 38...43),
+                contact: contactPoint(from: you, &rng),
                 ballHeight: [.netHeight, .aboveNet].randomElement(using: &rng)!,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: false
             )
@@ -117,15 +118,16 @@ enum PositionGenerator {
             // Serving team's third. Sometimes one opponent has not made the line.
             let bothUp = Bool.random(using: &rng)
             let leftUp = bothUp || Bool.random(using: &rng)
+            let you = point(x: lateral(&rng), y: .random(in: 1...6, using: &rng))
             return RallyPosition(
                 id: id, phase: phase,
-                you: point(x: lateral(&rng), y: .random(in: 1...6, using: &rng)),
-                partner: point(x: lateral(&rng), y: .random(in: 1...6, using: &rng)),
-                opponentLeft: leftUp ? farPoint(&rng, x: 3...9, y: 29...30.2)
-                                     : farPoint(&rng, x: 3...9, y: 33...39),
-                opponentRight: (bothUp || !leftUp) ? farPoint(&rng, x: 11...17, y: 29...30.2)
-                                                   : farPoint(&rng, x: 11...17, y: 33...39),
-                contact: point(x: lateral(&rng), y: .random(in: 1...6, using: &rng)),
+                you: you,
+                partner: partnerPoint(across: you, y: 1...6, &rng),
+                opponentLeft: leftUp ? farPoint(&rng, x: opponentLeftX, y: 29...30.2)
+                                     : farPoint(&rng, x: opponentLeftX, y: 33...39),
+                opponentRight: (bothUp || !leftUp) ? farPoint(&rng, x: opponentRightX, y: 29...30.2)
+                                                   : farPoint(&rng, x: opponentRightX, y: 33...39),
+                contact: contactPoint(from: you, &rng),
                 ballHeight: bothUp
                     ? [.belowNet, .belowNet, .aboveNet].randomElement(using: &rng)!
                     : .belowNet,
@@ -133,13 +135,14 @@ enum PositionGenerator {
             )
 
         case .transition:
+            let you = point(x: lateral(&rng), y: .random(in: 9...13.5, using: &rng))
             return RallyPosition(
                 id: id, phase: phase,
-                you: point(x: lateral(&rng), y: .random(in: 9...13.5, using: &rng)),
-                partner: point(x: lateral(&rng), y: .random(in: 9...13.5, using: &rng)),
-                opponentLeft: farPoint(&rng, x: 3...9, y: 29...30.2),
-                opponentRight: farPoint(&rng, x: 11...17, y: 29...30.2),
-                contact: point(x: lateral(&rng), y: .random(in: 9...13.5, using: &rng)),
+                you: you,
+                partner: partnerPoint(across: you, y: 9...13.5, &rng),
+                opponentLeft: farPoint(&rng, x: opponentLeftX, y: 29...30.2),
+                opponentRight: farPoint(&rng, x: opponentRightX, y: 29...30.2),
+                contact: contactPoint(from: you, &rng, forward: -0.6...0.9),
                 ballHeight: [.belowNet, .belowNet, .netHeight, .aboveNet]
                     .randomElement(using: &rng)!,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: Bool.random(using: &rng)
@@ -148,45 +151,49 @@ enum PositionGenerator {
         case .dinkRally:
             // Everyone at the line, ball never above net: that would be an attack.
             let oneLagging = Int.random(in: 0...3, using: &rng) == 0
+            let you = kitchenPoint(&rng, side: .near)
             return RallyPosition(
                 id: id, phase: phase,
-                you: kitchenPoint(&rng, side: .near),
-                partner: kitchenPoint(&rng, side: .near),
-                opponentLeft: farPoint(&rng, x: 3...9, y: 29...30.2),
-                opponentRight: oneLagging ? farPoint(&rng, x: 11...17, y: 33...37)
-                                          : farPoint(&rng, x: 11...17, y: 29...30.2),
-                contact: kitchenPoint(&rng, side: .near),
+                you: you,
+                partner: partnerPoint(across: you, y: 13.7...14.9, &rng),
+                opponentLeft: farPoint(&rng, x: opponentLeftX, y: 29...30.2),
+                opponentRight: oneLagging ? farPoint(&rng, x: opponentRightX, y: 33...37)
+                                          : farPoint(&rng, x: opponentRightX, y: 29...30.2),
+                // At the line the ball is taken in front of you, never behind:
+                // a dink you let get past your feet is a ball you cannot dink.
+                contact: contactPoint(from: you, &rng, reach: 2.2, forward: 0.3...1.6),
                 ballHeight: [.belowNet, .belowNet, .netHeight].randomElement(using: &rng)!,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: Bool.random(using: &rng)
             )
 
         case .attack:
             let oneLagging = Bool.random(using: &rng)
+            let you = kitchenPoint(&rng, side: .near)
             return RallyPosition(
                 id: id, phase: phase,
-                you: kitchenPoint(&rng, side: .near),
-                partner: kitchenPoint(&rng, side: .near),
-                opponentLeft: farPoint(&rng, x: 3...9, y: 29...30.2),
-                opponentRight: oneLagging ? farPoint(&rng, x: 11...17, y: 32...36)
-                                          : farPoint(&rng, x: 11...17, y: 29...30.2),
-                contact: kitchenPoint(&rng, side: .near),
+                you: you,
+                partner: partnerPoint(across: you, y: 13.7...14.9, &rng),
+                opponentLeft: farPoint(&rng, x: opponentLeftX, y: 29...30.2),
+                opponentRight: oneLagging ? farPoint(&rng, x: opponentRightX, y: 32...36)
+                                          : farPoint(&rng, x: opponentRightX, y: 29...30.2),
+                contact: contactPoint(from: you, &rng, reach: 2.2, forward: 0.3...1.6),
                 ballHeight: .aboveNet,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: Bool.random(using: &rng)
             )
 
         case .defense:
             let pinnedBack = Bool.random(using: &rng)
+            let depth: ClosedRange<Double> = pinnedBack ? 1...6 : 9...13
+            let you = point(x: lateral(&rng), y: .random(in: depth, using: &rng))
             return RallyPosition(
                 id: id, phase: phase,
-                you: point(x: lateral(&rng),
-                           y: pinnedBack ? .random(in: 1...6, using: &rng)
-                                         : .random(in: 9...13, using: &rng)),
-                partner: point(x: lateral(&rng), y: .random(in: 4...12, using: &rng)),
-                opponentLeft: farPoint(&rng, x: 3...9, y: 29...30.2),
-                opponentRight: farPoint(&rng, x: 11...17, y: 29...30.2),
-                contact: point(x: lateral(&rng),
-                               y: pinnedBack ? .random(in: 1...6, using: &rng)
-                                             : .random(in: 9...13, using: &rng)),
+                you: you,
+                partner: partnerPoint(across: you, y: 4...12, &rng),
+                opponentLeft: farPoint(&rng, x: opponentLeftX, y: 29...30.2),
+                opponentRight: farPoint(&rng, x: opponentRightX, y: 29...30.2),
+                // Under pressure the ball is on you, not out in front: a
+                // defensive contact is late and low by definition.
+                contact: contactPoint(from: you, &rng, forward: -1.0...0.8),
                 ballHeight: pinnedBack ? [.belowNet, .netHeight].randomElement(using: &rng)!
                                        : .belowNet,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: Bool.random(using: &rng)
@@ -255,12 +262,66 @@ enum PositionGenerator {
 
     // MARK: - Point helpers
 
+    /// The two opponents' lateral bands.
+    ///
+    /// Deliberately separated. The old bands (3...9 and 11...17) could put both
+    /// opponents two feet apart in the middle of the court, which no doubles
+    /// team has ever done and which rendered, in first person, as two people
+    /// standing on each other. Five to fifteen feet apart is the real range,
+    /// and it still spans both sides of `CourtGeometry.openMiddleGap`, so the
+    /// "they have left the seam open" read is generated as often as before.
+    private static let opponentLeftX: ClosedRange<Double> = 2.5...7.5
+    private static let opponentRightX: ClosedRange<Double> = 12.5...17.5
+
     private static func lateral(_ rng: inout SeededGenerator) -> Double {
         .random(in: 1.5...(CourtGeometry.width - 1.5), using: &rng)
     }
 
     private static func point(x: Double, y: Double) -> CourtPoint {
         CourtGeometry.clamp(CourtPoint(x: x, y: y))
+    }
+
+    /// Where you make contact, derived from where you are STANDING.
+    ///
+    /// This used to be an independent draw, and it was the one generator bug
+    /// the overhead diagram was hiding. Two separate rolls routinely put the
+    /// ball eight feet to the side of the feet that were supposed to be
+    /// hitting it: in plan view that is two dots near each other, and in first
+    /// person it is a ball fifty degrees off your nose that no human could
+    /// reach. A contact is a REACH from a stance, so it is generated as one.
+    ///
+    /// `forward` is signed because where the ball is relative to your body is
+    /// itself part of the phase: at the kitchen you take it in front, on
+    /// defense it has already got in on you.
+    private static func contactPoint(
+        from you: CourtPoint,
+        _ rng: inout SeededGenerator,
+        reach: Double = 2.6,
+        forward: ClosedRange<Double> = -0.6...1.9
+    ) -> CourtPoint {
+        let across = Double.random(in: -reach...reach, using: &rng)
+        let ahead = Double.random(in: forward, using: &rng)
+        return point(
+            x: you.x + across,
+            // Never on or past the net: you cannot make contact over the tape.
+            y: min(you.y + ahead, CourtGeometry.netY - 1.0)
+        )
+    }
+
+    /// Your partner, on the other half of the court from you.
+    ///
+    /// Also an independent draw before, which put two team-mates on the same
+    /// square foot often enough to see it, and which in first person renders as
+    /// a body standing inside your own head. Doubles partners cover a side
+    /// each, so the partner is placed across the center line from you and the
+    /// depth band stays the one the phase asked for.
+    private static func partnerPoint(
+        across you: CourtPoint, y: ClosedRange<Double>, _ rng: inout SeededGenerator
+    ) -> CourtPoint {
+        let x: Double = you.x < CourtGeometry.centerX
+            ? .random(in: (CourtGeometry.centerX + 0.5)...(CourtGeometry.width - 1.5), using: &rng)
+            : .random(in: 1.5...(CourtGeometry.centerX - 0.5), using: &rng)
+        return point(x: x, y: .random(in: y, using: &rng))
     }
 
     private static func kitchenPoint(

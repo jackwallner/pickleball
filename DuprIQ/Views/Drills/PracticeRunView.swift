@@ -120,6 +120,19 @@ struct PracticeRunView: View {
                     givens: item.givens,
                     position: item.position,
                     targetOpponent: item.targetOpponent,
+                    // The generated items in a timed run and in Fix My Mistakes
+                    // are the same balls the main loop plays, so they get the
+                    // same first-person court. Leaving these out was an
+                    // oversight of the pivot, not a decision: `QuickSessionView`
+                    // passed them and this runner did not, so the two
+                    // Pro-locked modes were quietly still serving the overhead
+                    // diagram and a list of sentences the pivot replaced.
+                    // Authored items carry no shots and correctly fall through
+                    // to chips and a choice list.
+                    shots: item.shots,
+                    answerIndex: item.answerIndex,
+                    selection: selection,
+                    onPickShot: { grade($0) },
                     explanation: item.explanation,
                     steps: item.steps,
                     principle: item.principle,
