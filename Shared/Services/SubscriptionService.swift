@@ -55,12 +55,13 @@ enum StoreState: Equatable, Sendable {
 /// person reading it.
 enum TrialCopy: Equatable, Sendable {
     case eligible(String)
+    case ineligible(String)
     case unknown(String)
     case none
 
     var text: String? {
         switch self {
-        case .eligible(let value), .unknown(let value): return value
+        case .eligible(let value), .ineligible(let value), .unknown(let value): return value
         case .none: return nil
         }
     }
@@ -210,7 +211,7 @@ final class SubscriptionService: NSObject, ObservableObject {
         guard plan != .lifetime else { return .none }
         guard let product = package(for: plan)?.storeProduct else {
             // No product in hand yet: say the thing that is true for everyone.
-            return .unknown("7 days free for new subscribers, then it auto-renews until canceled.")
+            return .unknown("7 days free for new subscribers.")
         }
         guard let intro = product.introductoryDiscount else {
             return .none
@@ -218,11 +219,11 @@ final class SubscriptionService: NSObject, ObservableObject {
         let period = Self.periodDescription(intro)
         switch introEligibility[product.productIdentifier] {
         case .eligible:
-            return .eligible("\(period) free, then \(product.localizedPriceString), auto-renews until canceled.")
+            return .eligible("\(period) free for eligible new subscribers.")
         case .ineligible:
-            return .eligible("You've already used your free trial. \(product.localizedPriceString), auto-renews until canceled.")
+            return .ineligible("You've already used your free trial.")
         default:
-            return .unknown("\(period) free for new subscribers, then \(product.localizedPriceString), auto-renews until canceled.")
+            return .unknown("\(period) free for new subscribers.")
         }
     }
 

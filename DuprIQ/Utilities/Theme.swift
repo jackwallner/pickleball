@@ -193,6 +193,17 @@ extension Color {
 // MARK: - Shared styles
 
 extension View {
+    /// Keeps scrollable content clear of RootView's floating tab bar.
+    ///
+    /// A tab bar remains visible while a NavigationStack pushes most of the
+    /// library and settings screens. Their last row is still actionable, but
+    /// without this inset it sits underneath the bar instead of above it.
+    func tabBarClearance(_ height: CGFloat = 96) -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: height)
+        }
+    }
+
     /// Standard raised card: cool surface, hairline, soft shadow.
     func themedCard(corner: CGFloat = Theme.cardCorner) -> some View {
         self

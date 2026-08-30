@@ -77,6 +77,7 @@ struct FlashcardDrillView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .overlay { ConfettiBurst(trigger: confettiTrigger, origin: .init(x: 0.5, y: 0.42)) }
         .navigationTitle(drill.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +107,7 @@ struct FlashcardDrillView: View {
                 }
             }
             .frame(height: 8)
-            Text("\(mastered) of \(cards.count) reviewed")
+            Text("\(mastered) of \(cards.count) mastered")
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(Theme.inkSecondary)
                 .monospacedDigit()

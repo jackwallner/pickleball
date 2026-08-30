@@ -87,7 +87,7 @@ complete:
   App Store Connect.
 - **Notes:** something close to this, which describes the real reviewer path:
 
-  > No account or login is required. Open the app, tap "Today's rally" on the
+  > No account or login is required. Open the app, tap "Play a point" on the
   > Practice tab, and answer any of the four shot options to see a graded ball
   > and the coaching principle behind the answer. The free tier allows 15
   > graded balls per calendar day. To see the purchase surface without buying,

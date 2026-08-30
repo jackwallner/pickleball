@@ -556,7 +556,7 @@ struct VerdictCard: View {
                     .tint(Theme.court)
                 }
                 .padding(.horizontal, 18)
-                .padding(.bottom, 14)
+                .padding(.bottom, 44)
             }
             // No fixed cap any more. The card is handed the option panel's
             // band by `DrillSessionView` and the header and the button are the
@@ -564,19 +564,8 @@ struct VerdictCard: View {
             // and scrolls when that is not enough. A hard 210 here plus a
             // hard band there was two numbers that had to agree and did not.
             .frame(minHeight: 90)
-            // Without this the explanation is guillotined mid-word against the
-            // button and nothing says it continues. The fade is the only cue
-            // that the card scrolls.
-            .mask(
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: 0),
-                        .init(color: .black, location: 0.88),
-                        .init(color: .black.opacity(0), location: 1),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            )
+            .scrollIndicators(.visible)
+            .accessibilityHint("Scroll for the full explanation")
 
             // The identifier goes on the Button itself, before the layout
             // modifiers. Applied after `.padding` it lands on the padded

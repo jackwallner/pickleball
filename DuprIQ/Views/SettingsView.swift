@@ -116,6 +116,7 @@ struct SettingsView: View {
                 #endif
             }
             .navigationTitle("Settings")
+            .tabBarClearance()
             .sheet(isPresented: $showPaywall) { PaywallView() }
             .sheet(isPresented: $showPrimer) { CourtPrimerView() }
             .sheet(isPresented: $showTour) { FeatureTourView { showTour = false } }
@@ -189,6 +190,7 @@ struct CoachingSystemView: View {
         }
         .navigationTitle("The system")
         .navigationBarTitleDisplayMode(.inline)
+        .tabBarClearance()
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

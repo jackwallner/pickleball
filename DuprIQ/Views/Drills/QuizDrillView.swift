@@ -62,6 +62,7 @@ struct QuizDrillView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .drillStage(answerRect: $answerRect)
         .overlay {
             ConfettiBurst(

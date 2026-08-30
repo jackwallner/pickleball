@@ -16,9 +16,7 @@ struct ProgressDashboardView: View {
             }
             .navigationTitle("Progress")
             .listSectionSpacing(.compact)
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 88)
-            }
+            .tabBarClearance()
             .sheet(isPresented: $showPaywall) { PaywallView() }
         }
     }

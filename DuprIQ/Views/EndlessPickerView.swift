@@ -45,6 +45,7 @@ struct EndlessPickerView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Theme.background)
+            .tabBarClearance()
             .navigationTitle("Endless Practice")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: DrillRoute.self) { route in

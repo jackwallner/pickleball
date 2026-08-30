@@ -46,6 +46,7 @@ struct SessionEmptyView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .navigationBarTitleDisplayMode(.inline)
     }
 }

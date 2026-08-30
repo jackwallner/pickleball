@@ -36,6 +36,7 @@ struct CourtView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
+        .tabBarClearance()
         .navigationTitle(court.name)
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) { PaywallView(source: "dupriq_court_sheet") }

@@ -105,6 +105,8 @@ struct CourtPrimerView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Theme.background)
+            .scrollIndicators(.visible)
+            .accessibilityHint("Scroll for the full court reading guide")
             .safeAreaInset(edge: .bottom) {
                 Button(isFirstRun ? "Start playing" : "Got it") {
                     hasSeenPrimer = true

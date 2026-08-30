@@ -70,6 +70,7 @@ struct DrillCompleteView: View {
         }
         .padding()
         .background(Theme.background)
+        .tabBarClearance()
         .overlay { ConfettiBurst(trigger: confettiTrigger, origin: .init(x: 0.5, y: 0.3), particleCount: 44) }
         .navigationBarBackButtonHidden(true)
         .onAppear {

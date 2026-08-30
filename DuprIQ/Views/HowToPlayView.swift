@@ -56,6 +56,7 @@ struct HowToPlayView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .overlay { ConfettiBurst(trigger: confettiTrigger, origin: .init(x: 0.5, y: 0.35)) }
         .navigationTitle("How a Rally Works")
         .navigationBarTitleDisplayMode(.inline)

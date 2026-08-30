@@ -86,6 +86,7 @@ struct WorkedDrillView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .navigationTitle(drill.title)
         .navigationBarTitleDisplayMode(.inline)
         .drillStage(answerRect: $answerRect)

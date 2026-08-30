@@ -56,7 +56,7 @@ struct PaywallView: View {
                         planRow(option)
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(Self.benefits, id: \.self) { benefit in
                             Label(benefit, systemImage: "checkmark.circle.fill")
                                 .font(.callout)
@@ -158,9 +158,9 @@ struct PaywallView: View {
 
     private var footer: some View {
         VStack(spacing: 8) {
-            if let trial = trialLine {
-                Text(trial)
-                    .font(.caption)
+            if let disclosure = purchaseDisclosure {
+                Text(disclosure)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -199,7 +199,13 @@ struct PaywallView: View {
         switch subscriptions.storeState {
         case .loading: return "Loading…"
         case .unavailable: return "Unavailable"
-        case .available, .notConfigured: return "Continue"
+        case .available, .notConfigured:
+            if plan == .lifetime { return "Buy Lifetime" }
+            switch subscriptions.trialCopy(for: plan) {
+            case .eligible: return "Start free trial"
+            case .ineligible, .none: return "Subscribe"
+            case .unknown: return "Subscribe"
+            }
         }
     }
 
@@ -211,6 +217,24 @@ struct PaywallView: View {
             return "One-time purchase. Not a subscription, nothing renews."
         }
         return subscriptions.trialCopy(for: plan).text
+    }
+
+    private var purchaseDisclosure: String? {
+        guard plan != .lifetime else { return trialLine }
+        let period = plan == .monthly ? "monthly" : "yearly"
+        let price = subscriptions.paywallPrice(for: plan)
+            .map { "\($0.localized) per \(period == "monthly" ? "month" : "year")" }
+            ?? "the displayed \(period) price"
+        let billing: String
+        switch subscriptions.trialCopy(for: plan) {
+        case .eligible(let trial), .unknown(let trial):
+            billing = "\(trial) Then charged \(price)."
+        case .ineligible(let message):
+            billing = "\(message) Charged \(price) at confirmation."
+        case .none:
+            billing = "Charged \(price) at confirmation."
+        }
+        return "\(billing) Renews \(period) until canceled. Manage or cancel in Settings > Apple Account > Subscriptions; cancel at least 24 hours before renewal."
     }
 
     private static let benefits = [

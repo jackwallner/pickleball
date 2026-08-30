@@ -20,6 +20,7 @@ struct DailyDrillView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
+        .tabBarClearance()
         .navigationTitle("Daily Drill")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -186,6 +187,7 @@ struct DailyDrillResultView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
+        .tabBarClearance()
         .overlay { ConfettiBurst(trigger: confettiTrigger, origin: .init(x: 0.5, y: 0.22), particleCount: 44) }
         .navigationTitle("Daily Drill")
         .navigationBarTitleDisplayMode(.inline)

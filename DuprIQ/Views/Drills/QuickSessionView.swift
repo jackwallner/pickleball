@@ -151,6 +151,7 @@ struct QuickSessionView: View {
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+        .tabBarClearance()
         .drillStage(answerRect: $answerRect)
         .overlay { Theme.rightGreen.opacity(flashOpacity).allowsHitTesting(false).ignoresSafeArea() }
         .overlay {

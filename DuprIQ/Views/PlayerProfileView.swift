@@ -120,6 +120,7 @@ struct PlayerProfileView: View {
         }
         .navigationTitle("Your game")
         .navigationBarTitleDisplayMode(.inline)
+        .tabBarClearance()
         .onAppear {
             hasMatchDate = profile.matchDate != nil
             if skillLevel.isEmpty, profile.hasSelectedLevel {
