@@ -27,7 +27,7 @@ struct ProgressDashboardView: View {
         Section("Overall") {
             LabeledContent("Day streak", value: "\(progress.streak)")
             LabeledContent("Balls answered", value: "\(progress.totalAnswered)")
-            LabeledContent("Sessions", value: "\(progress.sessions.count)")
+            LabeledContent("Sessions", value: "\(progress.totalSessions)")
         }
     }
 

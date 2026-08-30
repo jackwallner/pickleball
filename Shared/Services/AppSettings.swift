@@ -89,6 +89,7 @@ final class AppSettings: ObservableObject {
         static let reminderEnabled = "settings.reminderEnabled"
         static let reminderHour = "settings.reminderHour"
         static let reminderMinute = "settings.reminderMinute"
+        static let reminderPermissionDenied = "settings.reminderPermissionDenied"
         // These four carried `gameNight` values in the app this shell came
         // from, with a comment explaining that renaming a key forgets a setting
         // rather than migrating it. That reasoning does not transfer: DUPR IQ
@@ -144,7 +145,9 @@ final class AppSettings: ObservableObject {
     /// True when the player asked for a reminder but iOS notifications are off
     /// for the app. Without this the toggle just silently flips back, which
     /// looks like the app is broken.
-    @Published var reminderPermissionDenied = false
+    @Published var reminderPermissionDenied: Bool {
+        didSet { defaults.set(reminderPermissionDenied, forKey: Keys.reminderPermissionDenied) }
+    }
 
     @Published var reminderTime: Date {
         didSet {
@@ -193,6 +196,7 @@ final class AppSettings: ObservableObject {
         shotClock = ShotClock(rawValue: defaults.string(forKey: Keys.shotClock) ?? "")
             ?? .match
         reminderEnabled = defaults.bool(forKey: Keys.reminderEnabled)
+        reminderPermissionDenied = defaults.bool(forKey: Keys.reminderPermissionDenied)
         let hour = defaults.object(forKey: Keys.reminderHour) as? Int ?? 9
         let minute = defaults.object(forKey: Keys.reminderMinute) as? Int ?? 0
         reminderTime = Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) ?? Date()
@@ -212,6 +216,7 @@ final class AppSettings: ObservableObject {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             Task { @MainActor in
                 if granted {
+                    self.reminderPermissionDenied = false
                     self.scheduleReminder()
                 } else {
                     self.reminderEnabled = false
@@ -247,6 +252,7 @@ final class AppSettings: ObservableObject {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             Task { @MainActor in
                 if granted {
+                    self.reminderPermissionDenied = false
                     self.scheduleMatchWarmUpReminder()
                 } else {
                     self.matchWarmUpReminderEnabled = false
@@ -279,5 +285,34 @@ final class AppSettings: ObservableObject {
     func cancelMatchWarmUpReminder() {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [Self.matchWarmUpReminderID])
+    }
+
+    /// Preserve the player's preference across an entitlement lapse, but do
+    /// not leave a Pro-only notification scheduled while access is inactive.
+    func updateMatchWarmUpScheduling(isPro: Bool) {
+        if isPro, matchWarmUpReminderEnabled {
+            scheduleMatchWarmUpReminder()
+        } else {
+            cancelMatchWarmUpReminder()
+        }
+    }
+
+    func refreshNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { state in
+            let authorizationStatus = state.authorizationStatus
+            Task { @MainActor in
+                switch authorizationStatus {
+                case .authorized, .provisional, .ephemeral:
+                    self.reminderPermissionDenied = false
+                case .denied:
+                    self.reminderPermissionDenied = self.reminderEnabled
+                        || self.matchWarmUpReminderEnabled
+                case .notDetermined:
+                    self.reminderPermissionDenied = false
+                @unknown default:
+                    break
+                }
+            }
+        }
     }
 }

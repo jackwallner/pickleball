@@ -64,6 +64,7 @@ struct HomeView: View {
                 .onAppear {
                     consumeRecommendedCourtHint(proxy: proxy)
                     consumePendingDestination()
+                    settings.updateMatchWarmUpScheduling(isPro: subscriptions.isPro)
                 }
                 .onChange(of: showSettings) { _, isShowing in
                     if !isShowing { consumeRecommendedCourtHint(proxy: proxy) }
@@ -98,6 +99,7 @@ struct HomeView: View {
             .task { presentWhatsNewIfNeeded() }
             .onChange(of: router.pendingDestination) { _, _ in consumePendingDestination() }
             .onChange(of: subscriptions.isPro) { _, isMember in
+                settings.updateMatchWarmUpScheduling(isPro: isMember)
                 if isMember {
                     if let pendingAfterUpgrade {
                         self.pendingAfterUpgrade = nil
@@ -106,8 +108,6 @@ struct HomeView: View {
                     } else {
                         consumePendingDestination()
                     }
-                } else if settings.matchWarmUpReminderEnabled {
-                    settings.matchWarmUpReminderEnabled = false
                 }
             }
             .onChange(of: showPaywall) { _, isShowing in
@@ -794,7 +794,7 @@ struct HomeView: View {
 
     private var courtsHeading: some View {
         HStack {
-            Text("THE ROOMS")
+            Text("THE COURTS")
                 .font(.caption.weight(.heavy))
                 .kerning(1.4)
                 .foregroundStyle(Theme.inkSecondary)

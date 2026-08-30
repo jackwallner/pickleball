@@ -177,6 +177,25 @@ final class PracticeRecordStore: ObservableObject {
         persist()
     }
 
+    /// One grading path for authored, generated and targeted items. Keeping
+    /// the item rollup and mistake tally together prevents the session runners
+    /// from disagreeing about which habit a correct targeted answer resolves.
+    func record(item: QuickItem, selectedIndex: Int, now: Date = Date()) {
+        let correct = selectedIndex == item.answerIndex
+        record(
+            itemID: item.trackingID,
+            courtID: item.courtID,
+            correct: correct,
+            isReviewable: item.isReviewable,
+            now: now
+        )
+        if correct, let targetedMistakeID = item.targetedMistakeID {
+            resolveMistake(targetedMistakeID)
+        } else if !correct, let pattern = item.mistake(forChoiceAt: selectedIndex) {
+            recordMistake(pattern, now: now)
+        }
+    }
+
     /// SM-2, trimmed to what a drill app needs: a miss resets the interval and
     /// costs ease, a hit multiplies the interval by the current ease.
     private func schedule(_ record: inout PracticeRecord, correct: Bool, now: Date) {

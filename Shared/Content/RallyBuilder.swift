@@ -85,7 +85,10 @@ enum RallyBuilder {
                     question: question,
                     pointIndex: pointIndex,
                     shotIndex: shotIndex,
-                    shotsInPoint: taken.count
+                    // Keep the original script length. If the allowance ends
+                    // halfway through this point, the final stored ball must
+                    // not pretend it completed the rally and award a point.
+                    shotsInPoint: phases.count
                 ))
             }
             pointIndex += 1

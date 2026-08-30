@@ -210,8 +210,7 @@ final class SubscriptionService: NSObject, ObservableObject {
     func trialCopy(for plan: PaywallPlan) -> TrialCopy {
         guard plan != .lifetime else { return .none }
         guard let product = package(for: plan)?.storeProduct else {
-            // No product in hand yet: say the thing that is true for everyone.
-            return .unknown("7 days free for new subscribers.")
+            return .none
         }
         guard let intro = product.introductoryDiscount else {
             return .none

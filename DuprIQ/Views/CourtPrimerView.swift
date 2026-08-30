@@ -152,7 +152,7 @@ struct CourtPrimerView: View {
         LegendItem(
             symbol: "person.2.fill", tint: Theme.inkSecondary,
             title: "L and R are the two opponents",
-            detail: "They are dressed identically on purpose: telling them apart is the read, not a colour code. Your own back is in the near field, and P is your partner."
+            detail: "They are dressed identically on purpose: telling them apart is the read, not a colour code. YOU marks your stance. P marks your partner, with an edge arrow when their feet are too close for the camera."
         ),
         LegendItem(
             symbol: "rectangle.split.3x1", tint: Theme.kitchen,

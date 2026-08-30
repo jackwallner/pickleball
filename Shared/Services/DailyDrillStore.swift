@@ -22,7 +22,7 @@ struct DailyDrillResult: Codable, Identifiable, Sendable {
 
     var shareText: String {
         let grid = answers.map { $0 ? "🟩" : "⬜️" }.joined()
-        let base = "Code Minute \(shortDate): \(score)/\(total)\n\(grid)"
+        let base = "DUPR IQ Daily \(shortDate): \(score)/\(total)\n\(grid)"
         // `productURL` is nil until the listing is live, so a pre-launch share
         // is the score and the grid, not the score and a 404.
         guard let url = AppStoreLinks.productURL else { return base }

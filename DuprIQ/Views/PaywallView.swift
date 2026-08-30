@@ -32,13 +32,7 @@ struct PaywallView: View {
     @State private var error: String?
 
     private var isStoreReady: Bool {
-        switch subscriptions.storeState {
-        case .available: return true
-        // A simulator or a DEBUG build never configures RevenueCat, and the
-        // catalog-backed prices are what make a paywall screenshot possible.
-        case .notConfigured: return true
-        case .loading, .unavailable: return false
-        }
+        isPlanAvailable(plan)
     }
 
     var body: some View {
@@ -77,6 +71,7 @@ struct PaywallView: View {
             }
             .task {
                 await subscriptions.ensureOfferings()
+                selectAvailablePlanIfNeeded()
                 subscriptions.trackPaywallImpression(id: "main_paywall", oncePerSession: true)
             }
         }
@@ -103,7 +98,7 @@ struct PaywallView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
-        .disabled(!isStoreReady)
+        .disabled(!isPlanAvailable(option))
         .accessibilityIdentifier("plan-\(option.rawValue)")
     }
 
@@ -119,8 +114,8 @@ struct PaywallView: View {
         if let price = subscriptions.paywallPrice(for: option) {
             Text(price.localized + suffix(for: option))
                 .font(.footnote).foregroundStyle(.secondary)
-        } else if subscriptions.storeState == .unavailable {
-            Text("Price unavailable")
+        } else if subscriptions.storeState == .unavailable || subscriptions.storeState == .available {
+            Text(subscriptions.storeState == .available ? "Not offered" : "Price unavailable")
                 .font(.footnote).foregroundStyle(.secondary)
         } else {
             Text("Loading price")
@@ -244,6 +239,24 @@ struct PaywallView: View {
         "Your missed principles ranked, so you know what to drill",
         "New positions generated forever, never a fixed question bank",
     ]
+
+    private func isPlanAvailable(_ option: PaywallPlan) -> Bool {
+        switch subscriptions.storeState {
+        case .available:
+            return subscriptions.package(for: option) != nil
+        case .notConfigured:
+            return subscriptions.paywallPrice(for: option) != nil
+        case .loading, .unavailable:
+            return false
+        }
+    }
+
+    private func selectAvailablePlanIfNeeded() {
+        guard !isPlanAvailable(plan),
+              let first = PaywallPlan.allCases.first(where: isPlanAvailable)
+        else { return }
+        plan = first
+    }
 
     private func purchase() {
         isWorking = true

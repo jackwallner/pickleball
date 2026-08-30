@@ -62,9 +62,13 @@ enum CourtScene {
 
         root.addChildNode(player(at: position.opponentLeft, kind: .opponent))
         root.addChildNode(player(at: position.opponentRight, kind: .opponent))
-        // Your partner, unless they are close enough to fill the frame.
-        if camera.distance(to: position.partner) > minimumDrawDistance {
+        // A nearby full body blocks the court, but the partner's feet are still
+        // part of the position. Use an exact floor marker until there is room
+        // to draw the whole player without covering the ball or an aim ring.
+        if camera.distance(to: position.partner) > minimumFullBodyDistance {
             root.addChildNode(player(at: position.partner, kind: .partner))
+        } else {
+            root.addChildNode(footprint(at: position.partner, kind: .partner))
         }
         root.addChildNode(stanceRing(at: position.you))
         root.addChildNode(ball(at: position.contact, height: ballHeight(position.ballHeight)))
@@ -288,19 +292,18 @@ enum CourtScene {
         }
     }
 
-    /// Closer than this to the eye, a player is not information, they are an
-    /// obstruction: a six foot body a few feet from a six foot camera is a wall
-    /// across a quarter of the frame. Only your partner is ever this close, and
-    /// where they are standing is never the read.
+    /// Closer than this to the eye, a full body is more obstruction than
+    /// information: a six foot player a few feet from a six foot camera is a
+    /// wall across a quarter of the frame. Only the partner can be this close,
+    /// so the scene keeps their exact floor marker and omits only their torso.
     ///
-    /// `CourtPOVView` reads the same constant so a body that was not drawn does
-    /// not get a floating initial where it would have been.
+    /// `CourtPOVView` reads the same constant so the P label follows either the
+    /// player's head or the non-occluding floor marker.
     /// Raised from 15 after the all-phase screenshot pass. The eye sits 8.5 ft
     /// behind your own feet, so a partner at the far edge of the near half can
     /// still be over twenty feet away and render as a foreground wall, covering
-    /// an aim ring. Where they are standing is never the read, so only a truly
-    /// distant partner remains in the scene.
-    static let minimumDrawDistance: Double = 26
+    /// an aim ring. Only a truly distant partner gets a full body.
+    static let minimumFullBodyDistance: Double = 26
 
     // MARK: - People
 
@@ -400,6 +403,25 @@ enum CourtScene {
         ring.position = SCNVector3(0, 0.07, 0)
         node.addChildNode(ring)
 
+        addShoes(to: node, color: Color(red: 0.62, green: 0.78, blue: 0.82))
+
+        node.position = CourtCamera.scenePoint(point)
+        return node
+    }
+
+    /// A close partner still needs an exact stance on screen. Two shoes and a
+    /// floor ring carry that information without placing a six-foot foreground
+    /// body between the player and every target on the far court.
+    static func footprint(at point: CourtPoint, kind: PlayerKind) -> SCNNode {
+        let node = SCNNode()
+        node.name = "footprint"
+
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 1.05, pipeRadius: 0.075))
+        ring.geometry?.firstMaterial = glowing(kind.ring, intensity: 0.55)
+        ring.position = SCNVector3(0, 0.07, 0)
+        node.addChildNode(ring)
+        addShoes(to: node, color: kind.shorts)
+
         node.position = CourtCamera.scenePoint(point)
         return node
     }
@@ -424,6 +446,7 @@ enum CourtScene {
             legs.addChildNode(leg)
         }
         node.addChildNode(legs)
+        addShoes(to: node, color: kind.shorts)
 
         let torso = SCNNode(geometry: SCNCapsule(capRadius: 0.62, height: 2.3))
         torso.geometry?.firstMaterial = material(kind.shirt)
@@ -454,6 +477,17 @@ enum CourtScene {
         // Everyone faces the net; only yours has its back to the camera.
         node.eulerAngles = SCNVector3(0, kind.facesAway ? 0 : Float.pi, 0)
         return node
+    }
+
+    private static func addShoes(to node: SCNNode, color: Color) {
+        for side in [-0.32, 0.32] {
+            let shoe = SCNNode(geometry: SCNBox(
+                width: 0.42, height: 0.14, length: 0.72, chamferRadius: 0.08
+            ))
+            shoe.geometry?.firstMaterial = material(color)
+            shoe.position = SCNVector3(Float(side), 0.10, -0.13)
+            node.addChildNode(shoe)
+        }
     }
 
     /// The live ball, with the drop line that makes its height legible.

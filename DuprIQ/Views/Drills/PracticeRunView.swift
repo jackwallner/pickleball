@@ -81,7 +81,12 @@ struct PracticeRunView: View {
                     : "This run could not build any questions. Try again in a moment."
             )
         } else if finished {
-            DrillCompleteView(drill: completedDrill, score: score, total: gradedTotal)
+            DrillCompleteView(
+                drill: completedDrill,
+                score: score,
+                total: gradedTotal,
+                recordsCompletion: false
+            )
         } else {
             runBody
         }
@@ -272,21 +277,19 @@ struct PracticeRunView: View {
         selection = pick
         attempted += 1
         let correct = pick == item.answerIndex
-        records.record(itemID: item.id, courtID: item.courtID, correct: correct, isReviewable: item.isReviewable)
-        // See QuickSessionView: a generated question is a one-off, its mistake
-        // is not, so the PATTERN is what gets banked and worked back off.
-        if correct {
-            for pattern in Set(item.mistakes.values) {
-                records.resolveMistake(pattern.id)
-            }
-        } else if let pattern = item.mistake(forChoiceAt: pick) {
-            records.recordMistake(pattern)
-        }
+        records.record(item: item, selectedIndex: pick)
         // Generated ids are unique per question, so feeding them to the
         // seen/missed sets would grow those sets forever and teach the daily
         // mix nothing. Authored items still feed it.
-        if !mode.isGenerated {
+        if item.isReviewable {
             progress.recordItem(id: item.id, correct: correct)
+        }
+        if let phase = item.phase {
+            progress.record(
+                phase: phase,
+                wasCorrect: correct,
+                principle: item.principle
+            )
         }
         if correct {
             score += 1
@@ -360,14 +363,23 @@ struct PracticeRunView: View {
     }
 
     private func finish() {
+        guard !finished else { return }
         if mode == .timed {
             records.recordChallengeScore(score)
         }
         // A run the player quit before answering anything is not an
         // achievement; sending it to the completion screen would fake one.
-        guard attempted > 0 || mode == .review else {
+        guard attempted > 0 else {
             dismiss()
             return
+        }
+        switch mode {
+        case .endless(let phase):
+            progress.recordSession(phase: phase, answered: attempted, correct: score)
+        case .timed:
+            progress.recordSession(phase: nil, answered: attempted, correct: score)
+        case .review:
+            progress.recordSession(drillID: completedDrill.id)
         }
         withAnimation(.easeInOut(duration: 0.3)) { finished = true }
     }

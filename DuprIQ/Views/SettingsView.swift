@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
@@ -81,7 +82,16 @@ struct SettingsView: View {
                 } header: {
                     Text("Reminders")
                 } footer: {
-                    Text(ShellCopy.DailyReminder.body)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(ShellCopy.DailyReminder.body)
+                        if settings.reminderPermissionDenied {
+                            Text("Notifications are off for DUPR IQ. Turn them on in Settings to use reminders.")
+                            Link(
+                                "Open notification settings",
+                                destination: URL(string: UIApplication.openSettingsURLString)!
+                            )
+                        }
+                    }
                 }
 
                 Section("Learn") {

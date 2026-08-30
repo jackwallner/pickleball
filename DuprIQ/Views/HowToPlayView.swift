@@ -33,23 +33,25 @@ struct HowToPlayView: View {
     var body: some View {
         VStack(spacing: 18) {
             progressDots
-            Spacer(minLength: 0)
-            pageCard
-                .id(page.id)
-                .offset(x: drag)
-                .rotationEffect(.degrees(Double(drag / 40)), anchor: .bottom)
-                .transition(goingForward
-                    ? .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
+            ScrollView {
+                pageCard
+                    .id(page.id)
+                    .offset(x: drag)
+                    .rotationEffect(.degrees(Double(drag / 40)), anchor: .bottom)
+                    .transition(goingForward
+                        ? .asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        )
+                        : .asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        )
                     )
-                    : .asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    )
-                )
-                .gesture(pageSwipe)
-            Spacer(minLength: 0)
+                    .simultaneousGesture(pageSwipe)
+                    .padding(.vertical, 4)
+            }
+            .scrollIndicators(.hidden)
             footer
         }
         .padding()
@@ -68,11 +70,13 @@ struct HowToPlayView: View {
     private var pageSwipe: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 let atEdge = (value.translation.width > 0 && isFirst) || (value.translation.width < 0 && isLast)
                 drag = atEdge ? value.translation.width * 0.25 : value.translation.width
             }
             .onEnded { value in
                 let travel = value.translation.width
+                guard abs(travel) > abs(value.translation.height) else { return }
                 let flung = abs(travel) > 60 || abs(value.predictedEndTranslation.width) > 160
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { drag = 0 }
                 guard flung else { return }

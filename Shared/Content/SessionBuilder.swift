@@ -60,6 +60,10 @@ struct QuickItem: Identifiable, Sendable {
     /// appears here can be named to the player and tallied for targeted
     /// practice.
     let mistakes: [String: MistakePattern]
+    /// The one mistake this newly generated position was minted to remediate.
+    /// A normal generated position may contain several tempting distractors,
+    /// so only targeted practice is allowed to work a tally back down.
+    let targetedMistakeID: String?
 
     init(
         id: String,
@@ -78,7 +82,8 @@ struct QuickItem: Identifiable, Sendable {
         phase: RallyPhase? = nil,
         trackingID: String? = nil,
         isReviewable: Bool = true,
-        mistakes: [String: MistakePattern] = [:]
+        mistakes: [String: MistakePattern] = [:],
+        targetedMistakeID: String? = nil
     ) {
         self.id = id
         self.prompt = prompt
@@ -97,6 +102,7 @@ struct QuickItem: Identifiable, Sendable {
         self.trackingID = trackingID ?? id
         self.isReviewable = isReviewable
         self.mistakes = mistakes
+        self.targetedMistakeID = targetedMistakeID
     }
 
     /// The named mistake behind a pick, if this item knows one.
@@ -220,7 +226,12 @@ enum SessionBuilder {
     /// by its own id so the order is stable across re-render/undo but not
     /// always the authored slot.
     static func prepared(_ item: QuickItem) -> QuickItem {
-        let shuffled = ChoiceShuffle.shuffledChoices(labels: item.choices, answerIndex: item.answerIndex, seed: item.id)
+        let permutation = ChoiceShuffle.permutation(count: item.choices.count, seed: item.id)
+        let shuffledLabels = permutation.map { item.choices[$0] }
+        let shuffledAnswerIndex = permutation.firstIndex(of: item.answerIndex) ?? item.answerIndex
+        let shuffledShots = item.shots.count == permutation.count
+            ? permutation.map { item.shots[$0] }
+            : item.shots
         // `mistakes` is keyed by choice LABEL, not by index, so it survives the
         // shuffle untouched. Keying it by index is the bug waiting to happen.
         return QuickItem(
@@ -229,8 +240,9 @@ enum SessionBuilder {
             givens: item.givens,
             position: item.position,
             targetOpponent: item.targetOpponent,
-            choices: shuffled.labels,
-            answerIndex: shuffled.answerIndex,
+            shots: shuffledShots,
+            choices: shuffledLabels,
+            answerIndex: shuffledAnswerIndex,
             explanation: item.explanation,
             steps: item.steps,
             principle: item.principle,
@@ -239,7 +251,8 @@ enum SessionBuilder {
             phase: item.phase,
             trackingID: item.trackingID,
             isReviewable: item.isReviewable,
-            mistakes: item.mistakes
+            mistakes: item.mistakes,
+            targetedMistakeID: item.targetedMistakeID
         )
     }
 

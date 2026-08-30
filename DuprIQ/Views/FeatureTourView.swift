@@ -109,7 +109,7 @@ struct FeatureTourView: View {
     private var tourPages: [TourPage] {
         [
             TourPage(
-                eyebrow: "THE ROOMS",
+                eyebrow: "THE COURTS",
                 title: "Four courts, four skills",
                 body: ShellCopy.Tour.courtsBody,
                 hero: AnyView(courtsHero)

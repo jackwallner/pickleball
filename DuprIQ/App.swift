@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct DuprIQApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     @StateObject private var subscriptions = SubscriptionService.shared
     @StateObject private var progress = ProgressStore.shared
@@ -24,7 +25,11 @@ struct DuprIQApp: App {
                 .environmentObject(router)
                 .environmentObject(profile)
                 .environmentObject(records)
-                .onAppear { limiter.rollOverIfNeeded() }
+                .onAppear {
+                    limiter.rollOverIfNeeded()
+                    progress.rollOverIfNeeded()
+                    settings.refreshNotificationPermission()
+                }
         }
         // A backgrounded app is the normal way a player crosses midnight, and
         // `onAppear` does not fire again on foreground. Without this the free
@@ -38,7 +43,9 @@ struct DuprIQApp: App {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             limiter.rollOverIfNeeded()
+            progress.rollOverIfNeeded()
             subscriptions.refreshOnForeground()
+            settings.refreshNotificationPermission()
         }
     }
 }

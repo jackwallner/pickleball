@@ -42,6 +42,7 @@ struct DrillSessionView: View {
     @State private var theirPoints = 0
     @State private var showPaywall = false
     @State private var showAbandonConfirmation = false
+    @State private var showReviewPrompt = false
     @State private var finished = false
     @State private var stoppedAtFreeLimit = false
     @State private var recordedSession = false
@@ -83,13 +84,14 @@ struct DrillSessionView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(finished ? .visible : .hidden, for: .navigationBar)
         .sheet(isPresented: $showPaywall) { PaywallView() }
+        .sheet(isPresented: $showReviewPrompt) { EnjoymentGateSheet() }
         .confirmationDialog(
             "Leave this session?",
             isPresented: $showAbandonConfirmation,
             titleVisibility: .visible
         ) {
             Button("Leave, keep my \(answeredCount) balls", role: .destructive) {
-                endSession(atFreeLimit: false)
+                endSession(atFreeLimit: false, countsAsCompletion: false)
                 dismiss()
             }
             Button("Keep playing", role: .cancel) { }
@@ -340,7 +342,13 @@ struct DrillSessionView: View {
 
     private func build() {
         let allowance = limiter.remaining(isPro: subscriptions.isPro)
-        let budget = max(1, min(sessionLength, allowance))
+        guard allowance > 0 else {
+            stoppedAtFreeLimit = true
+            recordedSession = true
+            finished = true
+            return
+        }
+        let budget = min(sessionLength, allowance)
         balls = RallyBuilder.session(ballBudget: budget, seed: drillSeed(), phase: phase)
         startClock()
     }
@@ -434,7 +442,7 @@ struct DrillSessionView: View {
 
     /// One place that closes a session, so the history, the review counter and
     /// the free-limit state can never disagree about whether it happened.
-    private func endSession(atFreeLimit: Bool) {
+    private func endSession(atFreeLimit: Bool, countsAsCompletion: Bool = true) {
         clockRemaining = nil
         stoppedAtFreeLimit = atFreeLimit
         if !recordedSession {
@@ -442,7 +450,16 @@ struct DrillSessionView: View {
             progress.recordSession(
                 phase: phase, answered: answeredCount, correct: correctCount
             )
-            if answeredCount > 0 { reviews.recordSessionFinished() }
+            if answeredCount > 0, countsAsCompletion {
+                reviews.recordSessionFinished()
+                if reviews.shouldShowEnjoymentGate {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_400_000_000)
+                        guard finished else { return }
+                        showReviewPrompt = true
+                    }
+                }
+            }
         }
         finished = true
     }
@@ -647,9 +664,15 @@ struct RallySummaryView: View {
                 .font(.headline)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
-            Text("\(correct) of \(max(answered, 1)) shots were the right call.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.inkSecondary)
+            if answered > 0 {
+                Text("\(correct) of \(answered) shots were the right call.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSecondary)
+            } else {
+                Text("No balls were available to start.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSecondary)
+            }
 
             if stoppedAtFreeLimit {
                 VStack(spacing: 8) {
@@ -685,6 +708,7 @@ struct RallySummaryView: View {
     }
 
     private var blurb: String {
+        guard answered > 0 else { return "Free practice resets tomorrow." }
         let denom = max(answered, 1)
         let ratio = Double(correct) / Double(denom)
         switch ratio {

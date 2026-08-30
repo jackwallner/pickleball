@@ -173,6 +173,56 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(reloaded.topMissedPrinciples.first?.principle,
                        "Reset off your shoetops, never drive")
         XCTAssertEqual(reloaded.totalAnswered, 4)
+        XCTAssertEqual(reloaded.totalSessions, 1)
+    }
+
+    func testCorrectTargetedItemResolvesOnlyItsAssignedMistake() {
+        let store = PracticeRecordStore(defaults: defaults)
+        let target = MistakePattern(
+            id: "attacked-a-low-ball",
+            phase: RallyPhase.dinkRally.rawValue,
+            summary: "target"
+        )
+        let other = MistakePattern(
+            id: "unrelated-pattern",
+            phase: RallyPhase.transition.rawValue,
+            summary: "other"
+        )
+        store.recordMistake(target)
+        store.recordMistake(other)
+        let item = EndlessPractice.targetedItems(for: [target], count: 1, seed: 77)[0]
+
+        store.record(item: item, selectedIndex: item.answerIndex)
+
+        XCTAssertNil(store.mistakes[target.id])
+        XCTAssertEqual(store.mistakes[other.id]?.outstanding, 1)
+    }
+
+    func testSessionTotalIncludesGeneratedAndAuthoredSessions() {
+        let progress = ProgressStore(defaults: defaults)
+
+        progress.recordSession(phase: .transition, answered: 4, correct: 3)
+        progress.recordSession(drillID: "court-awareness")
+
+        XCTAssertEqual(progress.totalSessions, 2)
+        XCTAssertEqual(ProgressStore(defaults: defaults).totalSessions, 2)
+    }
+
+    func testProgressRollsOverBeforeTheNextAnswer() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let progress = ProgressStore(defaults: defaults)
+
+        for _ in 0..<ProgressThreshold.ballsForPracticeDay {
+            progress.record(phase: .dinkRally, wasCorrect: true, on: today)
+        }
+        XCTAssertEqual(progress.ballsToday, ProgressThreshold.ballsForPracticeDay)
+
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        progress.rollOverIfNeeded(now: tomorrow)
+
+        XCTAssertEqual(progress.ballsToday, 0)
+        XCTAssertEqual(progress.ballsToPracticeDay, ProgressThreshold.ballsForPracticeDay)
     }
 
     func testAnEmptySessionIsNotRecorded() {

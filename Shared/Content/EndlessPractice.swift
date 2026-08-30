@@ -179,8 +179,27 @@ enum EndlessPractice {
                     seed: base &+ UInt64(index &* 1_000 &+ attempt),
                     sourceLabel: "Targeted Practice"
                 )
-                guard candidate.mistakes.values.contains(pattern) else { continue }
-                made = candidate
+                guard candidate.mistakes.values.contains(where: { $0.id == pattern.id }) else { continue }
+                made = QuickItem(
+                    id: candidate.id,
+                    prompt: candidate.prompt,
+                    givens: candidate.givens,
+                    position: candidate.position,
+                    targetOpponent: candidate.targetOpponent,
+                    shots: candidate.shots,
+                    choices: candidate.choices,
+                    answerIndex: candidate.answerIndex,
+                    explanation: candidate.explanation,
+                    steps: candidate.steps,
+                    principle: candidate.principle,
+                    sourceLabel: candidate.sourceLabel,
+                    courtID: candidate.courtID,
+                    phase: candidate.phase,
+                    trackingID: candidate.trackingID,
+                    isReviewable: candidate.isReviewable,
+                    mistakes: candidate.mistakes,
+                    targetedMistakeID: pattern.id
+                )
                 break
             }
             items.append(made ?? item(

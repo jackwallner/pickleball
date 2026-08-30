@@ -208,16 +208,17 @@ struct QuickSessionView: View {
         if item.isReviewable {
             progress.recordItem(id: item.id, correct: correct)
         }
+        if let phase = item.phase {
+            progress.record(
+                phase: phase,
+                wasCorrect: correct,
+                principle: item.principle
+            )
+        }
         // Also feeds the spaced-repetition queue and the accuracy stats. The
         // daily mix is where most answers happen, so leaving it out would mean
         // Fix My Mistakes had almost nothing to work with.
-        PracticeRecordStore.shared.record(
-            itemID: item.trackingID,
-            courtID: item.courtID,
-            correct: correct,
-            isReviewable: item.isReviewable
-        )
-        recordMistakePattern(pick: pick, correct: correct)
+        PracticeRecordStore.shared.record(item: item, selectedIndex: pick)
         if correct {
             score += 1
             streak += 1
@@ -226,21 +227,6 @@ struct QuickSessionView: View {
             streak = 0
             Haptics.wrongAnswer()
             SoundPlayer.play(.miss)
-        }
-    }
-
-    /// A generated question never comes back, but the ERROR does. A wrong pick
-    /// on a distractor the generator can name banks that pattern for targeted
-    /// practice; a right answer on a problem that set the same trap works it
-    /// back off. That is what makes "your misses come back" true here without
-    /// storing a dictionary of dead question ids.
-    private func recordMistakePattern(pick: Int, correct: Bool) {
-        if correct {
-            for pattern in Set(item.mistakes.values) {
-                PracticeRecordStore.shared.resolveMistake(pattern.id)
-            }
-        } else if let pattern = item.mistake(forChoiceAt: pick) {
-            PracticeRecordStore.shared.recordMistake(pattern)
         }
     }
 

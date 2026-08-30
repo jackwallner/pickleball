@@ -92,6 +92,7 @@ enum DailyDrillContent {
                 prompt: item.prompt,
                 position: item.position,
                 targetOpponent: item.targetOpponent,
+                shots: item.shots,
                 choices: item.choices,
                 answerIndex: item.answerIndex,
                 explanation: item.explanation,
@@ -100,7 +101,7 @@ enum DailyDrillContent {
                 sourceLabel: "Daily Drill",
                 courtID: item.courtID,
                 phase: item.phase,
-                trackingID: "daily-drill-rollup",
+                trackingID: shape.1.itemPrefix + "rollup",
                 isReviewable: false,
                 mistakes: item.mistakes
             )

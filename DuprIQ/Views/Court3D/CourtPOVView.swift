@@ -178,8 +178,7 @@ struct CourtPOVView: View {
     /// have the player know which body it means.
     @ViewBuilder
     private func playerLabels(with camera: CourtCamera, in size: CGSize) -> some View {
-        ForEach(labelledPlayers(camera), id: \.0) { entry in
-            let (id, point, text) = entry
+        ForEach(labelledPlayers(camera), id: \.id) { entry in
             // Just above the head the scene actually draws. Projecting at a
             // nominal 6 feet put the initial a body's length above a nearby
             // player, pointing at empty court.
@@ -188,33 +187,77 @@ struct CourtPOVView: View {
             // head landed on top of "SHOT 1 OF 4"; a badge that collides with
             // the scoreboard names nobody and breaks the header at the same
             // time. Pushed down it sits on the body instead, which still reads.
-            if let raw = camera.project(point, height: 5.3, in: size),
-               isOnScreen(raw, in: size) {
+            if let raw = camera.project(entry.point, height: entry.labelHeight, in: size) {
                 let floor = chrome == .fullBleedDrill ? Self.playerLabelFloor : 14
-                let screen = CGPoint(x: raw.x, y: max(raw.y, floor))
-                Text(text)
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(Theme.Surface.play)
-                    .frame(width: 20, height: 20)
-                    .background(.white.opacity(0.94), in: Circle())
+                let ceiling = size.height - chrome.optionBand(in: size) - 14
+                let isBelowCourt = raw.y > ceiling
+                let shouldShow = entry.clampsToCourt || isOnScreen(raw, in: size)
+                if shouldShow {
+                    let screen = CGPoint(
+                        x: min(max(raw.x, 16), size.width - 16),
+                        y: min(max(raw.y, floor), ceiling)
+                    )
+                    ZStack {
+                        Text(entry.text)
+                            .font(.system(size: entry.text.count > 1 ? 10 : 12, weight: .heavy))
+                            .foregroundStyle(Theme.Surface.play)
+                            .padding(.horizontal, entry.text.count > 1 ? 5 : 0)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(.white.opacity(0.94), in: Capsule())
+                        if entry.clampsToCourt, raw.x < 16 {
+                            Image(systemName: "arrowtriangle.left.fill")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.94))
+                                .offset(x: -15)
+                        } else if entry.clampsToCourt, raw.x > size.width - 16 {
+                            Image(systemName: "arrowtriangle.right.fill")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.94))
+                                .offset(x: 15)
+                        } else if entry.clampsToCourt && isBelowCourt {
+                            Image(systemName: "arrowtriangle.down.fill")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.94))
+                                .offset(y: 15)
+                        }
+                    }
                     .position(screen)
                     .accessibilityHidden(true)
-                    .id(id)
+                    .id(entry.id)
+                }
             }
         }
     }
 
-    private func labelledPlayers(_ camera: CourtCamera) -> [(String, CourtPoint, String)] {
-        var entries: [(String, CourtPoint, String)] = [
-            ("L", position.opponentLeft, "L"),
-            ("R", position.opponentRight, "R"),
+    private struct PlayerLabel {
+        let id: String
+        let point: CourtPoint
+        let text: String
+        let labelHeight: Double
+        let clampsToCourt: Bool
+    }
+
+    private func labelledPlayers(_ camera: CourtCamera) -> [PlayerLabel] {
+        let partnerHasBody = camera.distance(to: position.partner) > CourtScene.minimumFullBodyDistance
+        return [
+            PlayerLabel(
+                id: "L", point: position.opponentLeft, text: "L",
+                labelHeight: 5.3, clampsToCourt: false
+            ),
+            PlayerLabel(
+                id: "R", point: position.opponentRight, text: "R",
+                labelHeight: 5.3, clampsToCourt: false
+            ),
+            PlayerLabel(
+                id: "P", point: position.partner, text: "P",
+                labelHeight: partnerHasBody ? 5.3 : 0.65,
+                clampsToCourt: true
+            ),
+            PlayerLabel(
+                id: "YOU", point: position.you, text: "YOU",
+                labelHeight: 0.65, clampsToCourt: true
+            ),
         ]
-        // Only label a partner the scene drew. An initial floating over a body
-        // that was culled for being too near the lens names nobody.
-        if camera.distance(to: position.partner) > CourtScene.minimumDrawDistance {
-            entries.append(("P", position.partner, "P"))
-        }
-        return entries
     }
 
     /// The numbered badge on each ring, which is also a tap target.
@@ -228,7 +271,7 @@ struct CourtPOVView: View {
     private func ringBadges(_ placements: [AimLabelLayout.Placement]) -> some View {
         ForEach(placements, id: \.index) { placement in
             AimBadge(number: placement.index + 1, state: state(for: placement.index))
-                .frame(width: 48, height: 48)
+                .frame(width: 60, height: 60)
                 .contentShape(Circle())
                 .position(placement.badge)
                 .onTapGesture { onPick?(placement.index) }

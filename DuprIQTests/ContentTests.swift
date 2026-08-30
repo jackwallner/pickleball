@@ -159,6 +159,7 @@ final class ContentTests: XCTestCase {
         XCTAssertEqual(items.count, 4)
         for item in items {
             XCTAssertEqual(item.phase, .dinkRally)
+            XCTAssertEqual(item.targetedMistakeID, pattern.id)
         }
     }
 
@@ -176,6 +177,21 @@ final class ContentTests: XCTestCase {
     func testDailyDrillIsFull() {
         let challenge = DailyDrillContent.challenge(for: Date(timeIntervalSince1970: 1_800_000_000))
         XCTAssertEqual(challenge.questions.count, DailyDrillContent.questionCount)
+        let generated = challenge.questions.filter { $0.item.position != nil }
+        XCTAssertEqual(generated.count, 2)
+        XCTAssertTrue(generated.allSatisfy { $0.item.shots.count == 4 })
+        XCTAssertTrue(generated.allSatisfy { $0.item.shots.map(\.label) == $0.item.choices })
+        XCTAssertTrue(generated.allSatisfy {
+            RallyPhase.phase(forItemID: $0.item.trackingID) == $0.item.phase
+        })
+    }
+
+    func testPreparedGeneratedItemsKeepShotsAlignedWithChoices() {
+        let item = EndlessPractice.item(phase: .transition, seed: 42)
+        let prepared = SessionBuilder.prepared(item)
+
+        XCTAssertEqual(prepared.shots.map(\.label), prepared.choices)
+        XCTAssertEqual(prepared.shots[prepared.answerIndex], item.shots[item.answerIndex])
     }
 
     /// The day boundary is fixed rather than local, or two readers either side

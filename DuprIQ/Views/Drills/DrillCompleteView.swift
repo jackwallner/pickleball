@@ -5,6 +5,7 @@ struct DrillCompleteView: View {
     let drill: Drill
     let score: Int?
     let total: Int
+    var recordsCompletion = true
     /// Supplied when there is no navigation stack to pop (the onboarding
     /// tour's cover); otherwise Done just dismisses.
     var onDone: (() -> Void)?
@@ -80,7 +81,9 @@ struct DrillCompleteView: View {
             recorded = true
             Haptics.success()
             SoundPlayer.play(.complete)
-            progress.recordSession(drillID: drill.id)
+            if recordsCompletion {
+                progress.recordSession(drillID: drill.id)
+            }
             recordPositiveMoment()
         }
         .sheet(isPresented: $showReviewPrompt) {

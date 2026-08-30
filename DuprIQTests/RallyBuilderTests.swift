@@ -66,6 +66,17 @@ final class RallyBuilderTests: XCTestCase {
         XCTAssertTrue(RallyBuilder.session(ballBudget: -3, seed: 1).isEmpty)
     }
 
+    func testATruncatedPointCannotAwardAFullPoint() {
+        let balls = RallyBuilder.session(ballBudget: 5, seed: 99)
+        let points = Dictionary(grouping: balls, by: \.pointIndex)
+
+        XCTAssertEqual(points[0]?.count, 4)
+        XCTAssertEqual(points[0]?.filter(\.isLastOfPoint).count, 1)
+        XCTAssertEqual(points[1]?.count, 1)
+        XCTAssertEqual(points[1]?.first?.shotsInPoint, 4)
+        XCTAssertFalse(points[1]?.first?.isLastOfPoint ?? true)
+    }
+
     /// Each point's shots are numbered from zero, contiguously, and exactly one
     /// of them is the last. The HUD reads "shot 2 of 4" straight off these, and
     /// the score is awarded on `isLastOfPoint`.

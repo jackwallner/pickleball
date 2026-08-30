@@ -97,6 +97,7 @@ final class ProgressStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         reload()
+        rollOverIfNeeded()
     }
 
     func reload() {
@@ -139,6 +140,7 @@ final class ProgressStore: ObservableObject {
         )
         sessions.insert(record, at: 0)
         if sessions.count > Self.maxSessions { sessions.removeLast(sessions.count - Self.maxSessions) }
+        totalSessions += 1
         persist()
     }
 
@@ -222,6 +224,24 @@ final class ProgressStore: ObservableObject {
         if ballsToday == ProgressThreshold.ballsForPracticeDay {
             updateStreak(for: date)
         }
+    }
+
+    /// Foregrounding after midnight should update the lobby before the next
+    /// answer. Otherwise yesterday's progress survives until the player grades
+    /// a ball and the streak guidance is stale on first view.
+    func rollOverIfNeeded(now: Date = .now) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        guard let storedDay = defaults.object(forKey: Key.ballsDay) as? Date else {
+            if ballsToday != 0 { ballsToday = 0 }
+            defaults.set(today, forKey: Key.ballsDay)
+            defaults.set(ballsToday, forKey: Key.ballsToday)
+            return
+        }
+        guard !calendar.isDate(storedDay, inSameDayAs: today) else { return }
+        ballsToday = 0
+        defaults.set(today, forKey: Key.ballsDay)
+        defaults.set(0, forKey: Key.ballsToday)
     }
 
     private func updateStreak(for date: Date) {
@@ -323,6 +343,7 @@ final class ProgressStore: ObservableObject {
         defaults.set(lastPracticeDay, forKey: Key.lastDay)
         defaults.set(totalAnswered, forKey: Key.total)
         defaults.set(ballsToday, forKey: Key.ballsToday)
+        defaults.set(totalSessions, forKey: Key.totalSessions)
         encode(sessions, Key.sessions)
         encode(missed, Key.missed)
     }
@@ -366,6 +387,7 @@ final class ProgressStore: ObservableObject {
         self.lastPracticeDay = Calendar.current.startOfDay(for: .now)
         self.totalAnswered = totalAnswered
         self.sessions = sessions
+        self.totalSessions = sessions.count
         self.missed = missed
         self.ballsToday = ProgressThreshold.ballsForPracticeDay
         persist()
