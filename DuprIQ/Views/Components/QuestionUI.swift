@@ -113,7 +113,12 @@ struct QuestionPager<Choices: View>: View {
                         onPick: selection == nil ? onPickShot : nil,
                         chrome: .embedded
                     )
-                    .frame(height: 340)
+                    // Taller than the 340 it was, because the court now carries
+                    // its own option panel instead of scattering four caption
+                    // pills over the render. The extra ninety points buy the
+                    // buttons; the court above them is no smaller than the
+                    // readable part of the old card was.
+                    .frame(height: 430)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .padding(.horizontal, 4)
                 } else if let position {
@@ -283,6 +288,7 @@ struct ChoiceList: View {
         }
         .buttonStyle(.plain)
         .allowsHitTesting(!answered)
+        .accessibilityIdentifier("choice-\(index)")
     }
 
     private func background(_ index: Int) -> Color {

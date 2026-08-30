@@ -28,8 +28,13 @@ final class AuditTests: ScreenshotHarness {
         guard tapIdentifier("mixed-rally") else { return attachTree("audit") }
 
         for ball in 0..<10 {
+            if app.buttons["session-done"].exists { break }
             settle(2.4)
-            guard tapFirstOption() else { break }
+            guard tapFirstOption() else {
+                capture("audit_walk_pick_\(ball)")
+                attachTree("walk_pick_\(ball)")
+                break
+            }
             settle(2.2)
             guard tapIdentifier("next-ball", timeout: 4) else {
                 attachTree("ball\(ball)_next")
@@ -39,9 +44,9 @@ final class AuditTests: ScreenshotHarness {
         settle(2.0)
     }
 
-    /// The two Pro modes that render the court INSIDE a session runner rather
-    /// than full bleed. Both were still showing the overhead diagram and a list
-    /// of sentences after the pivot.
+    /// The two Pro modes that render content INSIDE a session runner rather
+    /// than full bleed. Timed Challenge uses the generated court; Match
+    /// Warm-Up intentionally remains an authored text-choice session.
     func testEmbeddedCourtModes() {
         for tile in ["tile-timed", "tile-warmup"] {
             launchForAudit(seed: 909)
@@ -51,7 +56,10 @@ final class AuditTests: ScreenshotHarness {
                 continue
             }
             settle(3.4)
-            _ = tapFirstOption()
+            if !tapFirstOption() {
+                capture("audit_embedded_pick_\(tile)")
+                attachTree("embedded_pick_\(tile)")
+            }
             settle(3.0)
             app.terminate()
         }

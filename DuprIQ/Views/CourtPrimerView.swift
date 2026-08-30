@@ -57,9 +57,15 @@ struct CourtPrimerView: View {
                             for: Self.exampleOptions, in: Self.example
                         ),
                         phase: .deciding,
-                        onPick: nil
+                        onPick: nil,
+                        chrome: .embedded
                     )
-                    .frame(height: 300)
+                    // `.embedded`, and not the default. The drill chrome
+                    // reserves a HUD band and a verdict band it will never be
+                    // given here, which inside a 300 point box is most of the
+                    // box: the camera was fitting the whole court into a strip
+                    // about eighty points tall.
+                    .frame(height: 360)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .accessibilityHidden(true)
 

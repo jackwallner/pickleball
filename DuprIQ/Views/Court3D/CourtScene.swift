@@ -40,20 +40,20 @@ enum CourtScene {
 
     // MARK: - Assembly
 
-    /// `showsPaddle` is false inside a session runner. Your own paddle is a
-    /// first-person flourish that works when the court IS the screen; in a 340
-    /// point card it is a dark notch in the bottom corner and reads as a
-    /// clipping artefact.
-    static func make(
-        for position: RallyPosition, camera: CourtCamera, showsPaddle: Bool = true
-    ) -> SCNScene {
+    /// There is no longer a paddle held in the corner of the frame.
+    ///
+    /// It was a nice first-person flourish and it is now dead geometry: the
+    /// bottom third of the screen is the option panel, which is where the
+    /// paddle hung. Half-covered by the panel it read as a dark slab being
+    /// clipped, which is the exact failure the comment on the old version
+    /// warned about in a session runner. Your own presence is carried by the
+    /// stance ring on the paint, which is information rather than decoration.
+    static func make(for position: RallyPosition, camera: CourtCamera) -> SCNScene {
         let scene = SCNScene()
         let root = scene.rootNode
 
         scene.background.contents = skyGradient()
-        let cameraNode = cameraNode(camera)
-        if showsPaddle { cameraNode.addChildNode(paddleInHand()) }
-        root.addChildNode(cameraNode)
+        root.addChildNode(cameraNode(camera))
         addLighting(to: root)
         addGround(to: root)
         addLines(to: root)
@@ -295,7 +295,12 @@ enum CourtScene {
     ///
     /// `CourtPOVView` reads the same constant so a body that was not drawn does
     /// not get a floating initial where it would have been.
-    static let minimumDrawDistance: Double = 9
+    /// Raised from 15 after the all-phase screenshot pass. The eye sits 8.5 ft
+    /// behind your own feet, so a partner at the far edge of the near half can
+    /// still be over twenty feet away and render as a foreground wall, covering
+    /// an aim ring. Where they are standing is never the read, so only a truly
+    /// distant partner remains in the scene.
+    static let minimumDrawDistance: Double = 26
 
     // MARK: - People
 
@@ -367,55 +372,6 @@ enum CourtScene {
         }
     }
 
-    /// Your paddle, held up in the corner of your own vision.
-    ///
-    /// Attached to the camera rather than placed on the court, so it stays put
-    /// in the frame the way your own hand does. It replaces the full figure the
-    /// first version drew at your feet: a six foot body five feet in front of a
-    /// six foot camera fills half the screen and hides the court, which is the
-    /// reason first-person games draw a hand and not a person.
-    private static func paddleInHand() -> SCNNode {
-        let node = SCNNode()
-        node.name = "paddle"
-
-        let face = SCNNode(geometry: SCNBox(
-            width: 0.55, height: 0.72, length: 0.05, chamferRadius: 0.13
-        ))
-        // Not black. Clipped by the frame edge, a black rectangle reads as a
-        // rendering fault rather than as a paddle; the court teal reads as kit.
-        face.geometry?.firstMaterial = material(Color(red: 0.129, green: 0.286, blue: 0.353))
-        node.addChildNode(face)
-
-        let edge = SCNNode(geometry: SCNBox(
-            width: 0.61, height: 0.78, length: 0.03, chamferRadius: 0.15
-        ))
-        edge.geometry?.firstMaterial = material(Color(red: 0.055, green: 0.129, blue: 0.161))
-        edge.position = SCNVector3(0, 0, -0.02)
-        node.addChildNode(edge)
-
-        let grip = SCNNode(geometry: SCNCylinder(radius: 0.075, height: 0.42))
-        grip.geometry?.firstMaterial = material(Color(red: 0.16, green: 0.17, blue: 0.19))
-        grip.position = SCNVector3(0, -0.55, 0)
-        node.addChildNode(grip)
-
-        let forearm = SCNNode(geometry: SCNCapsule(capRadius: 0.13, height: 0.95))
-        forearm.geometry?.firstMaterial = material(Color(red: 0.76, green: 0.62, blue: 0.51))
-        forearm.position = SCNVector3(0.10, -1.05, 0.16)
-        forearm.eulerAngles = SCNVector3(0.5, 0, 0.30)
-        node.addChildNode(forearm)
-
-        // Lower right of frame, held out at arm's length. Far enough away that
-        // it reads as a paddle rather than as a black slab across the corner:
-        // the field of view here is wide, so anything close to the lens is
-        // enormous.
-        // Held low and out to the side so it frames the court instead of
-        // covering it, and far enough from the lens that it reads as a paddle
-        // rather than as a slab across the corner of the screen.
-        node.position = SCNVector3(1.42, -1.62, -3.1)
-        node.eulerAngles = SCNVector3(-0.24, -0.40, 0.20)
-        return node
-    }
-
     /// Where YOU are standing, as a ring on the paint.
     ///
     /// The eye sits a step behind this, so without it your own position is the
@@ -433,9 +389,13 @@ enum CourtScene {
         // became the loudest object on screen: a fifth glowing target on our
         // own side of the net, competing with the four you are meant to pick
         // between. Where you are standing is CONTEXT, not the question.
-        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.9, pipeRadius: 0.05))
-        let material = glowing(PlayerKind.you.ring, intensity: 0.25)
-        material.transparency = 0.45
+        // Quieter again after a screenshot pass: at 0.25 emission on a cyan
+        // torus it was still the brightest ring on the screen, nearer the lens
+        // and larger than any of the four it is not supposed to compete with.
+        // Chalk, not neon.
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.9, pipeRadius: 0.035))
+        let material = glowing(Color(red: 0.78, green: 0.85, blue: 0.88), intensity: 0.05)
+        material.transparency = 0.30
         ring.geometry?.firstMaterial = material
         ring.position = SCNVector3(0, 0.07, 0)
         node.addChildNode(ring)
@@ -532,28 +492,47 @@ enum CourtScene {
         // It is not a hint. Net height is a fact a player standing on a court
         // has in their peripheral vision for free, and taking it away is what
         // made the render dishonest rather than hard.
-        let tape = box(width: 0.95, height: 0.055, length: 0.14, color: Theme.Surface.netTape)
+        // Drawn twice: a dark backing bar and a bright one on top of it. A
+        // single white bar disappears against the white kitchen line and the
+        // white court paint, which is exactly where it lands on the phases
+        // where the ball is low, and a mark you cannot find is worse than no
+        // mark because the player assumes they have read it.
+        let shadowBar = box(width: 1.14, height: 0.11, length: 0.19, color: Color(white: 0.04))
+        shadowBar.geometry?.firstMaterial?.lightingModel = .constant
+        shadowBar.geometry?.firstMaterial?.transparency = 0.55
+        shadowBar.position = SCNVector3(0, Float(netHeight), 0)
+        node.addChildNode(shadowBar)
+
+        let tape = box(width: 1.02, height: 0.06, length: 0.15, color: Theme.Surface.netTape)
         tape.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
         tape.position = SCNVector3(0, Float(netHeight), 0)
         node.addChildNode(tape)
 
-        for side in [-0.47, 0.47] {
+        for side in [-0.50, 0.50] {
             let cap = SCNNode(geometry: SCNBox(
-                width: 0.05, height: 0.20, length: 0.14, chamferRadius: 0.01
+                width: 0.055, height: 0.24, length: 0.15, chamferRadius: 0.01
             ))
             cap.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
             cap.position = SCNVector3(Float(side), Float(netHeight), 0)
             node.addChildNode(cap)
         }
 
-        let sphere = SCNNode(geometry: SCNSphere(radius: 0.30))
+        // A pickleball is 1.6 inches across. This one is 0.22 ft (2.6 inches)
+        // because a true-scale ball at twelve feet is four pixels, but 0.30 was
+        // a beach ball: on the attack phase, where the ball is up at shoulder
+        // height, it projected as large as an opponent's head and stopped
+        // reading as a ball at all.
+        let sphere = SCNNode(geometry: SCNSphere(radius: 0.22))
         sphere.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 1.0)
         sphere.position = SCNVector3(0, Float(height), 0)
         node.addChildNode(sphere)
 
-        let drop = SCNNode(geometry: SCNCylinder(radius: 0.032, height: CGFloat(height)))
-        drop.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.55)
-        drop.geometry?.firstMaterial?.transparency = 0.8
+        // The drop line is a plumb line, not a mast. At 0.032 ft and full optic
+        // yellow it rendered as a pole running the height of the frame and was
+        // the loudest object in the attack phase; it only has to be followable.
+        let drop = SCNNode(geometry: SCNCylinder(radius: 0.018, height: CGFloat(height)))
+        drop.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.3)
+        drop.geometry?.firstMaterial?.transparency = 0.55
         drop.position = SCNVector3(0, Float(height / 2), 0)
         node.addChildNode(drop)
 

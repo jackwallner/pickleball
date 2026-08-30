@@ -17,10 +17,10 @@ import XCTest
 @MainActor
 class ScreenshotHarness: XCTestCase {
     var app: XCUIApplication!
-    var problems: [String] = []
+    nonisolated(unsafe) var problems: [String] = []
 
     /// Release gate: fail loudly rather than exporting a partial set.
-    var isStrict: Bool {
+    nonisolated var isStrict: Bool {
         ProcessInfo.processInfo.environment["SCREENSHOT_STRICT"] == "1"
     }
 
@@ -102,10 +102,8 @@ class ScreenshotHarness: XCTestCase {
         return true
     }
 
-    /// The four shot options are plain buttons carrying the shot label, so the
-    /// stable handle is position: take the first button inside the scroll view.
-    @discardableResult
-    /// Taps one of the four aim targets on the court.
+    /// Taps the first available answer control, whether it is a generated aim
+    /// target or an authored choice row.
     ///
     /// Addressed by identifier rather than by "the first button inside a scroll
     /// view", which is how this used to find them and which silently stopped
@@ -115,9 +113,11 @@ class ScreenshotHarness: XCTestCase {
     ///
     /// Any option grades the ball; a wrong pick shows the same answer card.
     func tapFirstOption() -> Bool {
-        for index in 0..<4 {
-            let candidate = app.buttons["shot-\(index)"]
-            guard candidate.waitForExistence(timeout: index == 0 ? 6 : 1) else { continue }
+        // Generated questions expose aim targets; authored questions expose
+        // ordinary choice rows. Both are valid members of a session runner.
+        for identifier in (0..<4).flatMap({ ["shot-\($0)", "choice-\($0)"] }) {
+            let candidate = app.buttons[identifier]
+            guard candidate.exists else { continue }
             guard candidate.isHittable else { continue }
             candidate.tap()
             return true

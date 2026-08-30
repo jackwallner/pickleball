@@ -58,16 +58,13 @@ struct CourtCamera {
     /// from how low the camera is.
     static let shoulderOffset: Double = 8.5
 
-    /// Where the subject's vertical centre should sit in the frame, measured
-    /// from the top.
+    /// The smallest slice of the frame the fit is willing to aim at.
     ///
-    /// The previous build aimed the surplus at the top of the frame on the
-    /// reasoning that empty sky is worse than empty court. It is, but the
-    /// version that fixed it went too far and pinned the opponents into the
-    /// top fifth of the screen with the ball alone at the bottom. Just above
-    /// centre is the honest answer: the HUD lives in the band above, and the
-    /// four captions live in the near court below.
-    static let subjectCentreFraction: Double = 0.46
+    /// The chrome bands are passed in as fractions and a caller can, in a very
+    /// short box, ask for more chrome than there is frame. Rather than solve an
+    /// impossible constraint and return a camera pointing at nothing, the fit
+    /// falls back to the whole frame.
+    static let minimumBandHeight: Double = 0.24
 
     /// The narrowest and widest vertical angles the fit below is allowed to
     /// choose. Below the floor the court stops feeling like a place; above the
@@ -108,12 +105,24 @@ struct CourtCamera {
     /// them off the edge of the screen. `CourtCameraTests` pins that down for
     /// every phase, because it is invisible until it is the one ball where the
     /// read was a player you could not see.
+    /// **The chrome is part of the frame.** `topFraction` and `bottomFraction`
+    /// are the slices of the rendered frame that something else is drawn over:
+    /// the HUD at the top, and the option panel (or the verdict card that
+    /// replaces it) at the bottom. The scene still fills the whole view, so the
+    /// court runs edge to edge under both, but nothing the question is ABOUT is
+    /// allowed to land under them. Fitting to the full frame and then covering
+    /// a third of it is how the build before this one ended up with all four
+    /// rings, both opponents and the ball squeezed into a band a fifth of the
+    /// screen tall with half the display showing empty near court.
     static func viewing(
         _ position: RallyPosition,
         aiming aimPoints: [CourtPoint] = [],
-        aspect: Double = defaultAspect
+        aspect: Double = defaultAspect,
+        topFraction: Double = 0,
+        bottomFraction: Double = 0
     ) -> CourtCamera {
         let mustSee = framingPoints(for: position, aiming: aimPoints)
+        let band = Band(top: topFraction, bottom: bottomFraction)
         var pullBack = 0.0
 
         // Widen first; only walk the eye backwards when widening runs out. A
@@ -121,18 +130,25 @@ struct CourtCamera {
         // is itself a read in the transition phase, so it is the second lever
         // rather than the first.
         for step in 0...6 {
-            let camera = fitted(position, pullBack: pullBack, aspect: aspect, mustSee: mustSee)
+            let camera = fitted(
+                position, pullBack: pullBack, aspect: aspect, band: band, mustSee: mustSee
+            )
             if camera.verticalFieldOfView < maximumFieldOfView || step == 6 {
                 return camera
             }
             pullBack += 2.5
         }
-        return fitted(position, pullBack: pullBack, aspect: aspect, mustSee: mustSee)
+        return fitted(
+            position, pullBack: pullBack, aspect: aspect, band: band, mustSee: mustSee
+        )
     }
 
     /// The camera for a whole question, which knows where its four rings are.
     static func viewing(
-        _ question: DrillQuestion, aspect: Double = defaultAspect
+        _ question: DrillQuestion,
+        aspect: Double = defaultAspect,
+        topFraction: Double = 0,
+        bottomFraction: Double = 0
     ) -> CourtCamera {
         viewing(
             question.position,
@@ -141,8 +157,35 @@ struct CourtCamera {
                 answer: question.answer,
                 answerTarget: question.verdict.targetOpponent
             ),
-            aspect: aspect
+            aspect: aspect,
+            topFraction: topFraction,
+            bottomFraction: bottomFraction
         )
+    }
+
+    /// The strip of the frame the subject is allowed to occupy, in normalised
+    /// device coordinates where +1 is the top of the frame and -1 the bottom.
+    ///
+    /// Working in NDC rather than in points keeps this independent of how big
+    /// the view is, and it is the space the projection already speaks: a point
+    /// is in the band exactly when its projected `ndcY` is between the two.
+    struct Band {
+        let top: Double
+        let bottom: Double
+
+        init(top topFraction: Double, bottom bottomFraction: Double) {
+            let t = max(0, min(topFraction, 0.6))
+            let b = max(0, min(bottomFraction, 0.6))
+            if 1 - t - b < CourtCamera.minimumBandHeight {
+                self.top = 1
+                self.bottom = -1
+            } else {
+                self.top = 1 - 2 * t
+                self.bottom = -1 + 2 * b
+            }
+        }
+
+        var centre: Double { (top + bottom) / 2 }
     }
 
     /// Everything that has to be inside the frame: both opponents head to toe,
@@ -163,27 +206,64 @@ struct CourtCamera {
             let opponent = position.opponent(side)
             points.append((opponent, 0))
             points.append((opponent, 5.6))
+            for height in [opponentRingBottomForFraming, opponentRingTopForFraming] {
+                points.append(contentsOf: ringPoints(
+                    around: opponent, radius: opponentRingRadiusForFraming, height: height
+                ))
+            }
         }
         // Both the ball and the tape reference beside it: the comparison
         // between the two is the question, so half of it in frame is no use.
         points.append((position.contact, ballHeightForFraming(position.ballHeight)))
         points.append((position.contact, netHeightForFraming))
         points.append((position.contact, 0))
+        for xOffset in [-netHeightBarHalfWidthForFraming, netHeightBarHalfWidthForFraming] {
+            for yOffset in [-netHeightBarHalfLengthForFraming, netHeightBarHalfLengthForFraming] {
+                for heightOffset in [-netHeightBarHalfHeightForFraming, netHeightBarHalfHeightForFraming] {
+                    points.append((
+                        CourtPoint(x: position.contact.x + xOffset, y: position.contact.y + yOffset),
+                        netHeightForFraming + heightOffset
+                    ))
+                }
+            }
+        }
+        let ballHeight = ballHeightForFraming(position.ballHeight)
+        for xOffset in [-ballRadiusForFraming, ballRadiusForFraming] {
+            for yOffset in [-ballRadiusForFraming, ballRadiusForFraming] {
+                for heightOffset in [-ballRadiusForFraming, ballRadiusForFraming] {
+                    points.append((
+                        CourtPoint(
+                            x: position.contact.x + xOffset,
+                            y: position.contact.y + yOffset
+                        ),
+                        ballHeight + heightOffset
+                    ))
+                }
+            }
+        }
         // Your own feet, so the ring `CourtScene` draws under them is somewhere
         // you can actually see. Without it the stance ring fell off the left
         // edge whenever you were reaching to the side, which is exactly when
         // knowing where your feet are matters.
         points.append((position.you, 0))
+        for height in [stanceRingBottomForFraming, stanceRingTopForFraming] {
+            points.append(contentsOf: ringPoints(
+                around: position.you, radius: stanceRingRadiusForFraming, height: height
+            ))
+        }
 
-        // The whole ring, not just its centre. The fit used to frame the point
-        // a shot lands on, and the ring drawn around it is nearly two feet
-        // across: on the App Store capture the outermost option was a yellow
-        // arc sliced off by the right edge of the screen.
+        // The whole ring, not just its centre. The emphasized ring is over
+        // three feet across, and the fit follows its perimeter rather than a
+        // bounding square whose corners are not on the rendered torus.
+        // On a portrait phone the four rings' width is what sets the field of
+        // view, so fitting the actual perimeter keeps the option visible
+        // without widening the angle for empty space.
         for point in aimPoints {
-            for dx in [-aimRingRadiusForFraming, 0, aimRingRadiusForFraming] {
-                for dy in [-aimRingRadiusForFraming, 0, aimRingRadiusForFraming] {
-                    points.append((CourtPoint(x: point.x + dx, y: point.y + dy), 0))
-                }
+            points.append((point, 0))
+            for height in [aimRingBottomForFraming, aimRingTopForFraming] {
+                points.append(contentsOf: ringPoints(
+                    around: point, radius: aimRingRadiusForFraming, height: height
+                ))
             }
         }
 
@@ -209,8 +289,64 @@ struct CourtCamera {
     /// the ball. Same duplication argument as `ballHeightForFraming`.
     private static let netHeightForFraming: Double = 34.0 / 12.0
 
-    /// Mirrors the largest ring `CourtScene.aimTarget` draws, plus its pipe.
+    /// Mirrors the largest ring `CourtScene.aimTarget` draws, plus its pipe:
+    /// `ringRadius 1.65 + pipeRadius 0.15`.
     private static let aimRingRadiusForFraming: Double = 1.8
+
+    /// The perimeter sample count used to fit each horizontal torus. Four
+    /// cardinal points are not enough once yaw and pitch turn the ellipse on
+    /// screen, so the fit follows the rendered ring around its full edge.
+    private static let ringSampleCount = 16
+
+    /// Mirrors the outer edge of the ring under each opponent:
+    /// `ringRadius 1.05 + pipeRadius 0.075`.
+    private static let opponentRingRadiusForFraming: Double = 1.125
+
+    /// The torus is centred at 0.07 ft and its pipe is 0.075 ft thick.
+    private static let opponentRingBottomForFraming: Double = -0.005
+    private static let opponentRingTopForFraming: Double = 0.145
+
+    /// Mirrors the outer edge of the quiet ring under the player:
+    /// `ringRadius 0.9 + pipeRadius 0.035`.
+    private static let stanceRingRadiusForFraming: Double = 0.935
+
+    /// The stance torus is centred at 0.07 ft and its pipe is 0.035 ft thick.
+    private static let stanceRingBottomForFraming: Double = 0.035
+    private static let stanceRingTopForFraming: Double = 0.105
+
+    /// Mirrors half the dark backing bar beside the ball:
+    /// `width 1.14 / 2`.
+    private static let netHeightBarHalfWidthForFraming: Double = 0.57
+
+    /// Mirrors half the dark backing bar's depth:
+    /// `length 0.19 / 2`.
+    private static let netHeightBarHalfLengthForFraming: Double = 0.095
+
+    /// The cap is taller than the backing bar, so it defines the vertical
+    /// extent that has to remain visible.
+    private static let netHeightBarHalfHeightForFraming: Double = 0.12
+
+    /// Mirrors the radius of the rendered ball sphere.
+    private static let ballRadiusForFraming: Double = 0.22
+
+    /// The largest aim torus is centred at 0.09 ft and has a 0.15 ft pipe.
+    private static let aimRingBottomForFraming: Double = -0.06
+    private static let aimRingTopForFraming: Double = 0.24
+
+    private static func ringPoints(
+        around centre: CourtPoint, radius: Double, height: Double
+    ) -> [(point: CourtPoint, height: Double)] {
+        (0..<ringSampleCount).map { sample in
+            let angle = Double(sample) * 2 * .pi / Double(ringSampleCount)
+            return (
+                point: CourtPoint(
+                    x: centre.x + cos(angle) * radius,
+                    y: centre.y + sin(angle) * radius
+                ),
+                height: height
+            )
+        }
+    }
 
     private static func ballHeightForFraming(_ height: BallHeight) -> Double {
         switch height {
@@ -224,6 +360,7 @@ struct CourtCamera {
         _ position: RallyPosition,
         pullBack: Double,
         aspect: Double,
+        band: Band,
         mustSee: [(point: CourtPoint, height: Double)]
     ) -> CourtCamera {
         // Behind your own stance, and never level with the ball. The contact is
@@ -231,9 +368,16 @@ struct CourtCamera {
         // stride of each other and this is a step back rather than a rescue.
         let standing = min(position.you.y, position.contact.y - 0.8)
         let eyeY = max(-13.0, standing - shoulderOffset - pullBack)
-        // Line the eye up behind the CONTACT, not behind your feet: you turn
-        // your shoulders to the ball before you hit it.
-        let eye = CourtPoint(x: position.contact.x, y: eyeY)
+        // Behind YOUR FEET, not behind the ball.
+        //
+        // Lining the eye up on the contact was an attempt to model turning your
+        // shoulders to the ball, and it moved the wrong thing: your own stance
+        // ring slid off to one side of the frame by the whole width of your
+        // reach, so on a screenshot the ball looked like it belonged to
+        // somebody else. A head sits over its own feet. The ball being off to
+        // one side IS the read when you are reaching for it, and `yaw` below
+        // still turns the head far enough to keep everything centred.
+        let eye = CourtPoint(x: position.you.x, y: eyeY)
         // A shade under standing height. The ball is the low thing in this
         // frame and the far court is the high thing, so every inch the eye
         // comes down pulls the two closer together: at 5.9 a ball on your
@@ -263,58 +407,57 @@ struct CourtCamera {
 
         let yaw = -(minH + maxH) / 2
 
-        // Pitch and field of view depend on each other, so they are solved
-        // together rather than one after the other.
-        //
-        // The angle has to be wide enough to contain the subject, and the head
-        // wants to be tilted down far enough that the frame's surplus lands on
-        // court instead of on empty sky. But tilting changes the depth to every
-        // point, which changes the angle needed to contain them: applying the
-        // tilt after the fit left points a few pixels outside the frame, which
-        // `CourtCameraTests` caught and an eye would not have.
+        /// The narrowest vertical angle that lands every point inside the band.
+        ///
+        /// A point projects to `ndcY = (y / depth) / tan(halfV)`, so requiring
+        /// `ndcY` to stay between the band's edges is one division per point
+        /// rather than a search. Above the frame's centre the top edge binds,
+        /// below it the bottom edge does, and the horizontal constraint is the
+        /// same sum scaled by the aspect ratio. This is why the band has to be
+        /// an input to the fit and cannot be applied afterwards: shrinking the
+        /// usable strip widens the angle, and widening the angle moves every
+        /// point.
         func fit(pitch: Double) -> Double {
             let probe = CourtCamera(
                 eye: eye, eyeHeight: eyeHeight, pitch: pitch,
                 verticalFieldOfView: minimumFieldOfView, yaw: yaw
             )
-            var neededTanH = 0.0, neededTanV = 0.0
+            var needed = 0.0
             for entry in mustSee {
                 guard let camera = probe.cameraSpace(entry.point, height: entry.height) else { continue }
-                neededTanH = max(neededTanH, abs(camera.x) / camera.depth)
-                neededTanV = max(neededTanV, abs(camera.y) / camera.depth)
+                let up = camera.y / camera.depth
+                if up >= 0 {
+                    needed = max(needed, up / max(band.top, 0.08))
+                } else {
+                    needed = max(needed, up / min(band.bottom, -0.08))
+                }
+                needed = max(needed, abs(camera.x) / camera.depth / max(aspect, 0.05))
             }
-            // A little room so nothing sits exactly on the edge of the frame.
-            let tanHalfV = max(neededTanV, neededTanH / max(aspect, 0.05)) * 1.10
+            // A little room so nothing sits exactly on the edge of the band.
             return min(
-                max(2 * atan(tanHalfV) * 180 / .pi, minimumFieldOfView),
+                max(2 * atan(needed * 1.06) * 180 / .pi, minimumFieldOfView),
                 maximumFieldOfView
             )
         }
 
-        // Put the subject where the eye looks, and spend the surplus on the two
-        // things that want it.
+        // Put the subject in the middle of the band, then hold it there.
         //
-        // A portrait phone is twice as tall as it is wide, so the angle needed
-        // to fit the court's WIDTH always leaves vertical room to spare. The
-        // build before this one pushed all of that spare room downward, which
-        // pinned the opponents and all four rings into a band across the top
-        // fifth of the screen with nothing but empty near court under them.
-        // Landing the subject's centre just above the middle of the frame gives
-        // the HUD a dark band to sit in and leaves the near court below the
-        // rings for the four captions, which is exactly where they belong.
-        //
-        // The clamps still win: they only ever give back space the fit proved
-        // was spare, so containment is never traded for composition.
+        // Pitch and field of view depend on each other: tilting changes the
+        // depth to every point, which changes the angle needed to contain them,
+        // so applying the tilt after the fit leaves points outside the frame.
+        // Four passes is enough for the two to settle, and the clamps are
+        // containment (a point may never leave the band) while the target is
+        // composition (the subject would like to be centred in it).
         let subjectCentre = (minV + maxV) / 2
-        let offset = 1 - 2 * subjectCentreFraction
         var pitch = subjectCentre
         var fov = minimumFieldOfView
-        for _ in 0..<4 {
+        for _ in 0..<5 {
             fov = fit(pitch: pitch)
-            let half = fov * .pi / 180 / 2
+            let tanHalf = tan(fov * .pi / 180 / 2)
             pitch = min(
-                max(subjectCentre + offset * half, maxV - half * 0.96),
-                minV + half * 0.96
+                max(subjectCentre + atan(band.centre * tanHalf),
+                    maxV + atan(band.bottom * tanHalf * 0.98)),
+                minV + atan(band.top * tanHalf * 0.98)
             )
         }
         // One last fit at the pitch actually being used, so containment is a

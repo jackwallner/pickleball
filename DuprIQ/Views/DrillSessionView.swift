@@ -104,13 +104,32 @@ struct DrillSessionView: View {
 
     /// One full-bleed layer of court, with everything else floating over it.
     private func court(_ ball: RallyBall) -> some View {
+        GeometryReader { geo in
+            // The full-bleed height, which is what `CourtPOVView` reserved its
+            // option band against. `geo.size` here is inset by the safe area,
+            // and capping the verdict card against the smaller number is how
+            // the card and the band it is supposed to replace drift apart.
+            let full = CGSize(
+                width: geo.size.width,
+                height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+            )
+            courtBody(ball, band: CourtPOVView.verdictBandHeight(in: full))
+        }
+    }
+
+    private func courtBody(_ ball: RallyBall, band: CGFloat) -> some View {
         ZStack {
             CourtPOVView(
                 position: ball.position,
                 options: ball.question.options,
                 aimPoints: aimPoints(for: ball),
                 phase: povPhase(for: ball),
-                onPick: picked == nil ? { select($0, in: ball) } : nil
+                onPick: picked == nil ? { select($0, in: ball) } : nil,
+                // The question is asked above the four buttons, inside the
+                // panel, because that is where the answer is given. It used to
+                // float alone in the middle of the empty near court, which is
+                // the part of the screen the panel now occupies.
+                prompt: "Where do you hit it?"
             )
             .ignoresSafeArea()
 
@@ -126,6 +145,13 @@ struct DrillSessionView: View {
                     // inside the safe area it floated with a band of court
                     // showing under it, which read as a sheet that had not
                     // finished animating in.
+                    //
+                    // It lands on exactly the band the option panel occupied,
+                    // so grading a ball swaps one for the other and the court
+                    // above it does not move. Before the split the card came up
+                    // over the middle of the render and covered the ball and
+                    // the stance ring, which is to say it covered the position
+                    // it was explaining.
                     VerdictCard(
                         ball: ball,
                         picked: picked,
@@ -133,9 +159,11 @@ struct DrillSessionView: View {
                         buttonTitle: nextButtonTitle,
                         onNext: advance
                     )
+                    // Never taller than the band the panel had. The card's
+                    // explanation scrolls, so a short screen loses reading
+                    // room rather than eating court.
+                    .frame(maxHeight: band)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    prompt(ball)
                 }
             }
             .ignoresSafeArea(edges: .bottom)
@@ -244,22 +272,6 @@ struct DrillSessionView: View {
         .background(.black.opacity(0.45), in: Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Score, you \(yourPoints), them \(theirPoints)")
-    }
-
-    /// The question, stated as a question and nothing else.
-    ///
-    /// The old screen printed the ball height and the contact side here in
-    /// words, which handed over the two facts the answer turns on. Now they are
-    /// in the render, where they have to be read.
-    private func prompt(_ ball: RallyBall) -> some View {
-        Text("Where do you hit it?")
-            .font(Theme.display(20))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
-            .background(.black.opacity(0.5), in: Capsule())
-            .padding(.bottom, 26)
-            .accessibilityAddTraits(.isHeader)
     }
 
     private var nextButtonTitle: String {
@@ -546,11 +558,12 @@ struct VerdictCard: View {
                 .padding(.horizontal, 18)
                 .padding(.bottom, 14)
             }
-            // Capped so the card can never swallow the court it is explaining,
-            // and capped to the same band `CourtPOVView` reserved for it: the
-            // four captions sit in the near court now, and a card that grew
-            // past this would cover the answer it is talking about.
-            .frame(maxHeight: 210)
+            // No fixed cap any more. The card is handed the option panel's
+            // band by `DrillSessionView` and the header and the button are the
+            // only fixed parts of it, so the explanation takes whatever is left
+            // and scrolls when that is not enough. A hard 210 here plus a
+            // hard band there was two numbers that had to agree and did not.
+            .frame(minHeight: 90)
             // Without this the explanation is guillotined mid-word against the
             // button and nothing says it continues. The fade is the only cue
             // that the card scrolls.

@@ -1,32 +1,41 @@
 import XCTest
 @testable import DuprIQ
 
-/// The contract for the four captions on the court.
+/// The contract for the four badges on the court.
 ///
-/// This file exists because of a real failure, not a hypothetical one. The
-/// first build de-collided the aim points in court feet, which is the wrong
-/// space: two rings two feet apart on the paint are a handful of pixels apart
-/// at forty feet of depth, so all four captions stacked into one pile and the
-/// screenshot harness reported that the first option "was not hittable". An
-/// option a player cannot tap is a broken question, and nothing else in the
-/// suite would catch it.
+/// This file exists because of a real failure, not a hypothetical one, and it
+/// has now outlived two versions of that failure. The first build de-collided
+/// the aim points in court feet, which is the wrong space: two rings two feet
+/// apart on the paint are a handful of pixels apart at forty feet of depth, so
+/// all four captions stacked into one pile and the screenshot harness reported
+/// that the first option "was not hittable". The second laid the captions out
+/// in screen space, which is the right space and still could not win, because
+/// four 118 by 44 point pills do not fit around four rings inside the two
+/// hundred point strip a standing eye sees the far court in. Every audit
+/// screenshot showed a label sitting on the ring it named.
+///
+/// The text is in the option panel now and what is left on the court is a 26
+/// point numbered badge, small enough to sit AT its ring rather than beside it.
+/// These tests pin the two things that still have to be true: badges do not
+/// land on top of each other, and a badge never hides under the chrome.
 final class AimLabelLayoutTests: XCTestCase {
 
     private let size = CGSize(width: 402, height: 874)
-    private let label = CGSize(width: 118, height: 44)
+    private let top: CGFloat = 104
+    private let bottom: CGFloat = 314
 
     private func place(_ anchors: [CGPoint?]) -> [AimLabelLayout.Placement] {
-        AimLabelLayout.place(anchors: anchors, labelSize: label, in: size)
+        AimLabelLayout.place(anchors: anchors, in: size, topInset: top, bottomInset: bottom)
     }
 
-    private func rect(_ p: CGPoint) -> CGRect {
-        CGRect(x: p.x - label.width / 2, y: p.y - label.height / 2,
-               width: label.width, height: label.height)
+    private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        let dx = a.x - b.x, dy = a.y - b.y
+        return (dx * dx + dy * dy).squareRoot()
     }
 
     /// The one that was broken. Four rings within a few points of each other,
     /// which is exactly what the far kitchen looks like from your own baseline.
-    func testCaptionsNeverOverlapEvenWhenEveryRingIsInTheSamePlace() {
+    func testBadgesNeverOverlapEvenWhenEveryRingIsInTheSamePlace() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 200, y: 430),
             CGPoint(x: 203, y: 432),
@@ -37,43 +46,44 @@ final class AimLabelLayoutTests: XCTestCase {
         XCTAssertEqual(placed.count, 4)
         for i in placed.indices {
             for j in placed.indices where j > i {
-                XCTAssertFalse(
-                    rect(placed[i].label).intersects(rect(placed[j].label)),
-                    "captions \(placed[i].index) and \(placed[j].index) overlap"
+                XCTAssertGreaterThanOrEqual(
+                    distance(placed[i].badge, placed[j].badge),
+                    AimLabelLayout.badgeSize,
+                    "badges \(placed[i].index) and \(placed[j].index) overlap"
                 )
             }
         }
     }
 
-    /// Every caption has to sit fully on screen, clear of the HUD above and the
-    /// prompt below. A pill half off the edge is an option nobody can hit,
-    /// which was the other half of the same bug.
-    func testEveryCaptionStaysInsideTheSafeArea() {
+    /// Every badge has to sit fully on screen and clear of both chrome bands.
+    /// A badge under the HUD or under the option panel is a target nobody can
+    /// see, which was the other half of the same bug.
+    func testEveryBadgeStaysInsideTheVisibleBand() {
         let anchors: [CGPoint?] = [
             CGPoint(x: -80, y: 20),
             CGPoint(x: 480, y: 30),
             CGPoint(x: 200, y: 860),
             CGPoint(x: 0, y: 440),
         ]
+        let half = AimLabelLayout.badgeSize / 2
         for placement in place(anchors) {
-            let r = rect(placement.label)
-            XCTAssertGreaterThanOrEqual(r.minX, 0)
-            XCTAssertLessThanOrEqual(r.maxX, size.width)
-            XCTAssertGreaterThanOrEqual(r.minY, 0)
-            XCTAssertLessThanOrEqual(r.maxY, size.height)
+            XCTAssertGreaterThanOrEqual(placement.badge.x - half, 0)
+            XCTAssertLessThanOrEqual(placement.badge.x + half, size.width)
+            XCTAssertGreaterThanOrEqual(placement.badge.y - half, top)
+            XCTAssertLessThanOrEqual(placement.badge.y + half, size.height - bottom)
         }
     }
 
-    /// A ring that projected behind the camera has no caption, rather than a
-    /// caption parked at the origin.
+    /// A ring that projected behind the camera has no badge, rather than a
+    /// badge parked at the origin.
     func testRingsBehindTheCameraAreDropped() {
         let placed = place([CGPoint(x: 200, y: 400), nil, CGPoint(x: 260, y: 500), nil])
         XCTAssertEqual(Set(placed.map(\.index)), [0, 2])
     }
 
-    /// The caption keeps a reference back to the ring it names, because a
-    /// caption that had to move to avoid a neighbour is meaningless without the
-    /// leader line that points home.
+    /// The badge keeps a reference back to the ring it names, because a badge
+    /// that had to move to avoid a neighbour is meaningless without the tether
+    /// that points home.
     func testEveryPlacementKeepsItsAnchor() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 120, y: 400),
@@ -84,43 +94,64 @@ final class AimLabelLayoutTests: XCTestCase {
         }
     }
 
-    /// Well-separated rings should not be dragged around: a caption only moves
-    /// when it has to.
-    func testWellSpacedCaptionsSitBelowTheirOwnRings() {
+    /// Well-separated rings are not touched. A badge sits ON its ring unless a
+    /// neighbour forces it off, which is the whole reason the text moved to the
+    /// panel: there is no longer anything to lay out on the court.
+    func testWellSpacedBadgesSitExactlyOnTheirRings() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 100, y: 300),
-            CGPoint(x: 300, y: 560),
+            CGPoint(x: 300, y: 480),
         ]
         for placement in place(anchors) {
-            XCTAssertEqual(placement.label.x, placement.anchor.x, accuracy: 0.5)
-            XCTAssertEqual(
-                placement.label.y, placement.anchor.y + AimLabelLayout.drop, accuracy: 0.5
+            XCTAssertEqual(placement.badge.x, placement.anchor.x, accuracy: 0.5)
+            XCTAssertEqual(placement.badge.y, placement.anchor.y, accuracy: 0.5)
+            XCTAssertFalse(placement.isOffset)
+        }
+    }
+
+    /// A badge never travels far enough to look like it belongs to a different
+    /// ring. Two overlapping badges are recoverable, because the panel button
+    /// and the ring underneath both still work; a badge sitting on somebody
+    /// else's ring is a wrong answer waiting to happen.
+    func testABadgeIsNeverPushedFarFromItsOwnRing() {
+        let anchors: [CGPoint?] = (0..<4).map { CGPoint(x: 200 + CGFloat($0), y: 400) }
+        for placement in place(anchors) {
+            XCTAssertLessThanOrEqual(
+                distance(placement.badge, placement.anchor),
+                AimLabelLayout.maximumNudge + AimLabelLayout.separation / 3,
+                "badge \(placement.index) drifted off its ring"
             )
         }
     }
 
-    /// Captions go DOWN the screen, into the empty near court, never up into
-    /// the far court where the opponents and the rings are. This is the whole
-    /// reason the layout exists: the build before it drew all four pills across
-    /// both opponents' bodies, so the render hid the feet the question asks
-    /// about.
-    func testCaptionsStayOutOfTheFarCourt() {
+    /// The panel is a map of the court: top row is the two targets further away,
+    /// bottom row the two nearer ones, each row left to right. If this ordering
+    /// ever went to option order, the buttons would stop corresponding to the
+    /// rings and the numbers would be doing all the work on their own.
+    func testThePanelIsLaidOutLikeTheCourt() {
         let anchors: [CGPoint?] = [
-            CGPoint(x: 120, y: 360),
-            CGPoint(x: 150, y: 366),
-            CGPoint(x: 260, y: 358),
-            CGPoint(x: 280, y: 364),
+            CGPoint(x: 300, y: 300),   // 0: far right
+            CGPoint(x: 100, y: 500),   // 1: near left
+            CGPoint(x: 120, y: 310),   // 2: far left
+            CGPoint(x: 320, y: 505),   // 3: near right
         ]
-        for placement in place(anchors) {
-            XCTAssertGreaterThan(
-                placement.label.y, placement.anchor.y,
-                "caption \(placement.index) was pushed above the ring it names"
-            )
-        }
+        let rows = AimLabelLayout.panelOrder(place(anchors))
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].map(\.index), [2, 0], "the far row is not left to right")
+        XCTAssertEqual(rows[1].map(\.index), [1, 3], "the near row is not left to right")
+    }
+
+    /// An odd number of options still lays out, because the primer draws two.
+    func testAnOddNumberOfOptionsStillRows() {
+        let rows = AimLabelLayout.panelOrder(place([
+            CGPoint(x: 100, y: 300), CGPoint(x: 300, y: 320), CGPoint(x: 200, y: 500),
+        ]))
+        XCTAssertEqual(rows.map(\.count), [2, 1])
     }
 
     func testAnEmptyLayoutIsHandled() {
         XCTAssertTrue(place([]).isEmpty)
         XCTAssertTrue(place([nil, nil]).isEmpty)
+        XCTAssertTrue(AimLabelLayout.panelOrder([]).isEmpty)
     }
 }
