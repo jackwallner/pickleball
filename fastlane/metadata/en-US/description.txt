@@ -1,4 +1,4 @@
-Stand on the court, read the rally, and hit the shot before the clock runs out.
+Stand on the court, read the rally, and choose the shot that wins the point.
 
 DUPR IQ puts you in the point. Every ball is a real doubles position seen from where you are standing: four players, a ball hanging at an actual height beside the net tape, and the score. Nothing is written down for you. How high the ball is and whether their feet have reached the kitchen line are things you look at, the same way you would on a court.
 
@@ -6,7 +6,7 @@ You answer by aiming. Four rings sit on the paint where each shot would land, an
 
 Points, not flashcards. Get the read right and the rally continues to your next shot. Get it wrong and you lose the point, the way you would in a game.
 
-There is a shot clock, because shot selection with unlimited time to think is a different skill from shot selection. Set it to tournament, match or relaxed pace, or turn it off.
+Practice starts untimed while you learn the court. When you are ready, turn on the optional decision timer at learning, game or fast pace.
 
 Practice by phase:
 - Return of serve

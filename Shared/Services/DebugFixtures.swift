@@ -51,6 +51,8 @@ enum DebugFixtures {
         progress.resetForTesting()
         limiter.resetForTesting()
         reviews.resetForTesting()
+        PlayerProfile.shared.resetForTesting()
+        defaults.removeObject(forKey: "duprIQ.skillLevel")
         // The primer flag lives in the same container across runs, so a reset
         // that leaves it set makes the first-run capture impossible to take.
         defaults.removeObject(forKey: CourtPrimerView.seenKey)

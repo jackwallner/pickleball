@@ -7,6 +7,61 @@ import XCTest
 @MainActor
 final class AuditTests: ScreenshotHarness {
 
+    func testFirstRunCTAsAndUntimedCourtStayInteractive() {
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-subscription.localProOverride", "NO",
+            "-uitest.reset", "YES",
+            "-uitest.seed", "4242",
+        ]
+        app.launch()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+
+        let continueButton = app.buttons["onboarding-continue"]
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 8))
+        XCTAssertTrue(continueButton.isHittable)
+        XCTAssertGreaterThanOrEqual(continueButton.frame.height, 54)
+        XCTAssertGreaterThanOrEqual(continueButton.frame.width, 300)
+        continueButton.tap()
+
+        XCTAssertTrue(app.buttons["onboarding-level-new"].waitForExistence(timeout: 4))
+        app.buttons["onboarding-continue"].tap()
+        XCTAssertTrue(app.staticTexts["onboarding-level-required"].waitForExistence(timeout: 3))
+        app.buttons["onboarding-level-new"].tap()
+        app.buttons["onboarding-continue"].tap()
+
+        let startButton = app.buttons["onboarding-continue"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 4))
+        XCTAssertEqual(startButton.label, "Start practising")
+        XCTAssertGreaterThanOrEqual(startButton.frame.height, 54)
+        startButton.tap()
+
+        let primerButton = app.buttons["primer-done"]
+        XCTAssertTrue(primerButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(primerButton.isHittable)
+        primerButton.tap()
+
+        let mixedRally = app.buttons["mixed-rally"]
+        XCTAssertTrue(mixedRally.waitForExistence(timeout: 5))
+        mixedRally.tap()
+        settle(6.0)
+
+        let firstShot = app.buttons["shot-0"]
+        XCTAssertTrue(firstShot.exists)
+        XCTAssertTrue(firstShot.isHittable, "an untimed beginner court must remain playable")
+        firstShot.tap()
+
+        let nextButton = app.buttons["next-ball"]
+        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextButton.isHittable)
+        XCTAssertGreaterThanOrEqual(nextButton.frame.height, 54)
+        XCTAssertGreaterThanOrEqual(nextButton.frame.width, 300)
+        nextButton.tap()
+
+        XCTAssertTrue(app.buttons["shot-0"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["shot-0"].isHittable)
+    }
+
     private func launchForAudit(seed: Int) {
         app = XCUIApplication()
         app.launchArguments = [

@@ -216,12 +216,14 @@ extension View {
     }
 
     func primaryCTA(color: Color = Theme.court) -> some View {
-        self
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        return self
             .font(.headline)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 56)
-            .background(color, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(color, in: shape)
+            .contentShape(shape)
             .shadow(color: color.opacity(0.35), radius: 8, y: 4)
     }
 }
@@ -257,6 +259,17 @@ struct PressableCardStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.975 : 1)
             .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// Press feedback for full-width CTAs. The visual treatment stays on the
+/// button label so the visible 56-point rectangle is also the hit target.
+struct PressableCTAStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.975 : 1)
+            .brightness(configuration.isPressed ? -0.06 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

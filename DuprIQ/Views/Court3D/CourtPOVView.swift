@@ -499,7 +499,7 @@ struct AimOptionButton: View {
                     .strokeBorder(stroke, lineWidth: 1.5)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableCTAStyle())
     }
 
     private var fill: Color {

@@ -14,6 +14,7 @@ struct OnboardingView: View {
     @AppStorage("duprIQ.skillLevel") private var skillLevel = ""
 
     @State private var page = 0
+    @State private var showLevelRequired = false
 
     var onFinish: () -> Void
 
@@ -27,16 +28,21 @@ struct OnboardingView: View {
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
 
-            Button(page == 2 ? "Start practising" : "Continue") {
-                if page < 2 {
-                    withAnimation { page += 1 }
-                } else {
-                    finish()
-                }
+            if showLevelRequired && page == 1 && !profile.hasSelectedLevel {
+                Text("Choose the level that fits you best to continue.")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.court)
+                    .accessibilityIdentifier("onboarding-level-required")
             }
-            .primaryCTA()
-            .disabled(page == 1 && !profile.hasSelectedLevel)
-            .opacity(page == 1 && !profile.hasSelectedLevel ? 0.5 : 1)
+
+            Button {
+                advance()
+            } label: {
+                Text(page == 2 ? "Start practising" : "Continue")
+                    .primaryCTA()
+            }
+            .buttonStyle(PressableCTAStyle())
+            .accessibilityIdentifier("onboarding-continue")
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
@@ -70,6 +76,7 @@ struct OnboardingView: View {
                     Button {
                         profile.selectLevel(level)
                         skillLevel = level.rawValue
+                        showLevelRequired = false
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: level.icon)
@@ -99,6 +106,7 @@ struct OnboardingView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("onboarding-level-\(level.rawValue)")
                 }
             }
         }
@@ -124,6 +132,19 @@ struct OnboardingView: View {
     }
 
     // MARK: - Scaffolding
+
+    private func advance() {
+        if page == 1 && !profile.hasSelectedLevel {
+            Haptics.impact(.light, intensity: 0.8)
+            withAnimation { showLevelRequired = true }
+            return
+        }
+        if page < 2 {
+            withAnimation { page += 1 }
+        } else {
+            finish()
+        }
+    }
 
     @ViewBuilder
     private func page<Content: View>(

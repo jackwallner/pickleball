@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The core loop: you are on the court, the ball is coming, pick where it goes
-/// before the clock runs out.
+/// The core loop: you are on the court, the ball is coming, and you pick where
+/// it goes. Experienced players can add an optional decision timer in Settings.
 ///
 /// Three things about this screen are deliberate and were not true of the
 /// version it replaces.
@@ -18,8 +18,6 @@ import SwiftUI
 /// in grading: every individual ball is still one `DrillQuestion` graded by
 /// `ShotAdvisor` exactly as before.
 ///
-/// **There is a clock.** Shot selection under no time pressure is a different
-/// skill from shot selection, and the app was training the wrong one.
 struct DrillSessionView: View {
     let phase: RallyPhase?
     let sessionLength: Int
@@ -310,9 +308,7 @@ struct DrillSessionView: View {
         }
     }
 
-    /// The clock ran out. Graded as a miss, because on a court a ball you did
-    /// not decide about is a ball you did not hit, and recorded honestly rather
-    /// than quietly skipped.
+    /// When the optional timer is enabled, an unanswered ball is a miss.
     private func expire() {
         guard let ball = balls[safe: index] else { return }
         limiter.rollOverIfNeeded()
@@ -590,9 +586,11 @@ struct VerdictCard: View {
             // screenshot harness looked it up with `app.buttons["next-ball"]`,
             // found nothing, and every capture run walked exactly one ball
             // while still reporting success.
-            Button(buttonTitle, action: onNext)
+            Button(action: onNext) {
+                Text(buttonTitle).primaryCTA(color: Theme.court)
+            }
                 .accessibilityIdentifier("next-ball")
-                .primaryCTA(color: Theme.court)
+                .buttonStyle(PressableCTAStyle())
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
                 .padding(.bottom, VerdictCard.homeIndicatorClearance)
@@ -634,7 +632,7 @@ struct VerdictCard: View {
     }
 
     private var headline: String {
-        if timedOut { return "Too slow. Point to them." }
+        if timedOut { return "Time's up. Point to them." }
         if wasCorrect {
             return ball.isLastOfPoint ? "Point won." : "Good. Rally continues."
         }
@@ -698,9 +696,11 @@ struct RallySummaryView: View {
             }
 
             Spacer()
-            Button("Done", action: onDone)
+            Button(action: onDone) {
+                Text("Done").primaryCTA(color: Theme.court)
+            }
                 .accessibilityIdentifier("session-done")
-                .primaryCTA(color: Theme.court)
+                .buttonStyle(PressableCTAStyle())
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

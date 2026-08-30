@@ -179,11 +179,11 @@ never hits the third shot. Metering is unchanged — every graded ball still cos
 one from the daily allowance, and a session is still truncated to the allowance
 rather than promising balls it cannot grade.
 
-`AppSettings.ShotClock` is the other half. Shot selection with unlimited time to
-deliberate is a different skill from shot selection, and the app was training the
-wrong one; the clock defaults to match pace and a ball you did not decide about
-is graded as a miss, because that is what happens on a court. `off` exists as an
-accessibility escape hatch, not as the normal way to play.
+`AppSettings.ShotClock` adds pressure after the player understands the court read.
+Generated practice defaults to untimed because a beginner first has to learn the
+ball, feet, rings, and labels. Settings exposes an off-by-default Decision Timer;
+enabling it starts at a nine-second learning pace, with game and fast options after
+that. When enabled, a ball the player does not decide about is graded as a miss.
 
 **Every mode that plays a generated ball draws the same court.** The pivot
 changed `DrillSessionView` and `QuickSessionView` and missed `PracticeRunView`,

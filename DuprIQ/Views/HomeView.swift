@@ -175,7 +175,7 @@ struct HomeView: View {
                     Text("Play a point")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                    Text("Rallies across every phase, on the shot clock")
+                    Text("Rallies across every phase, at your pace")
                         .font(.subheadline)
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)

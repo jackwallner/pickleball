@@ -108,11 +108,14 @@ struct CourtPrimerView: View {
             .scrollIndicators(.visible)
             .accessibilityHint("Scroll for the full court reading guide")
             .safeAreaInset(edge: .bottom) {
-                Button(isFirstRun ? "Start playing" : "Got it") {
+                Button {
                     hasSeenPrimer = true
                     dismiss()
+                } label: {
+                    Text(isFirstRun ? "Start playing" : "Got it")
+                        .primaryCTA(color: Theme.court)
                 }
-                .primaryCTA(color: Theme.court)
+                .buttonStyle(PressableCTAStyle())
                 .padding(.horizontal)
                 .padding(.bottom, 8)
                 .background(.bar)
@@ -166,8 +169,8 @@ struct CourtPrimerView: View {
         ),
         LegendItem(
             symbol: "timer", tint: Theme.kitchen,
-            title: "There is a clock",
-            detail: "A ball you did not decide about is a ball you did not hit, so the clock counts as a miss. Change it, or turn it off, in Settings."
+            title: "Add pressure when you're ready",
+            detail: "Practice starts without a timer so you can learn the read. Later, turn on the decision timer in Settings to train at learning, game, or fast pace."
         ),
     ]
 }

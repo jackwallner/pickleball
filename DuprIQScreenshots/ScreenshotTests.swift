@@ -96,7 +96,37 @@ final class ScreenshotTests: ScreenshotHarness {
         ]
         app.launch()
         _ = app.wait(for: .runningForeground, timeout: 30)
-        settle(2.0)
+
+        let continueButton = app.buttons["onboarding-continue"]
+        guard continueButton.waitForExistence(timeout: 8) else {
+            report("first launch had no onboarding Continue button")
+            return attachTree("onboarding_welcome")
+        }
+        if continueButton.frame.height < 54 || continueButton.frame.width < 300 {
+            report("onboarding Continue did not expose its full visual hit area")
+        }
+        continueButton.tap()
+
+        let beginnerLevel = app.buttons["onboarding-level-new"]
+        guard beginnerLevel.waitForExistence(timeout: 5) else {
+            report("onboarding had no beginner level option")
+            return attachTree("onboarding_level")
+        }
+        beginnerLevel.tap()
+        app.buttons["onboarding-continue"].tap()
+
+        let startButton = app.buttons["onboarding-continue"]
+        let startPredicate = NSPredicate(format: "label == %@", "Start practising")
+        let startExpectation = XCTNSPredicateExpectation(
+            predicate: startPredicate,
+            object: startButton
+        )
+        guard XCTWaiter.wait(for: [startExpectation], timeout: 5) == .completed else {
+            report("onboarding had no Start practising button")
+            return attachTree("onboarding_ready")
+        }
+        startButton.tap()
+        settle(1.0)
         expect("primer-done", on: "court primer")
         capture("06_court_primer")
     }

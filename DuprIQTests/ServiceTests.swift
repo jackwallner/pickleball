@@ -239,6 +239,36 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(progress.recentSessions.count, ProgressStore.maxSessions)
     }
 
+    // MARK: - Playing settings
+
+    func testGeneratedPracticeStartsWithoutADecisionTimer() {
+        let settings = AppSettings(defaults: defaults)
+
+        XCTAssertEqual(settings.shotClock, .off)
+        XCTAssertFalse(settings.isShotClockEnabled)
+    }
+
+    func testEnablingTheDecisionTimerStartsAtLearningPace() {
+        let settings = AppSettings(defaults: defaults)
+
+        settings.setShotClockEnabled(true)
+        XCTAssertEqual(settings.shotClock, .relaxed)
+        XCTAssertTrue(settings.isShotClockEnabled)
+
+        settings.setShotClockEnabled(false)
+        XCTAssertEqual(settings.shotClock, .off)
+        XCTAssertFalse(settings.isShotClockEnabled)
+    }
+
+    func testDisablingTheLastReminderClearsThePermissionWarning() {
+        let settings = AppSettings(defaults: defaults)
+        settings.reminderPermissionDenied = true
+
+        settings.reminderEnabled = false
+
+        XCTAssertFalse(settings.reminderPermissionDenied)
+    }
+
     // MARK: - Review funnel
 
     func testTheEnjoymentGateWaitsForEnoughSessionsAndOnlyFiresOnce() {

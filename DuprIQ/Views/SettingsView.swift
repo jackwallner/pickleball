@@ -45,15 +45,23 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Picker("Shot clock", selection: $settings.shotClock) {
-                        ForEach(AppSettings.ShotClock.allCases) { option in
-                            Text(option.displayName).tag(option)
+                    Toggle("Decision timer", isOn: Binding(
+                        get: { settings.isShotClockEnabled },
+                        set: { settings.setShotClockEnabled($0) }
+                    ))
+                    .accessibilityIdentifier("decision-timer-toggle")
+                    if settings.isShotClockEnabled {
+                        Picker("Time to choose", selection: $settings.shotClock) {
+                            ForEach(AppSettings.ShotClock.timedOptions) { option in
+                                Text(option.displayName).tag(option)
+                            }
                         }
+                        .accessibilityIdentifier("decision-timer-pace")
                     }
                 } header: {
                     Text("Playing")
                 } footer: {
-                    Text("How long you get to commit to a shot. A ball you don't decide about counts as a miss, the same way it would on a court. Turn the clock off if you'd rather take your time.")
+                    Text("Off by default while you learn the court. Turn it on later to practise faster reads. When enabled, a timeout counts as a miss.")
                 }
 
                 Section("Appearance") {

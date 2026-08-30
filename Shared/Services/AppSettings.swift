@@ -29,17 +29,11 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    /// How long you get to commit to a shot.
-    ///
-    /// The clock is the whole difference between studying a position and
-    /// playing one. The strongest evidence in racquet-sport perceptual training
-    /// is for temporal occlusion: show the situation, take it away, make the
-    /// player commit before they have finished deliberating. A position you can
-    /// stare at for a minute trains a different skill from the one that decides
-    /// points, so `match` is the default and `off` is an accessibility escape
-    /// hatch rather than the normal way to play.
+    /// Optional pressure for players who already understand the court read.
+    /// New players need time to learn what the ball, feet, rings, and labels
+    /// mean before speed becomes useful, so generated practice starts untimed.
     enum ShotClock: String, CaseIterable, Identifiable {
-        case tournament, match, relaxed, off
+        case off, relaxed, match, tournament
 
         var id: String { rawValue }
 
@@ -54,12 +48,14 @@ final class AppSettings: ObservableObject {
 
         var displayName: String {
             switch self {
-            case .tournament: return "Tournament (3s)"
-            case .match: return "Match (5s)"
-            case .relaxed: return "Relaxed (9s)"
-            case .off: return "No clock"
+            case .off: return "Off"
+            case .relaxed: return "Learning pace (9s)"
+            case .match: return "Game pace (5s)"
+            case .tournament: return "Fast reads (3s)"
             }
         }
+
+        static let timedOptions: [ShotClock] = [.relaxed, .match, .tournament]
     }
 
     enum MatchWarmUpDay: Int, CaseIterable, Identifiable {
@@ -131,6 +127,16 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(shotClock.rawValue, forKey: Keys.shotClock) }
     }
 
+    var isShotClockEnabled: Bool { shotClock != .off }
+
+    func setShotClockEnabled(_ enabled: Bool) {
+        if enabled {
+            if shotClock == .off { shotClock = .relaxed }
+        } else {
+            shotClock = .off
+        }
+    }
+
     @Published var reminderEnabled: Bool {
         didSet {
             defaults.set(reminderEnabled, forKey: Keys.reminderEnabled)
@@ -138,6 +144,7 @@ final class AppSettings: ObservableObject {
                 requestPermissionAndSchedule()
             } else {
                 cancelReminder()
+                clearPermissionWarningIfRemindersAreOff()
             }
         }
     }
@@ -165,6 +172,7 @@ final class AppSettings: ObservableObject {
                 requestPermissionAndScheduleMatchWarmUp()
             } else {
                 cancelMatchWarmUpReminder()
+                clearPermissionWarningIfRemindersAreOff()
             }
         }
     }
@@ -194,7 +202,7 @@ final class AppSettings: ObservableObject {
         soundEnabled = defaults.object(forKey: Keys.sound) as? Bool ?? true
         celebrationsEnabled = defaults.object(forKey: Keys.celebrations) as? Bool ?? false
         shotClock = ShotClock(rawValue: defaults.string(forKey: Keys.shotClock) ?? "")
-            ?? .match
+            ?? .off
         reminderEnabled = defaults.bool(forKey: Keys.reminderEnabled)
         reminderPermissionDenied = defaults.bool(forKey: Keys.reminderPermissionDenied)
         let hour = defaults.object(forKey: Keys.reminderHour) as? Int ?? 9
@@ -285,6 +293,12 @@ final class AppSettings: ObservableObject {
     func cancelMatchWarmUpReminder() {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [Self.matchWarmUpReminderID])
+    }
+
+    private func clearPermissionWarningIfRemindersAreOff() {
+        if !reminderEnabled, !matchWarmUpReminderEnabled {
+            reminderPermissionDenied = false
+        }
     }
 
     /// Preserve the player's preference across an entitlement lapse, but do

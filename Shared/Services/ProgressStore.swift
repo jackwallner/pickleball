@@ -362,6 +362,7 @@ final class ProgressStore: ObservableObject {
         attempts = [:]; correct = [:]; streak = 0; lastPracticeDay = nil
         totalAnswered = 0; sessions = []; missed = []; ballsToday = 0
         completions = [:]; totalSessions = 0; seenItems = []; missedItems = []
+        hasOnboarded = false
         defaults.removeObject(forKey: Key.ballsDay)
         defaults.removeObject(forKey: Key.completions)
         defaults.removeObject(forKey: Key.totalSessions)
