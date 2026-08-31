@@ -1,0 +1,1 @@
+harjoittelu,taktiikka,lyönti,syöttö,palautus,kolmaslyönti,dink,drop,drive,keittiö,lyöntivalinta

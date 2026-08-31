@@ -1,0 +1,1 @@
+entreno,táctica,golpe,saque,resto,tercergolpe,dink,drop,drive,volea,cocina,coach,seleccióngolpe

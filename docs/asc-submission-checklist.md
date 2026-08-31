@@ -39,6 +39,22 @@ release-day gate. After launch it is not.
 **Subscription localization descriptions cap at 55 characters.** A longer one
 comes back as a 409 naming only `DESCRIPTION`.
 
+### 1a. Metadata localization
+
+Completed 2026-08-30 for all 50 locales in `scripts/asc-supported-locales.json`.
+Each locale has a brand-safe title, a localized pickleball drills subtitle,
+localized search keywords, the full description, promotional text, release
+notes, and all three listing URLs. Titles and subtitles stay within 30
+characters. Keywords target 94 to 100 characters and cover adjacent intent such
+as dinks, third shots, serves, returns, placement, tactics, and coaching.
+
+The generator is the local source of truth and validates the limits before
+writing the fastlane folders:
+
+```sh
+python3 scripts/generate-aso-metadata.py --check
+```
+
 ---
 
 ## 2. App Privacy (web UI only, no public API)
@@ -98,14 +114,16 @@ The saved sign-in setting, notes, and contact fields were confirmed through the
 browser after reloading the version page. The ASC page no longer shows a review
 blocker for contact information, screenshots, or App Privacy.
 
-The version item was prepared through the API without submitting it:
+The version item was prepared through the API, then submitted after the
+50-locale metadata pass:
 
 ```sh
 python3 scripts/asc-readiness.py
 python3 scripts/asc-submit-for-review.py --dry-run
 ```
 
-The dry run attaches version 1.0 without submitting it.
+The dry run confirmed the existing version item. The final submission returned
+`WAITING_FOR_REVIEW` on 2026-08-30.
 
 ---
 
@@ -122,8 +140,8 @@ contains all four items:
 - [x] `com.jackwallner.pickleball.pro.yearly`
 - [x] `com.jackwallner.pickleball.pro.lifetime`
 
-Re-run readiness and the dry run afterwards and confirm all four appear in the
-submission.
+The review submission contains all five items, including the app version. Its
+state is now `WAITING_FOR_REVIEW`.
 
 ---
 
@@ -175,5 +193,6 @@ iPhone set.
 - [x] Screenshots came from a `--strict` capture run.
 - [x] The iPad decision above is made and acted on.
 - [x] `scripts/asc-submit-for-review.py --dry-run` attaches version 1.0.
+- [x] The review submission was sent to Apple and returned `WAITING_FOR_REVIEW`.
 - [x] The app has been run from a reset simulator state and the reviewer path in the
       notes above actually works.

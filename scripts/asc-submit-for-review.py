@@ -15,6 +15,7 @@ the final submit and just report the prepared submission.
 from __future__ import annotations
 
 import argparse
+import base64
 import sys
 from pathlib import Path
 
@@ -23,6 +24,23 @@ from asc_lib import (
     ASCClient, bearer_token, bundle_id_from_appfile, find_app,
     find_editable_version, list_all, load_credentials,
 )
+
+
+def item_has_version(item: dict, version_id: str) -> bool:
+    """ASC often omits item relationships; version ids are encoded in item ids."""
+    related = (item.get("relationships", {}).get("appStoreVersion", {}).get("data") or {}).get("id")
+    if related == version_id:
+        return True
+    try:
+        encoded = item.get("id", "")
+        padded = encoded + "=" * (-len(encoded) % 4)
+        decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    # The resource id in a type-6 item is Apple's legacy numeric version id,
+    # not the UUID returned by /appStoreVersions. A review submission has one
+    # app-store-version item, so the type code is the reliable fallback.
+    return f"|6|" in decoded
 
 
 def main() -> int:
@@ -65,10 +83,7 @@ def main() -> int:
     # 2. Add the version as an item (skip if already present).
     #    ASC validates readiness on this POST as well as on the final submit.
     items = list_all(c, f"/reviewSubmissions/{sub_id}/items")
-    have = any(
-        (it.get("relationships", {}).get("appStoreVersion", {}).get("data") or {}).get("id") == vid
-        for it in items
-    )
+    have = any(item_has_version(it, vid) for it in items)
     if have:
         print("Version already an item on this submission.")
     else:
