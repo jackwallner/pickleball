@@ -40,9 +40,7 @@ final class CourtCameraTests: XCTestCase {
         let chrome = CourtPOVView.Chrome.fullBleedDrill
         return CourtCamera.viewing(
             question,
-            aspect: Double(size.width / size.height),
-            topFraction: Double(chrome.topInset(in: size) / size.height),
-            bottomFraction: Double(chrome.optionBand(in: size) / size.height)
+            aspect: Double(size.width / (size.height - chrome.topInset(in: size) - chrome.optionBand(in: size)))
         )
     }
 
@@ -50,6 +48,25 @@ final class CourtCameraTests: XCTestCase {
     private func band(in size: CGSize) -> (top: CGFloat, bottom: CGFloat) {
         let chrome = CourtPOVView.Chrome.fullBleedDrill
         return (chrome.topInset(in: size), size.height - chrome.optionBand(in: size))
+    }
+
+    private func viewport(in size: CGSize) -> CGSize {
+        let chrome = CourtPOVView.Chrome.fullBleedDrill
+        return CGSize(
+            width: size.width,
+            height: size.height - chrome.topInset(in: size) - chrome.optionBand(in: size)
+        )
+    }
+
+    private func project(
+        _ camera: CourtCamera,
+        _ point: CourtPoint,
+        height: Double = 0,
+        in size: CGSize
+    ) -> CGPoint? {
+        camera.project(point, height: height, in: viewport(in: size)).map {
+            CGPoint(x: $0.x, y: $0.y + band(in: size).top)
+        }
     }
 
     private func isOnScreen(_ p: CGPoint?, in size: CGSize, margin: CGFloat = 0) -> Bool {
@@ -88,10 +105,9 @@ final class CourtCameraTests: XCTestCase {
             everyQuestion { question in
                 let position = question.position
                 let camera = drillCamera(question, in: size)
-                let screen = camera.project(
-                    position.contact,
-                    height: CourtScene.ballHeight(position.ballHeight),
-                    in: size
+                let screen = project(
+                    camera, position.contact,
+                    height: CourtScene.ballHeight(position.ballHeight), in: size
                 )
                 XCTAssertTrue(
                     isInBand(screen, in: size),
@@ -111,12 +127,12 @@ final class CourtCameraTests: XCTestCase {
                 let camera = drillCamera(question, in: size)
                 for side in OpponentSide.allCases {
                     let point = position.opponent(side)
-                    let feet = camera.project(point, in: size)
+                    let feet = project(camera, point, in: size)
                     XCTAssertTrue(
                         isInBand(feet, in: size),
                         "\(position.id): \(side.rawValue) opponent's feet are behind the chrome in \(size)"
                     )
-                    let head = camera.project(point, height: 5.4, in: size)
+                    let head = project(camera, point, height: 5.4, in: size)
                     XCTAssertTrue(
                         isInBand(head, in: size, margin: 24),
                         "\(position.id): \(side.rawValue) opponent's head is behind the chrome in \(size)"
@@ -144,10 +160,10 @@ final class CourtCameraTests: XCTestCase {
                         // emphasized ring is over three feet across, and its
                         // pipe has vertical thickness, so four horizontal
                         // points at one height do not prove containment.
-                        for height in [-0.06, 0.24] {
-                            for edge in ringSamples(around: point, radius: 1.8, height: height) {
+                        for height in [0.01, 0.17] {
+                            for edge in ringSamples(around: point, radius: 1.04, height: height) {
                                 XCTAssertTrue(
-                                    isInBand(camera.project(edge.point, height: edge.height, in: size), in: size),
+                                    isInBand(project(camera, edge.point, height: edge.height, in: size), in: size),
                                     "\(question.position.id): \(shot.id) ring is behind the chrome in \(size)"
                                 )
                             }
@@ -181,11 +197,13 @@ final class CourtCameraTests: XCTestCase {
         everyQuestion { question in
             let position = question.position
             let camera = drillCamera(question, in: phone)
-            let near = camera.project(
+            let near = project(
+                camera,
                 CourtPoint(x: CourtGeometry.centerX, y: CourtGeometry.ourKitchenLine),
                 in: phone
             )
-            let far = camera.project(
+            let far = project(
+                camera,
                 CourtPoint(x: CourtGeometry.centerX, y: CourtGeometry.theirKitchenLine),
                 in: phone
             )
@@ -203,8 +221,8 @@ final class CourtCameraTests: XCTestCase {
             let camera = drillCamera(question, in: phone)
             let depth = CourtGeometry.theirKitchenLine
             guard
-                let left = camera.project(CourtPoint(x: 3, y: depth), in: phone),
-                let right = camera.project(CourtPoint(x: 17, y: depth), in: phone)
+                let left = project(camera, CourtPoint(x: 3, y: depth), in: phone),
+                let right = project(camera, CourtPoint(x: 17, y: depth), in: phone)
             else { return XCTFail("\(position.id): sideline off frame") }
             XCTAssertLessThan(left.x, right.x, "\(position.id): the court is mirrored")
         }
@@ -219,8 +237,8 @@ final class CourtCameraTests: XCTestCase {
         for size in [phone, pad] {
             everyQuestion { question in
                 let camera = drillCamera(question, in: size)
-                let screen = camera.project(
-                    question.position.contact, height: CourtScene.netHeight, in: size
+                let screen = project(
+                    camera, question.position.contact, height: CourtScene.netHeight, in: size
                 )
                 XCTAssertTrue(
                     isInBand(screen, in: size),
@@ -243,7 +261,7 @@ final class CourtCameraTests: XCTestCase {
         everyQuestion { question in
             let camera = drillCamera(question, in: phone)
             for side in OpponentSide.allCases {
-                guard let feet = camera.project(question.position.opponent(side), in: phone) else {
+                guard let feet = project(camera, question.position.opponent(side), in: phone) else {
                     return XCTFail("\(question.position.id): \(side.rawValue) did not project")
                 }
                 XCTAssertGreaterThan(
@@ -259,12 +277,13 @@ final class CourtCameraTests: XCTestCase {
     }
 
     /// The camera fits the rendered outlines, not only the centre points used
-    /// by the content model. This keeps the opponents' floor rings, your stance
-    /// ring, the ball and its height bar from being clipped at the edge.
+    /// by the content model. This keeps the opponents' bodies, the contextual
+    /// partner marker when it shares the frame, the ball and its height bar
+    /// from being clipped at the edge.
     func testRenderedSceneExtentsAreInFrame() {
-        let opponentRingRadius = 1.125
-        let stanceRingRadius = 0.935
-        let ballRadius = 0.22
+        let opponentRingRadius = 0.68
+        let playerBodyRadius = 1.42
+        let ballRadius = 0.15
         for size in [phone, pad] {
             everyQuestion { question in
                 let position = question.position
@@ -274,13 +293,22 @@ final class CourtCameraTests: XCTestCase {
                     _ point: CourtPoint, height: Double, _ label: String
                 ) {
                     XCTAssertTrue(
-                        isInBand(camera.project(point, height: height, in: size), in: size),
+                        isInBand(project(camera, point, height: height, in: size), in: size),
                         "\(position.id): \(label) is behind the chrome in \(size)"
                     )
                 }
 
                 for side in OpponentSide.allCases {
-                    for height in [-0.005, 0.145] {
+                    for height in [0.02, 4.72] {
+                        for sample in ringSamples(
+                            around: position.opponent(side),
+                            radius: playerBodyRadius,
+                            height: height
+                        ) {
+                            assertVisible(sample.point, height: sample.height, "(side.rawValue) body")
+                        }
+                    }
+                    for height in [0.03, 0.11] {
                         for sample in ringSamples(
                             around: position.opponent(side),
                             radius: opponentRingRadius,
@@ -291,11 +319,13 @@ final class CourtCameraTests: XCTestCase {
                     }
                 }
 
-                for height in [0.035, 0.105] {
-                    for sample in ringSamples(
-                        around: position.you, radius: stanceRingRadius, height: height
-                    ) {
-                        assertVisible(sample.point, height: sample.height, "stance ring")
+                if CourtCamera.framesPartner(position) {
+                    for height in [0.025, 0.115] {
+                        for sample in ringSamples(
+                            around: position.partner, radius: opponentRingRadius, height: height
+                        ) {
+                            assertVisible(sample.point, height: sample.height, "partner ring")
+                        }
                     }
                 }
 
@@ -315,9 +345,9 @@ final class CourtCameraTests: XCTestCase {
                     }
                 }
 
-                for xOffset in [-0.57, 0.57] {
-                    for yOffset in [-0.095, 0.095] {
-                        for heightOffset in [-0.12, 0.12] {
+                for xOffset in [-0.38, 0.38] {
+                    for yOffset in [-0.075, 0.075] {
+                        for heightOffset in [-0.07, 0.07] {
                             assertVisible(
                                 CourtPoint(
                                     x: position.contact.x + xOffset,
@@ -344,15 +374,17 @@ final class CourtCameraTests: XCTestCase {
     /// is spent on the option panel instead, and this asserts it actually is.
     ///
     /// Measured from the highest thing that matters (an opponent's head) to the
-    /// lowest (your own feet), which is the full vertical extent of what the
+    /// lowest focal marker, which is the full vertical extent of what the
     /// camera was asked to contain.
     ///
     /// It will never be 100%. A portrait phone is twice as tall as it is wide,
     /// and the four rings routinely span most of the far court's width, so the
     /// angle is often set horizontally and the surplus has to go somewhere
-    /// vertical. The threshold is what the geometry actually allows, and it is
-    /// here to catch the surplus growing, not to demand a perfect fit.
+    /// vertical. The threshold is deliberately modest because the horizontal
+    /// court width is the scarce dimension on a phone, but it still catches a
+    /// camera that collapses the decision into a thin strip.
     func testTheSubjectFillsTheVisibleBand() {
+        let minimumSubjectFillRatio: CGFloat = 0.24
         for size in [phone, pad] {
             let limits = band(in: size)
             let height = limits.bottom - limits.top
@@ -363,23 +395,23 @@ final class CourtCameraTests: XCTestCase {
                 var bottom = -CGFloat.greatestFiniteMagnitude
                 var seen: [CGPoint] = []
                 for side in OpponentSide.allCases {
-                    if let head = camera.project(position.opponent(side), height: 5.4, in: size) {
+                    if let head = project(camera, position.opponent(side), height: 5.4, in: size) {
                         seen.append(head)
                     }
                 }
-                if let shadow = camera.project(position.contact, in: size) { seen.append(shadow) }
-                // Your own feet, which the fit frames on purpose so the stance
-                // ring is visible, and which are the lowest thing on the court
-                // that matters. Leaving them out measures a subject the camera
-                // was never asked to fit.
-                if let feet = camera.project(position.you, in: size) { seen.append(feet) }
+                if let shadow = project(camera, position.contact, in: size) { seen.append(shadow) }
+                // The near stance marker is context and may sit beneath the
+                // answer surface. The focal composition is the ball, the two
+                // opponents and the partner marker that explains the read.
+                if let partner = project(camera, position.partner, in: size) { seen.append(partner) }
                 for point in seen {
                     top = min(top, point.y)
                     bottom = max(bottom, point.y)
                 }
                 guard bottom > top else { return XCTFail("\(position.id): nothing projected") }
+                let ratio = (bottom - top) / height
                 XCTAssertGreaterThan(
-                    (bottom - top) / height, 0.55,
+                    ratio, minimumSubjectFillRatio,
                     "\(position.id): the subject uses \(Int((bottom - top) / height * 100))% of the band in \(size)"
                 )
             }

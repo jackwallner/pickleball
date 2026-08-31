@@ -23,14 +23,18 @@ import Foundation
 enum AimLabelLayout {
 
     /// The drawn diameter of a badge, in points.
-    static let badgeSize: CGFloat = 26
+    static let badgeSize: CGFloat = 22
     /// Centres closer than this are pushed apart.
-    static let separation: CGFloat = 30
+    static let separation: CGFloat = 27
     /// How far a badge may be moved from its ring before it stops being a label
     /// for that ring. Past this the badge is left where it is: two overlapping
     /// badges are recoverable (the panel button is still there, and the ring is
     /// still tappable), a badge sitting on the wrong ring is not.
-    static let maximumNudge: CGFloat = 34
+    static let maximumNudge: CGFloat = 38
+
+    /// Keeps the number off the ring centre. A target at an opponent's feet
+    /// should illuminate those feet, not cover them with UI ink.
+    static let ringClearance: CGFloat = 18
 
     struct Placement {
         let index: Int
@@ -87,10 +91,15 @@ enum AimLabelLayout {
             // enough for the relaxation below to take hold, and it depends only
             // on option order.
             let angle = Double(rank) * 2 * .pi / Double(max(order.count, 1))
-            badges[index] = clamp(CGPoint(
+            let below = clamp(CGPoint(
                 x: anchor.x + CGFloat(cos(angle)),
-                y: anchor.y + CGFloat(sin(angle))
+                y: anchor.y + ringClearance + CGFloat(sin(angle))
             ))
+            let above = clamp(CGPoint(
+                x: anchor.x + CGFloat(cos(angle)),
+                y: anchor.y - ringClearance + CGFloat(sin(angle))
+            ))
+            badges[index] = distance(below, anchor) >= ringClearance * 0.72 ? below : above
         }
 
         for _ in 0..<24 {
@@ -128,27 +137,21 @@ enum AimLabelLayout {
 
         return order.compactMap { index in
             guard let anchor = anchors[index], let badge = badges[index] else { return nil }
-            // A badge that never had to move goes back exactly onto its ring,
-            // rather than keeping the one point tie-breaking spoke.
-            let settled = distance(badge, clamp(anchor)) < 1.6 ? clamp(anchor) : badge
-            return Placement(index: index, anchor: anchor, badge: settled)
+            return Placement(index: index, anchor: anchor, badge: badge)
         }
     }
 
-    /// The reading order for the option panel: the two farther targets on the
-    /// top row, the two nearer ones below, each row left to right.
-    ///
-    /// The panel is a map, not a list. A button in the top-left of the grid is
-    /// the ring in the top-left of the court, so the pairing survives even
-    /// before anyone reads a number, and the numbers are the backstop rather
-    /// than the mechanism.
+    /// The reading order for the option panel is stable option order.
+    /// Projected court positions do not form a reliable rectangular grid, so
+    /// spatial sorting produced combinations such as 3, 1 / 2, 4 that looked
+    /// random. The numbered rings are the mapping contract and the panel reads
+    /// in the familiar 1, 2 / 3, 4 order.
     static func panelOrder(_ placements: [Placement]) -> [[Placement]] {
         guard !placements.isEmpty else { return [] }
-        let byDepth = placements.sorted { $0.anchor.y < $1.anchor.y }
-        let rowCount = (byDepth.count + 1) / 2
+        let ordered = placements.sorted { $0.index < $1.index }
+        let rowCount = (ordered.count + 1) / 2
         return (0..<rowCount).map { row in
-            let slice = byDepth[(row * 2)..<min(row * 2 + 2, byDepth.count)]
-            return slice.sorted { $0.anchor.x < $1.anchor.x }
+            Array(ordered[(row * 2)..<min(row * 2 + 2, ordered.count)])
         }
     }
 

@@ -61,8 +61,8 @@ struct CourtPOVView: View {
         /// move a pixel. That is the promise the whole screen is built on.
         func optionBand(in size: CGSize) -> CGFloat {
             switch self {
-            case .fullBleedDrill: return min(max(size.height * 0.44, 250), 380)
-            case .embedded: return min(max(size.height * 0.40, 132), 200)
+            case .fullBleedDrill: return min(max(size.height * 0.25, 208), 224)
+            case .embedded: return min(max(size.height * 0.36, 124), 170)
             }
         }
 
@@ -91,7 +91,7 @@ struct CourtPOVView: View {
     /// above it. The two have to be the same number or one of them is wrong:
     /// a card taller than the reserve covers a ring, and a reserve taller than
     /// the card wastes court.
-    static func verdictBandHeight(in size: CGSize) -> CGFloat {
+    static func verdictCardHeight(in size: CGSize) -> CGFloat {
         Chrome.fullBleedDrill.optionBand(in: size)
     }
 
@@ -103,21 +103,41 @@ struct CourtPOVView: View {
     /// frame is, and the angle needed to contain it vertically depends on how
     /// much of the height is left after the HUD and the panel take theirs.
     private func camera(for size: CGSize) -> CourtCamera {
-        guard size.height > 0 else { return CourtCamera.viewing(position, aiming: aimPoints) }
-        return CourtCamera.viewing(
+        let viewport = viewportSize(in: size)
+        guard viewport.height > 0 else { return CourtCamera.viewing(position, aiming: aimPoints) }
+        let result = CourtCamera.viewing(
             position,
             aiming: aimPoints,
-            aspect: Double(size.width / size.height),
-            topFraction: Double(chrome.topInset(in: size) / size.height),
-            bottomFraction: Double(chrome.optionBand(in: size) / size.height)
+            aspect: Double(viewport.width / viewport.height)
         )
+        return result
+    }
+
+    /// The rectangle that is actually available to the court renderer. The
+    /// HUD and answer surface are overlays, not part of the camera's aspect
+    /// ratio. Fitting to the full portrait screen made the horizontal angle
+    /// unnecessarily wide and left a large empty stretch of near court.
+    private func viewportSize(in size: CGSize) -> CGSize {
+        CGSize(
+            width: size.width,
+            height: max(1, size.height - chrome.topInset(in: size) - chrome.optionBand(in: size))
+        )
+    }
+
+    private func project(
+        _ point: CourtPoint, height: Double = 0, camera: CourtCamera, in size: CGSize
+    ) -> CGPoint? {
+        camera.project(point, height: height, in: viewportSize(in: size)).map {
+            CGPoint(x: $0.x, y: $0.y + chrome.topInset(in: size))
+        }
     }
 
     var body: some View {
         GeometryReader { geo in
             let camera = camera(for: geo.size)
             let placements = layout(with: camera, in: geo.size)
-            ZStack(alignment: .bottom) {
+            let viewport = viewportSize(in: geo.size)
+            ZStack(alignment: .top) {
                 CourtSceneView(
                     position: position,
                     camera: camera,
@@ -126,12 +146,19 @@ struct CourtPOVView: View {
                     emphasised: emphasisedIndex
                 )
                 .accessibilityHidden(true)
+                .frame(width: geo.size.width, height: viewport.height)
+                .frame(maxWidth: .infinity, alignment: .top)
+                .offset(y: chrome.topInset(in: geo.size))
 
                 tethers(placements)
                 playerLabels(with: camera, in: geo.size)
                 ringBadges(placements)
 
-                optionPanel(placements, in: geo.size)
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    optionPanel(placements, in: geo.size)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
             .contentShape(Rectangle())
         }
@@ -147,7 +174,7 @@ struct CourtPOVView: View {
         with camera: CourtCamera, in size: CGSize
     ) -> [AimLabelLayout.Placement] {
         AimLabelLayout.place(
-            anchors: aimPoints.map { camera.project($0, height: 0.1, in: size) },
+            anchors: aimPoints.map { project($0, height: 0.1, camera: camera, in: size) },
             in: size,
             topInset: chrome.topInset(in: size),
             bottomInset: chrome.optionBand(in: size)
@@ -187,23 +214,31 @@ struct CourtPOVView: View {
             // head landed on top of "SHOT 1 OF 4"; a badge that collides with
             // the scoreboard names nobody and breaks the header at the same
             // time. Pushed down it sits on the body instead, which still reads.
-            if let raw = camera.project(entry.point, height: entry.labelHeight, in: size) {
+            if let raw = project(entry.point, height: entry.labelHeight, camera: camera, in: size) {
                 let floor = chrome == .fullBleedDrill ? Self.playerLabelFloor : 14
                 let ceiling = size.height - chrome.optionBand(in: size) - 14
                 let isBelowCourt = raw.y > ceiling
-                let shouldShow = entry.clampsToCourt || isOnScreen(raw, in: size)
+                // A partner marker is allowed to sit just outside the scene
+                // when the camera prioritises the ball and opponents. Clamp it
+                // to the edge with an arrow so the teammate's direction stays
+                // legible without shrinking the decision cluster.
+                let verticallyRelevant = raw.y >= floor - 18 && raw.y <= ceiling + 18
+                let shouldShow = entry.clampsToCourt
+                    || (isOnScreen(raw, in: size) && verticallyRelevant)
                 if shouldShow {
+                    let labelCeiling = ceiling - (entry.clampsToCourt ? 12 : 0)
                     let screen = CGPoint(
                         x: min(max(raw.x, 16), size.width - 16),
-                        y: min(max(raw.y, floor), ceiling)
+                        y: min(max(raw.y, floor), labelCeiling)
                     )
                     ZStack {
                         Text(entry.text)
                             .font(.system(size: entry.text.count > 1 ? 10 : 12, weight: .heavy))
-                            .foregroundStyle(Theme.Surface.play)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, entry.text.count > 1 ? 5 : 0)
                             .frame(minWidth: 20, minHeight: 20)
-                            .background(.white.opacity(0.94), in: Capsule())
+                            .background(Color.black.opacity(0.66), in: Capsule())
+                            .overlay(Capsule().stroke(.white.opacity(0.22), lineWidth: 1))
                         if entry.clampsToCourt, raw.x < 16 {
                             Image(systemName: "arrowtriangle.left.fill")
                                 .font(.system(size: 7, weight: .bold))
@@ -213,7 +248,7 @@ struct CourtPOVView: View {
                             Image(systemName: "arrowtriangle.right.fill")
                                 .font(.system(size: 7, weight: .bold))
                                 .foregroundStyle(.white.opacity(0.94))
-                                .offset(x: 15)
+                                .offset(x: -15)
                         } else if entry.clampsToCourt && isBelowCourt {
                             Image(systemName: "arrowtriangle.down.fill")
                                 .font(.system(size: 7, weight: .bold))
@@ -253,25 +288,23 @@ struct CourtPOVView: View {
                 labelHeight: partnerHasBody ? 5.3 : 0.65,
                 clampsToCourt: true
             ),
-            PlayerLabel(
-                id: "YOU", point: position.you, text: "YOU",
-                labelHeight: 0.65, clampsToCourt: true
-            ),
         ]
     }
 
-    /// The numbered badge on each ring, which is also a tap target.
+    /// The numbered badge beside each ring, which is also a tap target.
     ///
     /// The app's claim is that you answer by AIMING, and the natural gesture
     /// for that is a tap on the ring you want, so the badge carries a 48 point
     /// hit area around its 26 points of ink. The panel button below is the same
     /// answer by another route, for a thumb that does not want to reach up the
-    /// screen and for VoiceOver, which cannot aim at anything.
+    /// screen and for VoiceOver, which cannot aim at anything. The ink sits
+    /// below the ring rather than on its centre so it never hides the feet or
+    /// paint the player is being asked to read.
     @ViewBuilder
     private func ringBadges(_ placements: [AimLabelLayout.Placement]) -> some View {
         ForEach(placements, id: \.index) { placement in
             AimBadge(number: placement.index + 1, state: state(for: placement.index))
-                .frame(width: 60, height: 60)
+                .frame(width: 48, height: 48)
                 .contentShape(Circle())
                 .position(placement.badge)
                 .onTapGesture { onPick?(placement.index) }
@@ -282,22 +315,20 @@ struct CourtPOVView: View {
 
     // MARK: - The option panel
 
-    /// Four buttons, laid out as a map of the four rings.
-    ///
-    /// The grid is not a list: the top row is the two targets further up the
-    /// court and the bottom row the two nearer ones, each row left to right, so
-    /// the button's place in the panel matches the ring's place on the court
-    /// before anybody reads a number. The numbers are the backstop.
+    /// Four buttons in stable reading order, each carrying the number of its
+    /// ring. Perspective can make the four targets form an irregular cluster,
+    /// so spatially sorting the buttons felt random. The numbered badge and
+    /// matching panel number are the explicit mapping a beginner can follow.
     @ViewBuilder
     private func optionPanel(
         _ placements: [AimLabelLayout.Placement], in size: CGSize
     ) -> some View {
         let rows = AimLabelLayout.panelOrder(placements)
-        VStack(spacing: chrome.isCompact ? 6 : 10) {
+        VStack(spacing: chrome.isCompact ? 6 : 8) {
             if let prompt, !chrome.isCompact {
                 Text(prompt)
-                    .font(Theme.display(19))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundStyle(.white.opacity(0.94))
                     .accessibilityAddTraits(.isHeader)
             }
             ForEach(rows.indices, id: \.self) { row in
@@ -313,19 +344,27 @@ struct CourtPOVView: View {
                 }
             }
         }
-        .padding(.horizontal, chrome.isCompact ? 8 : 14)
-        .padding(.top, chrome.isCompact ? 8 : 14)
-        .padding(.bottom, chrome.isCompact ? 8 : 22)
+        .padding(.horizontal, chrome.isCompact ? 8 : 12)
+        .padding(.top, chrome.isCompact ? 8 : 10)
+        .padding(.bottom, chrome.isCompact ? 8 : 12)
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .frame(height: chrome.optionBand(in: size), alignment: .bottom)
         .background(
-            // A ramp rather than an edge. The court runs under the panel, so a
-            // hard line across it would read as the render being cut off.
-            LinearGradient(
-                colors: [.black.opacity(0), .black.opacity(0.55), .black.opacity(0.82)],
-                startPoint: .top, endPoint: .bottom
-            )
+            ZStack {
+                Color(red: 0.035, green: 0.085, blue: 0.095)
+                Rectangle()
+                    .fill(.white.opacity(0.10))
+                    .frame(height: 1)
+                    .frame(maxHeight: .infinity, alignment: .top)
+            }
+            .clipShape(UnevenRoundedRectangle(
+                topLeadingRadius: chrome.isCompact ? 18 : 24,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: chrome.isCompact ? 18 : 24,
+                style: .continuous
+            ))
             .allowsHitTesting(false)
         )
     }
@@ -425,7 +464,7 @@ struct AimBadge: View {
 
     var body: some View {
         Text("\(number)")
-            .font(.system(size: 14, weight: .black, design: .rounded))
+            .font(.system(size: 12, weight: .black, design: .rounded))
             .foregroundStyle(ink)
             .frame(width: AimLabelLayout.badgeSize, height: AimLabelLayout.badgeSize)
             .background(fill, in: Circle())
@@ -479,24 +518,22 @@ struct AimOptionButton: View {
                     Text(title)
                         .font(.system(size: compact ? 13 : 16, weight: .heavy))
                         .foregroundStyle(.white)
+                        .lineLimit(2)
                     if let detail {
                         Text(detail)
                             .font(.system(size: compact ? 10 : 12, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.72))
                     }
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, compact ? 9 : 12)
             .frame(maxWidth: .infinity)
-            .frame(maxHeight: .infinity)
-            .frame(minHeight: compact ? 46 : 62)
-            .background(fill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .frame(height: compact ? 48 : 58)
+            .background(fill, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(stroke, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .strokeBorder(stroke, lineWidth: 1)
             )
         }
         .buttonStyle(PressableCTAStyle())
@@ -504,7 +541,7 @@ struct AimOptionButton: View {
 
     private var fill: Color {
         switch state {
-        case .open: return Color(red: 0.09, green: 0.15, blue: 0.18).opacity(0.92)
+        case .open: return Color(red: 0.04, green: 0.10, blue: 0.12).opacity(0.56)
         case .correct: return Theme.rightGreen
         case .wrong: return Theme.wrongRed
         case .dimmed: return Color(white: 0.14).opacity(0.86)

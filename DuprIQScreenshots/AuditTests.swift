@@ -130,8 +130,10 @@ final class AuditTests: ScreenshotHarness {
                 continue
             }
             settle(3.0)
+            capture("audit_question_\(phase)")
             if tapFirstOption() {
                 settle(2.4)
+                capture("audit_graded_\(phase)")
             }
             app.terminate()
         }

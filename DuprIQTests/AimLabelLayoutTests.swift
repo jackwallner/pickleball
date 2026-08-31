@@ -94,18 +94,20 @@ final class AimLabelLayoutTests: XCTestCase {
         }
     }
 
-    /// Well-separated rings are not touched. A badge sits ON its ring unless a
-    /// neighbour forces it off, which is the whole reason the text moved to the
-    /// panel: there is no longer anything to lay out on the court.
-    func testWellSpacedBadgesSitExactlyOnTheirRings() {
+    /// A badge sits beside its ring even when no collision pushes it away. The
+    /// ring and the feet under it are the evidence, so the number must not
+    /// cover either one.
+    func testWellSpacedBadgesStayClearOfTheirRings() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 100, y: 300),
             CGPoint(x: 300, y: 480),
         ]
         for placement in place(anchors) {
-            XCTAssertEqual(placement.badge.x, placement.anchor.x, accuracy: 0.5)
-            XCTAssertEqual(placement.badge.y, placement.anchor.y, accuracy: 0.5)
-            XCTAssertFalse(placement.isOffset)
+            XCTAssertGreaterThanOrEqual(
+                distance(placement.badge, placement.anchor),
+                AimLabelLayout.ringClearance * 0.72
+            )
+            XCTAssertTrue(placement.isOffset)
         }
     }
 
@@ -124,11 +126,10 @@ final class AimLabelLayoutTests: XCTestCase {
         }
     }
 
-    /// The panel is a map of the court: top row is the two targets further away,
-    /// bottom row the two nearer ones, each row left to right. If this ordering
-    /// ever went to option order, the buttons would stop corresponding to the
-    /// rings and the numbers would be doing all the work on their own.
-    func testThePanelIsLaidOutLikeTheCourt() {
+    /// The panel keeps the familiar reading order while the numbered badges
+    /// map each option back to the court. Spatial sorting looked random when
+    /// perspective put the four targets into an irregular cluster.
+    func testThePanelUsesStableReadingOrder() {
         let anchors: [CGPoint?] = [
             CGPoint(x: 300, y: 300),   // 0: far right
             CGPoint(x: 100, y: 500),   // 1: near left
@@ -137,8 +138,8 @@ final class AimLabelLayoutTests: XCTestCase {
         ]
         let rows = AimLabelLayout.panelOrder(place(anchors))
         XCTAssertEqual(rows.count, 2)
-        XCTAssertEqual(rows[0].map(\.index), [2, 0], "the far row is not left to right")
-        XCTAssertEqual(rows[1].map(\.index), [1, 3], "the near row is not left to right")
+        XCTAssertEqual(rows[0].map(\.index), [0, 1])
+        XCTAssertEqual(rows[1].map(\.index), [2, 3])
     }
 
     /// An odd number of options still lays out, because the primer draws two.

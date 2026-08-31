@@ -113,7 +113,7 @@ struct DrillSessionView: View {
                 width: geo.size.width,
                 height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
             )
-            courtBody(ball, band: CourtPOVView.verdictBandHeight(in: full))
+            courtBody(ball, band: CourtPOVView.verdictCardHeight(in: full))
         }
     }
 
@@ -129,7 +129,7 @@ struct DrillSessionView: View {
                 // panel, because that is where the answer is given. It used to
                 // float alone in the middle of the empty near court, which is
                 // the part of the screen the panel now occupies.
-                prompt: "Where do you hit it?"
+                prompt: "Choose where to hit it"
             )
             .ignoresSafeArea()
 
@@ -150,8 +150,8 @@ struct DrillSessionView: View {
                     // so grading a ball swaps one for the other and the court
                     // above it does not move. Before the split the card came up
                     // over the middle of the render and covered the ball and
-                    // the stance ring, which is to say it covered the position
-                    // it was explaining.
+                    // aim rings, which is to say it covered the position it
+                    // was explaining.
                     VerdictCard(
                         ball: ball,
                         picked: picked,
@@ -162,7 +162,8 @@ struct DrillSessionView: View {
                     // Never taller than the band the panel had. The card's
                     // explanation scrolls, so a short screen loses reading
                     // room rather than eating court.
-                    .frame(maxHeight: band)
+                    .frame(height: band, alignment: .top)
+                    .clipped()
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -206,7 +207,7 @@ struct DrillSessionView: View {
                     Image(systemName: "chevron.left")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
+                        .frame(width: 44, height: 44)
                         .background(.black.opacity(0.45), in: Circle())
                 }
                 .accessibilityLabel("Back")
@@ -237,8 +238,11 @@ struct DrillSessionView: View {
                     .opacity(0.75)
                 Spacer(minLength: 0)
                 if !subscriptions.isPro {
-                    Label("\(limiter.remaining(isPro: false))", systemImage: "circle.dashed")
-                        .font(.caption2.weight(.bold))
+                    Text("\(limiter.remaining(isPro: false)) free left")
+                        .font(.caption2.weight(.heavy))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.45), in: Capsule())
                         .accessibilityLabel("\(limiter.remaining(isPro: false)) free balls left today")
                 }
             }

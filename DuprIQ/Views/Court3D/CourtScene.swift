@@ -47,7 +47,8 @@ enum CourtScene {
     /// paddle hung. Half-covered by the panel it read as a dark slab being
     /// clipped, which is the exact failure the comment on the old version
     /// warned about in a session runner. Your own presence is carried by the
-    /// stance ring on the paint, which is information rather than decoration.
+    /// camera position. The partner marker remains in the scene when it can be
+    /// shown without obscuring the read.
     static func make(for position: RallyPosition, camera: CourtCamera) -> SCNScene {
         let scene = SCNScene()
         let root = scene.rootNode
@@ -70,7 +71,6 @@ enum CourtScene {
         } else {
             root.addChildNode(footprint(at: position.partner, kind: .partner))
         }
-        root.addChildNode(stanceRing(at: position.you))
         root.addChildNode(ball(at: position.contact, height: ballHeight(position.ballHeight)))
 
         return scene
@@ -86,9 +86,9 @@ enum CourtScene {
         let size = CGSize(width: 4, height: 256)
         return UIGraphicsImageRenderer(size: size).image { context in
             let colors = [
-                UIColor(red: 0.043, green: 0.086, blue: 0.106, alpha: 1).cgColor,
-                UIColor(red: 0.086, green: 0.157, blue: 0.153, alpha: 1).cgColor,
-                uiColor(Theme.Surface.apron).cgColor,
+                UIColor(red: 0.018, green: 0.043, blue: 0.055, alpha: 1).cgColor,
+                UIColor(red: 0.028, green: 0.075, blue: 0.085, alpha: 1).cgColor,
+                UIColor(red: 0.055, green: 0.140, blue: 0.140, alpha: 1).cgColor,
             ]
             guard let gradient = CGGradient(
                 colorsSpace: CGColorSpaceCreateDeviceRGB(),
@@ -118,26 +118,15 @@ enum CourtScene {
     // MARK: - Lighting
 
     private static func addLighting(to root: SCNNode) {
-        // Court lights: one key from high and behind the far baseline so the
-        // players cast shadows toward the viewer and their feet read as planted
-        // on the surface, plus enough ambient that nothing is a silhouette.
+        // Court lights: one key from high and behind the far baseline, plus
+        // enough ambient that nothing is a silhouette. SceneKit's deferred
+        // shadow map produced isolated dark blobs on the empty near court, so
+        // the procedural rings and shoes provide the contact cue instead.
         let key = SCNLight()
         key.type = .directional
         key.color = UIColor(white: 1.0, alpha: 1.0)
         key.intensity = 900
-        key.castsShadow = true
-        key.shadowMode = .deferred
-        key.shadowRadius = 5
-        key.shadowSampleCount = 8
-        key.shadowColor = UIColor(white: 0, alpha: 0.34)
-        // A directional light's shadow map is an orthographic box, and the
-        // default one is nowhere near big enough for a 44 foot court: the far
-        // half fell outside it and rendered as if permanently in shadow, which
-        // is what made the opponents' end look unlit and nearly black.
-        key.orthographicScale = 62
-        key.zNear = 1
-        key.zFar = 220
-        key.shadowMapSize = CGSize(width: 2048, height: 2048)
+        key.castsShadow = false
         let keyNode = SCNNode()
         keyNode.light = key
         keyNode.position = CourtCamera.scenePoint(x: 15, y: 40, height: 46)
@@ -241,7 +230,7 @@ enum CourtScene {
     private static func addNet(to root: SCNNode) {
         let net = SCNNode()
         net.name = "net"
-        let cord = 0.022
+        let cord = 0.016
 
         // Verticals, one per foot across.
         var x = 0.0
@@ -253,10 +242,10 @@ enum CourtScene {
                 x: x, y: CourtGeometry.netY, height: netHeight / 2
             )
             net.addChildNode(strand)
-            x += 1.5
+            x += 2.0
         }
 
-        // Horizontals, every six inches. Four was denser than a real net and,
+        // Horizontals, every foot. Four was denser than a real net and,
         // at the distance the opponents stand, the strands closed up into a
         // near-solid dark grid across their legs: the mesh that exists so it
         // cannot occlude was occluding.
@@ -269,7 +258,7 @@ enum CourtScene {
                 x: CourtGeometry.centerX, y: CourtGeometry.netY, height: h
             )
             net.addChildNode(strand)
-            h += 0.7
+            h += 1.0
         }
         root.addChildNode(net)
 
@@ -315,7 +304,7 @@ enum CourtScene {
             // Opponents wear the same kit as each other on purpose. Telling
             // them apart is the player's job and it is done by reading where
             // they stand, not by colour-coding the answer.
-            case .opponent: return Color(red: 0.93, green: 0.94, blue: 0.95)
+            case .opponent: return Color(red: 0.82, green: 0.90, blue: 0.92)
             // NOT the optic yellow of the ball. Your partner was painted in it
             // and, standing a few feet from the camera, became the largest and
             // brightest object on screen: a teammate you never have to look at,
@@ -375,40 +364,6 @@ enum CourtScene {
         }
     }
 
-    /// Where YOU are standing, as a ring on the paint.
-    ///
-    /// The eye sits a step behind this, so without it your own position is the
-    /// one thing on the court you cannot see, and "am I at the line or still a
-    /// stride short" is a read the transition and third-shot phases turn on.
-    /// A ring is also what a coach points at, and it costs nothing: a body this
-    /// close to a head-height camera is a wall across a quarter of the frame,
-    /// which is why the first build drew one and then deleted it.
-    static func stanceRing(at point: CourtPoint) -> SCNNode {
-        let node = SCNNode()
-        node.name = "stance"
-
-        // Deliberately quiet. The first version was a bright ring with a
-        // vertical stake through it, standing eight feet from the lens, and it
-        // became the loudest object on screen: a fifth glowing target on our
-        // own side of the net, competing with the four you are meant to pick
-        // between. Where you are standing is CONTEXT, not the question.
-        // Quieter again after a screenshot pass: at 0.25 emission on a cyan
-        // torus it was still the brightest ring on the screen, nearer the lens
-        // and larger than any of the four it is not supposed to compete with.
-        // Chalk, not neon.
-        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.9, pipeRadius: 0.035))
-        let material = glowing(Color(red: 0.78, green: 0.85, blue: 0.88), intensity: 0.05)
-        material.transparency = 0.30
-        ring.geometry?.firstMaterial = material
-        ring.position = SCNVector3(0, 0.07, 0)
-        node.addChildNode(ring)
-
-        addShoes(to: node, color: Color(red: 0.62, green: 0.78, blue: 0.82))
-
-        node.position = CourtCamera.scenePoint(point)
-        return node
-    }
-
     /// A close partner still needs an exact stance on screen. Two shoes and a
     /// floor ring carry that information without placing a six-foot foreground
     /// body between the player and every target on the far court.
@@ -416,8 +371,9 @@ enum CourtScene {
         let node = SCNNode()
         node.name = "footprint"
 
-        let ring = SCNNode(geometry: SCNTorus(ringRadius: 1.05, pipeRadius: 0.075))
-        ring.geometry?.firstMaterial = glowing(kind.ring, intensity: 0.55)
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.64, pipeRadius: 0.04))
+        ring.geometry?.firstMaterial = glowing(kind.ring, intensity: 0.34)
+        ring.geometry?.firstMaterial?.transparency = 0.72
         ring.position = SCNVector3(0, 0.07, 0)
         node.addChildNode(ring)
         addShoes(to: node, color: kind.shorts)
@@ -439,37 +395,60 @@ enum CourtScene {
         node.name = "player"
 
         let legs = SCNNode()
-        for side in [-0.32, 0.32] {
-            let leg = SCNNode(geometry: SCNCapsule(capRadius: 0.29, height: 1.85))
+        for side in [-0.28, 0.28] {
+            let leg = SCNNode(geometry: SCNCapsule(capRadius: 0.16, height: 1.56))
             leg.geometry?.firstMaterial = material(kind.shorts)
-            leg.position = SCNVector3(Float(side), 0.93, 0)
+            leg.position = SCNVector3(Float(side), 0.86, 0)
             legs.addChildNode(leg)
         }
         node.addChildNode(legs)
         addShoes(to: node, color: kind.shorts)
 
-        let torso = SCNNode(geometry: SCNCapsule(capRadius: 0.62, height: 2.3))
+        let shorts = SCNNode(geometry: SCNBox(
+            width: 1.20, height: 0.52, length: 0.62, chamferRadius: 0.18
+        ))
+        shorts.geometry?.firstMaterial = material(kind.shorts)
+        shorts.position = SCNVector3(0, 1.78, 0)
+        node.addChildNode(shorts)
+
+        let torso = SCNNode(geometry: SCNBox(
+            width: 1.18, height: 1.72, length: 0.62, chamferRadius: 0.24
+        ))
         torso.geometry?.firstMaterial = material(kind.shirt)
-        torso.position = SCNVector3(0, 2.75, 0)
+        torso.position = SCNVector3(0, 2.82, 0)
         node.addChildNode(torso)
 
-        let head = SCNNode(geometry: SCNSphere(radius: 0.44))
+        let neck = SCNNode(geometry: SCNCylinder(radius: 0.18, height: 0.34))
+        neck.geometry?.firstMaterial = material(Color(red: 0.76, green: 0.62, blue: 0.51))
+        neck.position = SCNVector3(0, 3.86, 0)
+        node.addChildNode(neck)
+
+        for side in [-1.0, 1.0] {
+            let arm = SCNNode(geometry: SCNCapsule(capRadius: 0.14, height: 1.38))
+            arm.geometry?.firstMaterial = material(kind.shirt)
+            arm.position = SCNVector3(Float(side * 0.70), 2.88, 0.03)
+            arm.eulerAngles.z = Float(side * 0.52)
+            node.addChildNode(arm)
+        }
+
+        let head = SCNNode(geometry: SCNSphere(radius: 0.35))
         head.geometry?.firstMaterial = material(Color(red: 0.76, green: 0.62, blue: 0.51))
-        head.position = SCNVector3(0, 4.32, 0)
+        head.position = SCNVector3(0, 4.34, 0)
         node.addChildNode(head)
 
         // Paddle, held up in a ready position. Small, but it is what makes the
         // silhouette read as a pickleball player rather than a bollard.
         let paddle = SCNNode(geometry: SCNBox(
-            width: 0.62, height: 0.85, length: 0.06, chamferRadius: 0.14
+            width: 0.66, height: 0.88, length: 0.07, chamferRadius: 0.15
         ))
         paddle.geometry?.firstMaterial = material(Color(red: 0.12, green: 0.14, blue: 0.17))
-        paddle.position = SCNVector3(0.72, 3.15, 0.35)
-        paddle.eulerAngles = SCNVector3(0, 0, -0.25)
+        paddle.position = SCNVector3(0.76, 2.52, 0.40)
+        paddle.eulerAngles = SCNVector3(0, 0, -0.45)
         node.addChildNode(paddle)
 
-        let ring = SCNNode(geometry: SCNTorus(ringRadius: 1.05, pipeRadius: 0.075))
-        ring.geometry?.firstMaterial = glowing(kind.ring, intensity: 0.55)
+        let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.64, pipeRadius: 0.04))
+        ring.geometry?.firstMaterial = glowing(kind.ring, intensity: 0.34)
+        ring.geometry?.firstMaterial?.transparency = 0.72
         ring.position = SCNVector3(0, 0.07, 0)
         node.addChildNode(ring)
 
@@ -490,12 +469,11 @@ enum CourtScene {
         }
     }
 
-    /// The live ball, with the drop line that makes its height legible.
+    /// The live ball, with a local height reference that makes the read legible.
     ///
     /// A sphere hanging in perspective carries almost no height information on
-    /// its own: high and near looks identical to low and far. The vertical line
-    /// down to a shadow disc on the paint is what turns it back into a reading,
-    /// and it is the same trick a coach uses when they point at the ground.
+    /// its own: high and near looks identical to low and far. The short guide
+    /// and net-height bar beside it turn that ambiguity into a local comparison.
     static func ball(at point: CourtPoint, height: Double) -> SCNNode {
         let node = SCNNode()
         node.name = "ball"
@@ -531,64 +509,49 @@ enum CourtScene {
         // white court paint, which is exactly where it lands on the phases
         // where the ball is low, and a mark you cannot find is worse than no
         // mark because the player assumes they have read it.
-        let shadowBar = box(width: 1.14, height: 0.11, length: 0.19, color: Color(white: 0.04))
+        let shadowBar = box(width: 0.76, height: 0.08, length: 0.15, color: Color(white: 0.04))
         shadowBar.geometry?.firstMaterial?.lightingModel = .constant
         shadowBar.geometry?.firstMaterial?.transparency = 0.55
         shadowBar.position = SCNVector3(0, Float(netHeight), 0)
         node.addChildNode(shadowBar)
 
-        let tape = box(width: 1.02, height: 0.06, length: 0.15, color: Theme.Surface.netTape)
+        let tape = box(width: 0.66, height: 0.035, length: 0.12, color: Theme.Surface.netTape)
         tape.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
         tape.position = SCNVector3(0, Float(netHeight), 0)
         node.addChildNode(tape)
 
-        for side in [-0.50, 0.50] {
+        for side in [-0.32, 0.32] {
             let cap = SCNNode(geometry: SCNBox(
-                width: 0.055, height: 0.24, length: 0.15, chamferRadius: 0.01
+                width: 0.035, height: 0.13, length: 0.12, chamferRadius: 0.01
             ))
             cap.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.9)
             cap.position = SCNVector3(Float(side), Float(netHeight), 0)
             node.addChildNode(cap)
         }
 
-        // A pickleball is 1.6 inches across. This one is 0.22 ft (2.6 inches)
-        // because a true-scale ball at twelve feet is four pixels, but 0.30 was
-        // a beach ball: on the attack phase, where the ball is up at shoulder
-        // height, it projected as large as an opponent's head and stopped
-        // reading as a ball at all.
-        let sphere = SCNNode(geometry: SCNSphere(radius: 0.22))
+        // A pickleball is about 2.9 inches across. The render is enlarged by a
+        // quarter for legibility, not doubled into the beach ball the old
+        // 0.22-foot radius produced in close return positions.
+        let sphere = SCNNode(geometry: SCNSphere(radius: 0.15))
         sphere.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 1.0)
         sphere.position = SCNVector3(0, Float(height), 0)
         node.addChildNode(sphere)
 
-        // The drop line is a plumb line, not a mast. At 0.032 ft and full optic
-        // yellow it rendered as a pole running the height of the frame and was
-        // the loudest object in the attack phase; it only has to be followable.
-        let drop = SCNNode(geometry: SCNCylinder(radius: 0.018, height: CGFloat(height)))
-        drop.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.3)
-        drop.geometry?.firstMaterial?.transparency = 0.55
-        drop.position = SCNVector3(0, Float(height / 2), 0)
-        node.addChildNode(drop)
-
-        // Carry the pole past the ball when the tape bar is above it, so the
-        // two are one object. Without this the bar floated by itself somewhere
-        // over the far court and read as a fifth thing on the screen rather
-        // than as the mark this ball is being measured against.
-        if netHeight > height {
-            let extension_ = SCNNode(geometry: SCNCylinder(
-                radius: 0.022, height: CGFloat(netHeight - height)
-            ))
-            extension_.geometry?.firstMaterial = glowing(Theme.Surface.netTape, intensity: 0.4)
-            extension_.geometry?.firstMaterial?.transparency = 0.35
-            extension_.position = SCNVector3(0, Float((height + netHeight) / 2), 0)
-            node.addChildNode(extension_)
+        // A short dashed comparison guide joins the ball to the net-height
+        // tick. Extending it to the floor made close contacts look like a
+        // yellow laser planted through half the screen.
+        let guideBottom = min(height, netHeight) - 0.20
+        let guideTop = max(height, netHeight) + 0.20
+        var dashStart = max(0.08, guideBottom)
+        while dashStart < guideTop - 0.04 {
+            let dashHeight = min(0.16, guideTop - dashStart)
+            let dash = SCNNode(geometry: SCNCylinder(radius: 0.011, height: dashHeight))
+            dash.geometry?.firstMaterial = glowing(Theme.Surface.ball, intensity: 0.18)
+            dash.geometry?.firstMaterial?.transparency = 0.42
+            dash.position = SCNVector3(0, Float(dashStart + dashHeight / 2), 0)
+            node.addChildNode(dash)
+            dashStart += 0.27
         }
-
-        let shadow = SCNNode(geometry: SCNCylinder(radius: 0.26, height: 0.02))
-        shadow.geometry?.firstMaterial = material(Color(red: 0.02, green: 0.05, blue: 0.06))
-        shadow.geometry?.firstMaterial?.transparency = 0.45
-        shadow.position = SCNVector3(0, 0.08, 0)
-        node.addChildNode(shadow)
 
         node.position = CourtCamera.scenePoint(point)
         return node
@@ -600,17 +563,17 @@ enum CourtScene {
         node.name = "aim"
 
         let ring = SCNNode(geometry: SCNTorus(
-            ringRadius: emphasised ? 1.65 : 1.4, pipeRadius: emphasised ? 0.15 : 0.1
+            ringRadius: emphasised ? 0.94 : 0.82, pipeRadius: emphasised ? 0.075 : 0.055
         ))
-        ring.geometry?.firstMaterial = glowing(color, intensity: emphasised ? 1.1 : 0.6)
+        ring.geometry?.firstMaterial = glowing(color, intensity: emphasised ? 0.95 : 0.42)
         ring.position = SCNVector3(0, 0.09, 0)
         node.addChildNode(ring)
 
         let disc = SCNNode(geometry: SCNCylinder(
-            radius: emphasised ? 1.62 : 1.38, height: 0.02
+            radius: emphasised ? 0.90 : 0.78, height: 0.02
         ))
-        disc.geometry?.firstMaterial = glowing(color, intensity: 0.25)
-        disc.geometry?.firstMaterial?.transparency = emphasised ? 0.55 : 0.78
+        disc.geometry?.firstMaterial = glowing(color, intensity: emphasised ? 0.10 : 0.035)
+        disc.geometry?.firstMaterial?.transparency = emphasised ? 0.82 : 0.94
         disc.position = SCNVector3(0, 0.08, 0)
         node.addChildNode(disc)
 
@@ -643,7 +606,7 @@ enum CourtScene {
         let m = SCNMaterial()
         m.lightingModel = .constant
         m.diffuse.contents = uiColor(Theme.Surface.netMesh)
-        m.transparency = 0.42
+        m.transparency = 0.28
         m.writesToDepthBuffer = false
         m.isDoubleSided = true
         return m
