@@ -72,7 +72,7 @@ struct PaywallView: View {
             .task {
                 await subscriptions.ensureOfferings()
                 selectAvailablePlanIfNeeded()
-                subscriptions.trackPaywallImpression(id: "main_paywall", oncePerSession: true)
+                subscriptions.trackPaywallImpression(id: "dupriq_main_paywall", oncePerSession: true)
             }
         }
     }
