@@ -67,7 +67,35 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: DuprIQ
 
+  # The paywall purchase probe. Its own target rather than a file dropped into
+  # DuprIQScreenshots: that one runs under a test plan that activates
+  # StoreKit Testing, and this has to reach RevenueCat's Test Store instead.
+  DuprIQUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: DuprIQUITests
+    dependencies:
+      - target: DuprIQ
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.jackwallner.pickleball.uitests
+        TEST_TARGET_NAME: DuprIQ
+
 schemes:
+  DuprIQUITests:
+    build:
+      targets:
+        DuprIQ: all
+        DuprIQUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - DuprIQUITests
+    run:
+      config: Debug
+
   DuprIQ:
     build:
       targets:
