@@ -10,7 +10,7 @@ paths:
 
 # DUPR IQ: App Store Connect and the marketing site
 
-Moved verbatim from CLAUDE.md. Dated state here is a snapshot: run `scripts/asc-readiness.py` before trusting it. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Dated state here is a snapshot: run `scripts/asc-readiness.py` before trusting it. Loads when a matching file is read; update it here.
 
 - **App Store Connect** record exists: id `6804828001`, name
   `DUPR IQ - Pickleball Drills`, version 1.0 in `PREPARE_FOR_SUBMISSION`.

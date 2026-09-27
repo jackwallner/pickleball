@@ -8,7 +8,7 @@ paths:
 
 # DUPR IQ: products and RevenueCat
 
-Moved verbatim from CLAUDE.md. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
 ## Products
 Local StoreKit configuration (`DuprIQ/DuprIQ.storekit`):

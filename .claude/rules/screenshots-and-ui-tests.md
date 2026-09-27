@@ -9,7 +9,7 @@ paths:
 
 # DUPR IQ: screenshots and UI tests
 
-Moved verbatim from CLAUDE.md. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
 - **Screenshots run headlessly off the `Screenshots` scheme.**
   `DuprIQScreenshots` is a ui-testing target kept out of the `DuprIQ` scheme's

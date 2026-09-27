@@ -1,4 +1,4 @@
-# DUPR IQ — Project Guide
+# DUPR IQ Project Guide
 
 Pickleball shot-selection drills: a generated court position, four shot
 options, and a named principle for the answer. XcodeGen project/scheme:
@@ -19,7 +19,7 @@ every answer names the principle it came from. The money search term is
 - RevenueCat entitlement `pro`, membership brand `DUPR IQ Pro`
 
 ## Targets / bundle IDs
-- `DuprIQ` — `com.jackwallner.pickleball`
+- `DuprIQ`: `com.jackwallner.pickleball`
 
 ## Architecture
 
@@ -33,20 +33,20 @@ content. Read `~/electrician` when you need to know why a shell file is shaped
 the way it is; read this file for what changed on the way over and what was torn
 out afterwards.
 
-- `Shared/Models` — `CourtGeometry`, `RallyPosition`, `Shot`, `ShotTargeting`
+- `Shared/Models`: `CourtGeometry`, `RallyPosition`, `Shot`, `ShotTargeting`
   (bespoke); `Drill`/`Court`, `Given`, `Principle` (shell shape, this domain)
-- `Shared/Content` — `PositionGenerator` (the asset) and `ShotAdvisor` (the
+- `Shared/Content`: `PositionGenerator` (the asset) and `ShotAdvisor` (the
   rules engine), both total, deterministic and seedable; `RallyBuilder` (points,
   not balls), `EndlessPractice` (the adapter), `SessionBuilder`, `DrillLibrary`,
   and the authored courts
-- `Shared/Services` — progress by phase and practice history, the 15-ball free
+- `Shared/Services`: progress by phase and practice history, the 15-ball free
   daily cap, `PracticeRecordStore` (item-level memory), `AppSettings` (including
   the shot clock), `PlayerProfile`, subscriptions, review funnel,
   `ContentReport`, and the DEBUG-only `DebugFixtures`
-- `DuprIQ/Views/Court3D` — the first-person court: `CourtCamera` (the eye and
+- `DuprIQ/Views/Court3D`: the first-person court: `CourtCamera` (the eye and
   the projection), `CourtScene` (the SceneKit world), `CourtPOVView` (the
   playable view), `AimLabelLayout` (keeping the four captions apart)
-- `DuprIQ/Views` — `HomeView` lobby, `DrillSessionView` (the rally loop),
+- `DuprIQ/Views`: `HomeView` lobby, `DrillSessionView` (the rally loop),
   `CourtDiagramView` (the overhead, now an explanation only), the shell's
   `Drills/` runners for authored content, courts, onboarding, tour, primer,
   progress, paywall, settings
@@ -71,7 +71,7 @@ Condensed from the deep notes below; the reasoning and the bugs behind each one 
 - App Store Connect record `6804828001`. For its current state run `scripts/asc-readiness.py`; the notes below are dated snapshots.
 
 ## Deep notes (load on demand)
-These files load automatically when you read a file matching their `paths:`. Agents that do not auto-load rules (AGENTS.md readers) should open the file for the area they are touching. Record new area-specific learnings in the matching file, not here.
+These files load automatically when you read a file matching their `paths:`. Agents that do not auto-load rules (Codex, Cursor) should open the file for the area they are touching. Record new area-specific learnings in the matching file, not here.
 
 | File | Sections | Read when |
 |---|---|---|
@@ -95,4 +95,4 @@ These files load automatically when you read a file matching their `paths:`. Age
 
 ---
 Shared iOS conventions (build, simulator, release/TestFlight, ASC key, signing,
-review funnel, gotchas): always-loaded global CLAUDE.md + the `ios-dev` skill.
+review funnel, gotchas): the global agent rules + the `ios-dev` skill.

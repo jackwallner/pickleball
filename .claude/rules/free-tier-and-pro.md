@@ -17,7 +17,7 @@ paths:
 
 # DUPR IQ: the free tier and Pro
 
-Moved verbatim from CLAUDE.md. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
 - Free tier is 15 graded balls per calendar day, not a lifetime cap,
   because the generator never runs out. The cap is checked in the lobby, before

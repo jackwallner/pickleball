@@ -12,7 +12,7 @@ paths:
 
 # DUPR IQ: the first-person court
 
-Moved verbatim from CLAUDE.md. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
 ### The first-person court
 

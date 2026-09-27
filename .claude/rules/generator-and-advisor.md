@@ -15,7 +15,7 @@ paths:
 
 # DUPR IQ: the generator, the advisor and their contracts
 
-Moved verbatim from CLAUDE.md. Loads when a matching file is read; update it here.
+Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
 **`EndlessPractice` is the graft seam.** It turns a `DrillQuestion` into the
 same `QuickItem` the authored drills emit, so the session runners never have to
