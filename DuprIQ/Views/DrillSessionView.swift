@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// The core loop: you are on the court, the ball is coming, and you pick where
@@ -27,6 +28,7 @@ struct DrillSessionView: View {
     @StateObject private var records = PracticeRecordStore.shared
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
+    @Environment(\.requestReview) private var requestReview
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
@@ -40,7 +42,6 @@ struct DrillSessionView: View {
     @State private var theirPoints = 0
     @State private var showPaywall = false
     @State private var showAbandonConfirmation = false
-    @State private var showReviewPrompt = false
     @State private var finished = false
     @State private var stoppedAtFreeLimit = false
     @State private var recordedSession = false
@@ -82,7 +83,6 @@ struct DrillSessionView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar(finished ? .visible : .hidden, for: .navigationBar)
         .sheet(isPresented: $showPaywall) { PaywallView() }
-        .sheet(isPresented: $showReviewPrompt) { EnjoymentGateSheet() }
         .confirmationDialog(
             "Leave this session?",
             isPresented: $showAbandonConfirmation,
@@ -452,11 +452,12 @@ struct DrillSessionView: View {
             )
             if answeredCount > 0, countsAsCompletion {
                 reviews.recordSessionFinished()
-                if reviews.shouldShowEnjoymentGate {
+                if reviews.shouldRequestReview {
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 1_400_000_000)
                         guard finished else { return }
-                        showReviewPrompt = true
+                        reviews.markPrompted()
+                        requestReview()
                     }
                 }
             }

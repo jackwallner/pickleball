@@ -13,7 +13,7 @@ struct DrillCompleteView: View {
     @EnvironmentObject private var progress: ProgressStore
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var reviews: ReviewPromptTracker
-    @State private var showReviewPrompt = false
+    @Environment(\.requestReview) private var requestReview
     @State private var recorded = false
     @State private var celebrate = false
     @State private var confettiTrigger = 0
@@ -86,20 +86,18 @@ struct DrillCompleteView: View {
             }
             recordPositiveMoment()
         }
-        .sheet(isPresented: $showReviewPrompt) {
-            EnjoymentGateSheet()
-        }
     }
 
-    /// A finished drill is the positive moment the funnel waits for. Let the
-    /// celebration land first: a sheet that lands on top of the confetti reads
+    /// A finished drill is the positive moment the prompt waits for. Let the
+    /// celebration land first: a prompt that lands on top of the confetti reads
     /// as an interruption, not a thank-you.
     private func recordPositiveMoment() {
         reviews.recordSessionFinished()
-        guard reviews.shouldShowEnjoymentGate else { return }
+        guard reviews.shouldRequestReview else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_400_000_000)
-            showReviewPrompt = true
+            reviews.markPrompted()
+            requestReview()
         }
     }
 

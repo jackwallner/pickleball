@@ -160,9 +160,9 @@ struct DailyDrillResultView: View {
     @EnvironmentObject private var progress: ProgressStore
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var reviews: ReviewPromptTracker
+    @Environment(\.requestReview) private var requestReview
     @StateObject private var store = DailyDrillStore.shared
     @State private var recorded = false
-    @State private var showReviewPrompt = false
     @State private var confettiTrigger = 0
 
     var body: some View {
@@ -193,7 +193,6 @@ struct DailyDrillResultView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(recordsCompletion)
         .onAppear { recordCompletionIfNeeded() }
-        .sheet(isPresented: $showReviewPrompt) { EnjoymentGateSheet() }
     }
 
     private var scoreCard: some View {
@@ -287,10 +286,11 @@ struct DailyDrillResultView: View {
         SoundPlayer.play(.complete)
         progress.recordSession(drillID: DailyDrillContent.drill.id)
         reviews.recordSessionFinished()
-        guard reviews.shouldShowEnjoymentGate else { return }
+        guard reviews.shouldRequestReview else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_400_000_000)
-            showReviewPrompt = true
+            reviews.markPrompted()
+            requestReview()
         }
     }
 }

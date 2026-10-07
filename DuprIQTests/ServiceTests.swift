@@ -5,7 +5,7 @@ import XCTest
 ///
 /// The generator contract is well covered, and that is exactly why these
 /// matter: the daily cap, the streak rule, the sample threshold, the practice
-/// history and the review gate can all regress without a single generator test
+/// history and the review prompt can all regress without a single generator test
 /// noticing.
 @MainActor
 final class ServiceTests: XCTestCase {
@@ -271,18 +271,18 @@ final class ServiceTests: XCTestCase {
 
     // MARK: - Review funnel
 
-    func testTheEnjoymentGateWaitsForEnoughSessionsAndOnlyFiresOnce() {
+    func testTheReviewPromptWaitsForEnoughSessionsAndOnlyFiresOnce() {
         let reviews = ReviewPromptTracker(defaults: defaults)
-        XCTAssertFalse(reviews.shouldShowEnjoymentGate)
+        XCTAssertFalse(reviews.shouldRequestReview)
         reviews.recordSessionFinished()
         reviews.recordSessionFinished()
-        XCTAssertFalse(reviews.shouldShowEnjoymentGate, "two sessions is not an opinion yet")
+        XCTAssertFalse(reviews.shouldRequestReview, "two sessions is not an opinion yet")
         reviews.recordSessionFinished()
-        XCTAssertTrue(reviews.shouldShowEnjoymentGate)
+        XCTAssertTrue(reviews.shouldRequestReview)
 
         reviews.markPrompted()
-        XCTAssertFalse(reviews.shouldShowEnjoymentGate)
+        XCTAssertFalse(reviews.shouldRequestReview)
         reviews.recordSessionFinished()
-        XCTAssertFalse(reviews.shouldShowEnjoymentGate, "the one-shot prompt must stay spent")
+        XCTAssertFalse(reviews.shouldRequestReview, "the one-shot prompt must stay spent")
     }
 }

@@ -36,16 +36,15 @@ enum AppStoreLinks {
     static let feedbackEmail = "jackwallner+p@gmail.com"
 }
 
-/// The fleet review funnel: never call `requestReview()` cold.
-///
-/// A player has to finish enough drills to have an opinion, then answer an
-/// enjoyment gate. Only a Yes reaches Apple's sheet, which is what keeps the
-/// one-shot prompt from being spent on someone who is about to one-star.
+/// When to call Apple's review prompt. A player has to finish enough drills to
+/// have an opinion first, and then the prompt is asked directly with no
+/// "Enjoying it?" question in front of it: guideline 5.6.1 rejects sending only
+/// the yes answers to the App Store.
 @MainActor
 final class ReviewPromptTracker: ObservableObject {
     static let shared = ReviewPromptTracker()
 
-    /// Sessions finished before the gate is even considered.
+    /// Sessions finished before the prompt is considered.
     private let sessionThreshold = 3
 
     @Published private(set) var completedSessions: Int
@@ -68,9 +67,9 @@ final class ReviewPromptTracker: ObservableObject {
         defaults.set(completedSessions, forKey: Key.sessions)
     }
 
-    /// True when the enjoyment gate should be shown. The gate is not the
-    /// review prompt; it is the question that decides whether we ever ask.
-    var shouldShowEnjoymentGate: Bool {
+    /// True when the host should call `requestReview()` and then
+    /// `markPrompted()`.
+    var shouldRequestReview: Bool {
         !hasPrompted && completedSessions >= sessionThreshold
     }
 
