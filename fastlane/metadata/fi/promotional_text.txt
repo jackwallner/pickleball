@@ -1,1 +1,1 @@
-Lue pallo, valitse lyönti ja pelaa fiksummin.
+Jokainen pallorally on todellinen nelinpelitilanne. Lue pallon korkeus ja pelaajien paikat, tähtää lyönnin oikeaan kohtaan ja opi valmennusperiaate sen takana.

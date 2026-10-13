@@ -1,1 +1,1 @@
-Olvasd a labdát, válaszd az ütést, játssz jobban.
+Minden labdamenet valódi páros helyzet. Olvasd le a labda magasságát és a játékosok helyét, célozz oda, ahová az ütésnek esnie kell, és tanuld meg az elvet mögötte.

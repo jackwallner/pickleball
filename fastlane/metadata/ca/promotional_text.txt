@@ -1,1 +1,1 @@
-Llegeix la pilota, tria el cop i millora el teu joc.
+Cada intercanvi és una posició real de dobles. Llegeix l'alçada de la pilota i on és cadascú, apunta on ha de caure el cop i aprèn el principi tàctic que hi ha darrere.
