@@ -27,56 +27,69 @@ let bounds = NSRect(x: 0, y: 0, width: size, height: size)
 NSColor(red: 0.16, green: 0.42, blue: 0.62, alpha: 1).setFill()
 bounds.fill()
 
-let inset: CGFloat = 90
-let court = NSRect(x: inset, y: inset, width: CGFloat(size) - inset * 2, height: CGFloat(size) - inset * 2)
-let courtPath = NSBezierPath(roundedRect: court, xRadius: 36, yRadius: 36)
-NSColor(red: 0.18, green: 0.48, blue: 0.70, alpha: 1).setFill()
-courtPath.fill()
+NSGraphicsContext.saveGraphicsState()
+let paddleTransform = NSAffineTransform()
+paddleTransform.translateX(by: 485, yBy: 490)
+paddleTransform.rotate(byDegrees: -18)
+paddleTransform.concat()
 
-let kitchenHeight = court.height * (14.0 / 44.0)
-let kitchen = NSRect(
-    x: court.minX,
-    y: court.midY - kitchenHeight / 2,
-    width: court.width,
-    height: kitchenHeight
+let handle = NSBezierPath(
+    roundedRect: NSRect(x: -58, y: -330, width: 116, height: 235),
+    xRadius: 34,
+    yRadius: 34
+)
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setFill()
+handle.fill()
+
+let grip = NSBezierPath(
+    roundedRect: NSRect(x: -48, y: -315, width: 96, height: 145),
+    xRadius: 28,
+    yRadius: 28
 )
 NSColor(red: 0.72, green: 0.31, blue: 0.22, alpha: 1).setFill()
-kitchen.fill()
+grip.fill()
 
-let line = NSBezierPath()
-line.lineWidth = 14
-NSColor.white.withAlphaComponent(0.92).setStroke()
+let paddle = NSBezierPath(
+    roundedRect: NSRect(x: -190, y: -140, width: 380, height: 480),
+    xRadius: 120,
+    yRadius: 120
+)
+NSColor(red: 0.91, green: 0.35, blue: 0.20, alpha: 1).setFill()
+paddle.fill()
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setStroke()
+paddle.lineWidth = 14
+paddle.stroke()
 
-func hline(_ y: CGFloat) {
-    line.move(to: NSPoint(x: court.minX, y: y))
-    line.line(to: NSPoint(x: court.maxX, y: y))
+let paddleFace = NSBezierPath(
+    roundedRect: NSRect(x: -160, y: -100, width: 320, height: 400),
+    xRadius: 98,
+    yRadius: 98
+)
+NSColor(red: 0.98, green: 0.90, blue: 0.73, alpha: 1).setFill()
+paddleFace.fill()
+
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 0.72).setFill()
+let holeCenters: [(CGFloat, CGFloat)] = [
+    (-62, 170), (0, 195), (62, 170)
+]
+for (x, y) in holeCenters {
+    NSBezierPath(ovalIn: NSRect(x: x - 15, y: y - 15, width: 30, height: 30)).fill()
 }
-hline(court.midY)
-hline(kitchen.minY)
-hline(kitchen.maxY)
+NSGraphicsContext.restoreGraphicsState()
 
-line.move(to: NSPoint(x: court.midX, y: court.minY))
-line.line(to: NSPoint(x: court.midX, y: kitchen.minY))
-line.move(to: NSPoint(x: court.midX, y: kitchen.maxY))
-line.line(to: NSPoint(x: court.midX, y: court.maxY))
-line.stroke()
-
-NSColor.white.setStroke()
-courtPath.lineWidth = 18
-courtPath.stroke()
-
-let ballR: CGFloat = 78
+let ballR: CGFloat = 82
+let ballCenter = NSPoint(x: 700, y: 750)
 let ball = NSRect(
-    x: court.midX + 70,
-    y: court.minY + court.height * 0.28 - ballR,
+    x: ballCenter.x - ballR,
+    y: ballCenter.y - ballR,
     width: ballR * 2,
     height: ballR * 2
 )
 NSColor(red: 0.85, green: 0.95, blue: 0.20, alpha: 1).setFill()
 NSBezierPath(ovalIn: ball).fill()
-NSColor.black.withAlphaComponent(0.45).setStroke()
+NSColor(red: 0.10, green: 0.25, blue: 0.34, alpha: 1).setStroke()
 let ballStroke = NSBezierPath(ovalIn: ball)
-ballStroke.lineWidth = 8
+ballStroke.lineWidth = 10
 ballStroke.stroke()
 
 NSGraphicsContext.restoreGraphicsState()

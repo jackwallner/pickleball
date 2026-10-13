@@ -55,6 +55,13 @@ final class PracticeLimiter: ObservableObject {
         }
     }
 
+    /// Re-read persisted state. Used by the DEBUG screenshot fixture, which
+    /// writes defaults after the singleton has already initialised.
+    func reload() {
+        usedToday = defaults.integer(forKey: Key.used)
+        rollOverIfNeeded()
+    }
+
     func resetForTesting() {
         usedToday = 0
         defaults.set(0, forKey: Key.used)

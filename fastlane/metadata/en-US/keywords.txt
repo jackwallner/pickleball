@@ -1,1 +1,1 @@
-pickleball,drills,dink,kitchen,third shot,DUPR,coaching,shot
+dink,kitchen,thirdshot,drop,drive,serve,return,volley,coach,practice,tactics,strategy,shotselection

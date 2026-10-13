@@ -57,6 +57,21 @@ enum ShotTarget: String, Sendable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Two or three words, for the moment a caption has to say WHERE as well
+    /// as what. The long `label` is prose for the verdict card and does not fit
+    /// on a pill over a court.
+    var shortLabel: String {
+        switch self {
+        case .crossCourtKitchen: return "cross-court"
+        case .straightKitchen: return "down the line"
+        case .middle: return "up the middle"
+        case .deepCrossCourt: return "deep cross"
+        case .deepStraight: return "deep line"
+        case .atFeet: return "at their feet"
+        case .backhand: return "to the backhand"
+        }
+    }
+
     var label: String {
         switch self {
         case .crossCourtKitchen: return "cross-court kitchen"

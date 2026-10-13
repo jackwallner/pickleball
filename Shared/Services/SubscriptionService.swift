@@ -29,6 +29,44 @@ enum PurchaseError: LocalizedError {
     }
 }
 
+/// Whether the paywall has real, purchasable products to show.
+///
+/// The paywall used to render plausible prices whichever way this went, which
+/// is fine for a screenshot and dishonest on a customer's phone: a polished
+/// price list attached to a Continue button that cannot charge anyone reads as
+/// a broken app, not as a network problem. These states are what the sheet
+/// renders instead of guessing.
+enum StoreState: Equatable, Sendable {
+    /// Offerings are in flight. Prices are redacted, Continue is disabled.
+    case loading
+    /// A current offering with at least one package arrived.
+    case available
+    /// RevenueCat is configured but produced nothing purchasable.
+    case unavailable
+    /// RevenueCat is deliberately not configured: a simulator, or a DEBUG
+    /// build carrying the placeholder key. DEBUG catalog prices stand in.
+    case notConfigured
+}
+
+/// What the trial line under the Continue button is allowed to claim.
+///
+/// Apple's introductory offer is per Apple Account and per subscription group,
+/// so "7 days free" is not a property of the product, it is a property of the
+/// person reading it.
+enum TrialCopy: Equatable, Sendable {
+    case eligible(String)
+    case ineligible(String)
+    case unknown(String)
+    case none
+
+    var text: String? {
+        switch self {
+        case .eligible(let value), .ineligible(let value), .unknown(let value): return value
+        case .none: return nil
+        }
+    }
+}
+
 struct PaywallPrice {
     let amount: Decimal
     let localized: String
@@ -41,6 +79,9 @@ final class SubscriptionService: NSObject, ObservableObject {
 
     @Published private(set) var isPro = false
     @Published private(set) var offerings: Offerings?
+    @Published private(set) var storeState: StoreState = .loading
+    /// Intro-offer eligibility per product id, as RevenueCat reports it.
+    @Published private(set) var introEligibility: [String: IntroEligibilityStatus] = [:]
 
     private var isConfigured = false
     private let localOverrideKey = "subscription.localProOverride"
@@ -70,11 +111,28 @@ final class SubscriptionService: NSObject, ObservableObject {
             storeKitPrices = Self.pricesFromStoreKitCatalog()
         }
         #endif
+        guard isConfigured else {
+            storeState = .notConfigured
+            Task { await loadStoreKitPricesIfNeeded() }
+            return
+        }
         Task {
             await loadStoreKitPricesIfNeeded()
-            guard isConfigured else { return }
             await refreshCustomerInfo()
             await loadOfferings()
+        }
+    }
+
+    /// A purchase or a cancellation can happen entirely outside the app: in
+    /// Settings, on another device, or in the App Store's own subscription
+    /// management. Without a foreground refresh the gate stays stale until the
+    /// delegate happens to fire, which is how a paying customer ends up
+    /// looking at a paywall.
+    func refreshOnForeground() {
+        guard isConfigured else { return }
+        Task {
+            await refreshCustomerInfo()
+            if offerings?.current == nil { await loadOfferings() }
         }
     }
 
@@ -87,6 +145,22 @@ final class SubscriptionService: NSObject, ObservableObject {
     private func configureIfNeeded() {
         guard !isConfigured else { return }
         #if targetEnvironment(simulator)
+        #if DEBUG
+        // The one exception, behind a launch argument: the Test Store key is a
+        // separate RevenueCat app inside the same project, so a probe run cannot
+        // touch App Store customers, revenue or charts. See RevenueCatProbe.
+        if RevenueCatProbe.isEnabled {
+            Purchases.logLevel = .debug
+            Purchases.configure(
+                with: Configuration.Builder(withAPIKey: RevenueCatProbe.testStoreKey)
+                    .with(appUserID: RevenueCatProbe.appUserID)
+                    .build()
+            )
+            Purchases.shared.delegate = self
+            isConfigured = true
+            return
+        }
+        #endif
         guard RevenueCatConfig.apiKey.hasPrefix("test_") else { return }
         #endif
         guard !RevenueCatConfig.apiKey.contains("PLACEHOLDER") else { return }
@@ -107,9 +181,34 @@ final class SubscriptionService: NSObject, ObservableObject {
             guard !paywallImpressionsThisSession.contains(id) else { return }
             paywallImpressionsThisSession.insert(id)
         }
+        ConversionDiagnostics.recordPitchView(impressionID: id)
+        syncConversionAttributes()
         Purchases.shared.trackCustomPaywallImpression(
             CustomPaywallImpressionParams(paywallId: id)
         )
+    }
+
+    /// Mirrors the on-device paywall record onto the RevenueCat customer.
+    ///
+    /// Attributes rather than extra impressions: RevenueCat treats every
+    /// impression id as a paywall encounter, so funnel steps sent that way would
+    /// drive the encounter rate to 100% and destroy the one server-side number
+    /// that currently works.
+    ///
+    /// `isConfigured` is the load-bearing guard: `Purchases.shared` traps when
+    /// RevenueCat was never configured, which is every simulator run.
+    ///
+    /// `setAttributes` only queues. RevenueCat uploads when the app backgrounds
+    /// or folds the queue into the POST that creates a customer, so a probe run
+    /// has to background the app before reading anything back.
+    func syncConversionAttributes() {
+        guard isConfigured else { return }
+        var attributes = ConversionDiagnostics.subscriberAttributes
+        guard !attributes.isEmpty else { return }
+        if let offering = offerings?.current?.identifier {
+            attributes["offering_id"] = offering
+        }
+        Purchases.shared.attribution.setAttributes(attributes)
     }
 
     func refreshCustomerInfo() async {
@@ -120,8 +219,64 @@ final class SubscriptionService: NSObject, ObservableObject {
     }
 
     func loadOfferings() async {
-        guard isConfigured else { return }
+        guard isConfigured else {
+            storeState = .notConfigured
+            return
+        }
+        storeState = .loading
         offerings = try? await Purchases.shared.offerings()
+        let packages = offerings?.current?.availablePackages ?? []
+        storeState = packages.isEmpty ? .unavailable : .available
+        await loadIntroEligibility(for: packages)
+    }
+
+    /// Ask RevenueCat which of the subscription products this Apple Account can
+    /// still start a trial on. A failure leaves the map empty, which the
+    /// paywall renders as the qualified "new subscribers" wording rather than
+    /// as a promise.
+    private func loadIntroEligibility(for packages: [Package]) async {
+        guard isConfigured, !packages.isEmpty else { return }
+        let result = await Purchases.shared.checkTrialOrIntroDiscountEligibility(
+            packages: packages
+        )
+        var next: [String: IntroEligibilityStatus] = [:]
+        for (package, eligibility) in result {
+            next[package.storeProduct.productIdentifier] = eligibility.status
+        }
+        introEligibility = next
+    }
+
+    /// The honest trial line for a plan, given the product's real offer and
+    /// this account's real eligibility.
+    func trialCopy(for plan: PaywallPlan) -> TrialCopy {
+        guard plan != .lifetime else { return .none }
+        guard let product = package(for: plan)?.storeProduct else {
+            return .none
+        }
+        guard let intro = product.introductoryDiscount else {
+            return .none
+        }
+        let period = Self.periodDescription(intro)
+        switch introEligibility[product.productIdentifier] {
+        case .eligible:
+            return .eligible("\(period) free for eligible new subscribers.")
+        case .ineligible:
+            return .ineligible("You've already used your free trial.")
+        default:
+            return .unknown("\(period) free for new subscribers.")
+        }
+    }
+
+    private static func periodDescription(_ discount: StoreProductDiscount) -> String {
+        let period = discount.subscriptionPeriod
+        let count = period.value * discount.numberOfPeriods
+        switch period.unit {
+        case .day: return count == 1 ? "1 day" : "\(count) days"
+        case .week: return count == 1 ? "7 days" : "\(count) weeks"
+        case .month: return count == 1 ? "1 month" : "\(count) months"
+        case .year: return count == 1 ? "1 year" : "\(count) years"
+        @unknown default: return "A free trial"
+        }
     }
 
     func package(for plan: PaywallPlan) -> Package? {
@@ -224,10 +379,16 @@ final class SubscriptionService: NSObject, ObservableObject {
     /// the products missing, so the button isn't dead on a fast tapper.
     @discardableResult
     func ensureOfferings() async -> Bool {
-        guard isConfigured else { return false }
-        if offerings?.current != nil { return true }
+        guard isConfigured else {
+            storeState = .notConfigured
+            return false
+        }
+        if offerings?.current?.availablePackages.isEmpty == false {
+            storeState = .available
+            return true
+        }
         await loadOfferings()
-        return offerings?.current != nil
+        return storeState == .available
     }
 
     func purchase(_ package: Package?) async throws -> PurchaseOutcome {
@@ -235,12 +396,19 @@ final class SubscriptionService: NSObject, ObservableObject {
             throw PurchaseError.productsUnavailable
         }
         guard let package else { throw PurchaseError.productsUnavailable }
+        let startedTrial = package.storeProduct.introductoryDiscount?.paymentMode == .freeTrial
         let result = try await Purchases.shared.purchase(package: package)
         // RevenueCat reports a user backing out of Apple's sheet as a normal
         // result, not an error. Treating it as a failure is what used to shove
         // a second paywall in front of someone who just said "not now".
         if result.userCancelled { return .cancelled }
         apply(result.customerInfo)
+        ConversionDiagnostics.recordConversion(
+            plan: package.storeProduct.productIdentifier,
+            startedTrial: startedTrial,
+            offeringID: package.presentedOfferingContext.offeringIdentifier
+        )
+        syncConversionAttributes()
         return .purchased
     }
 
@@ -280,3 +448,37 @@ extension SubscriptionService: PurchasesDelegate {
         }
     }
 }
+
+#if DEBUG
+/// Simulator-only proof path for the fleet-wide funnel attributes.
+///
+/// Under the normal rules the attributes cannot be verified on a simulator: the
+/// production key must never be configured there, so RevenueCat is never
+/// configured, so nothing is ever sent, so a physical device is the only
+/// witness. The Test Store key is a different RevenueCat app inside the same
+/// project, so a probe run cannot touch App Store customers, revenue or charts.
+///
+/// DEBUG only, and only with the launch argument, so it cannot reach a Release
+/// build or an ordinary simulator run.
+enum RevenueCatProbe {
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("-rcfunnelprobe")
+    }
+
+    static let testStoreKey = "test_bnTPEHfWYPJXjDQqzvnsaYMPPJW"
+
+    static var appUserID: String {
+        ProcessInfo.processInfo.environment["RC_PROBE_USER"] ?? "funnel-probe-dupriq"
+    }
+
+    static var impressionID: String {
+        ProcessInfo.processInfo.environment["RC_PROBE_SURFACE"] ?? "dupriq_main_paywall"
+    }
+
+    /// Drives a Test Store purchase after the impression, so the `converted_*`
+    /// half of the funnel record is exercised and not just the impression half.
+    static var wantsPurchase: Bool {
+        ProcessInfo.processInfo.arguments.contains("-rcfunnelprobepurchase")
+    }
+}
+#endif

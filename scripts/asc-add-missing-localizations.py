@@ -119,7 +119,9 @@ def read_meta(locale: str, field: str) -> str:
 
 def template_for_locale(locale: str, source: str) -> dict:
     """Build ASC attributes from fastlane files (fallback source locale)."""
-    src = source if (META / source).is_dir() else "en-US"
+    src = locale if (META / locale).is_dir() else source
+    if not (META / src).is_dir():
+        src = "en-US"
     return {
         "name": read_meta(src, "name") or read_meta("en-US", "name"),
         "subtitle": read_meta(src, "subtitle") or read_meta("en-US", "subtitle"),
@@ -216,7 +218,10 @@ def create_app_info_loc(client: ASCClient, app_info_id: str, locale: str, t: dic
         client.post("/appInfoLocalizations", body)
         print(f"  created appInfoLocalization {locale}")
     except RuntimeError as e:
-        if "409" in str(e) or "403" in str(e):
+        message = str(e)
+        if "DUPLICATE" in message or "already exists" in message:
+            print(f"  appInfoLocalization {locale} already exists")
+        elif "403" in message:
             print(f"  skip appInfoLocalization {locale} (API locked — deliver upload may enable)")
         else:
             raise
@@ -255,7 +260,10 @@ def create_version_loc(
         client.post("/appStoreVersionLocalizations", body)
         print(f"  created appStoreVersionLocalization {locale}")
     except RuntimeError as e:
-        if "409" in str(e) or "403" in str(e):
+        message = str(e)
+        if "DUPLICATE" in message or "already exists" in message:
+            print(f"  appStoreVersionLocalization {locale} already exists")
+        elif "403" in message:
             print(f"  skip appStoreVersionLocalization {locale} (API locked — deliver upload may enable)")
         else:
             raise

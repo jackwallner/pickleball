@@ -1,11 +1,16 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
     @EnvironmentObject private var progress: ProgressStore
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var profile: PlayerProfile
     @State private var showPaywall = false
+    @State private var showTour = false
+    @State private var showPrimer = false
     @State private var restoreMessage: String?
     @State private var isRestoring = false
 
@@ -28,10 +33,88 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Your game") {
+                    NavigationLink {
+                        PlayerProfileView()
+                    } label: {
+                        LabeledContent("Level", value: profile.levelSummary)
+                    }
+                    if let days = profile.daysUntilMatch {
+                        LabeledContent("Next match", value: days == 0 ? "Today" : "\(days) days")
+                    }
+                }
+
                 Section {
+                    Toggle("Decision timer", isOn: Binding(
+                        get: { settings.isShotClockEnabled },
+                        set: { settings.setShotClockEnabled($0) }
+                    ))
+                    .accessibilityIdentifier("decision-timer-toggle")
+                    if settings.isShotClockEnabled {
+                        Picker("Time to choose", selection: $settings.shotClock) {
+                            ForEach(AppSettings.ShotClock.timedOptions) { option in
+                                Text(option.displayName).tag(option)
+                            }
+                        }
+                        .accessibilityIdentifier("decision-timer-pace")
+                    }
+                } header: {
+                    Text("Playing")
+                } footer: {
+                    Text("Off by default while you learn the court. Turn it on later to practise faster reads. When enabled, a timeout counts as a miss.")
+                }
+
+                Section("Appearance") {
+                    Picker("Theme", selection: $settings.appearance) {
+                        ForEach(AppSettings.Appearance.allCases) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                }
+
+                Section("Feedback") {
+                    Toggle("Haptics", isOn: $settings.hapticsEnabled)
+                    Toggle("Sound", isOn: $settings.soundEnabled)
+                    Toggle("Celebrations", isOn: $settings.celebrationsEnabled)
+                }
+
+                Section {
+                    Toggle("Daily reminder", isOn: $settings.reminderEnabled)
+                    if settings.reminderEnabled {
+                        DatePicker(
+                            "Remind me at",
+                            selection: $settings.reminderTime,
+                            displayedComponents: .hourAndMinute
+                        )
+                    }
+                } header: {
+                    Text("Reminders")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(ShellCopy.DailyReminder.body)
+                        if settings.reminderPermissionDenied {
+                            Text("Notifications are off for DUPR IQ. Turn them on in Settings to use reminders.")
+                            Link(
+                                "Open notification settings",
+                                destination: URL(string: UIApplication.openSettingsURLString)!
+                            )
+                        }
+                    }
+                }
+
+                Section("Learn") {
+                    Button("How to read the court") { showPrimer = true }
+                        .accessibilityIdentifier("settings-primer")
+                    NavigationLink("The quick-start primer") { HowToPlayView() }
                     NavigationLink("How the answers are decided") { CoachingSystemView() }
+                    Button("What this app can do") { showTour = true }
+                }
+
+                Section {
                     Link("Privacy Policy", destination: PaywallLinks.privacy)
                     Link("Terms of Use", destination: PaywallLinks.terms)
+                } footer: {
+                    Text(ShellCopy.Legal.duprDisclaimer)
                 }
 
                 #if DEBUG
@@ -51,7 +134,10 @@ struct SettingsView: View {
                 #endif
             }
             .navigationTitle("Settings")
+            .tabBarClearance()
             .sheet(isPresented: $showPaywall) { PaywallView() }
+            .sheet(isPresented: $showPrimer) { CourtPrimerView() }
+            .sheet(isPresented: $showTour) { FeatureTourView { showTour = false } }
         }
     }
 
@@ -91,13 +177,23 @@ struct CoachingSystemView: View {
                 principle rather than with an anonymous "correct".
                 """)
             }
+            // The nine principles, read straight off the enum the advisor and
+            // the Which Principle? drill both use. A hand-written second copy
+            // of this list is a copy that drifts, and the one place a player
+            // checks the system is the worst place for it to be out of date.
             Section("The principles") {
-                ForEach(RallyPhase.allCases) { phase in
+                ForEach(Principle.allCases) { principle in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(phase.title).font(.subheadline.weight(.semibold))
-                        Text(phase.subtitle).font(.caption).foregroundStyle(.secondary)
+                        Text(principle.displayName).font(.subheadline.weight(.semibold))
+                        Text(principle.howToSpot)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(principle.tag)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tertiary)
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 4)
                 }
             }
             Section {
@@ -112,6 +208,7 @@ struct CoachingSystemView: View {
         }
         .navigationTitle("The system")
         .navigationBarTitleDisplayMode(.inline)
+        .tabBarClearance()
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
