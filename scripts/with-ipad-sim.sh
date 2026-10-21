@@ -13,9 +13,11 @@ NAME="dupriq-screenshot-ipad-$$"
 TYPE="com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M4-8GB"
 RUNTIME="$(xcrun simctl list runtimes -j | python3 -c "
 import json,sys
-rts=[r for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and r['platform']=='iOS']
+t=sys.argv[1]
+rts=[r for r in json.load(sys.stdin)['runtimes'] if r['isAvailable'] and r['platform']=='iOS'
+     and any(d['identifier']==t for d in r.get('supportedDeviceTypes',[]))]
 print(sorted(rts, key=lambda r: [int(x) for x in r['version'].split('.')])[-1]['identifier'])
-")"
+" "$TYPE")"
 
 UDID="$(xcrun simctl create "$NAME" "$TYPE" "$RUNTIME")"
 cleanup() { xcrun simctl delete "$UDID" >/dev/null 2>&1 || true; }
