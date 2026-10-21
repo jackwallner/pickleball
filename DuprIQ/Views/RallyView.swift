@@ -36,6 +36,10 @@ struct RallyView: View {
     @State private var yourPoints = 0
     @State private var theirPoints = 0
     @State private var replayToken = 0
+    /// The verdict card opened to its full explanation.
+    @State private var cardExpanded = false
+    /// The height the card asks for to show everything without scrolling.
+    @State private var cardFitHeight: CGFloat = 0
     @State private var showPaywall = false
     @State private var showYourGame = false
     @State private var finished = false
@@ -104,11 +108,11 @@ struct RallyView: View {
                 width: geo.size.width,
                 height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
             )
-            courtBody(ball, band: CourtPOVView.verdictCardHeight(in: full))
+            courtBody(ball, band: CourtPOVView.verdictCardHeight(in: full), screenHeight: full.height)
         }
     }
 
-    private func courtBody(_ ball: RallyBall, band: CGFloat) -> some View {
+    private func courtBody(_ ball: RallyBall, band: CGFloat, screenHeight: CGFloat) -> some View {
         ZStack {
             CourtPOVView(
                 position: ball.position,
@@ -135,10 +139,16 @@ struct RallyView: View {
                         picked: picked,
                         timedOut: timedOut,
                         buttonTitle: nextButtonTitle,
-                        onReplay: { replayToken += 1 },
+                        isExpanded: $cardExpanded,
+                        onFitHeight: { cardFitHeight = $0 },
+                        onReplay: {
+                            // The replay is the court; an open card would hide it.
+                            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { cardExpanded = false }
+                            replayToken += 1
+                        },
                         onNext: advance
                     )
-                    .frame(height: band, alignment: .top)
+                    .frame(height: cardHeight(band: band, screenHeight: screenHeight), alignment: .top)
                     .clipped()
                     // Opaque and sliding, not fading: half-faded over the
                     // option panel, both sets of text printed through.
@@ -156,6 +166,13 @@ struct RallyView: View {
     }
 
     private var isGraded: Bool { picked != nil || timedOut }
+
+    /// Closed, the card fits the option band it replaced. Open, it grows to
+    /// its text, up to the point where the court would stop reading as one.
+    private func cardHeight(band: CGFloat, screenHeight: CGFloat) -> CGFloat {
+        guard cardExpanded else { return band }
+        return min(max(band, cardFitHeight), screenHeight * 0.7)
+    }
 
     private func povPhase(for ball: RallyBall) -> CourtPOVView.Phase {
         guard isGraded else { return .deciding }
@@ -384,6 +401,7 @@ struct RallyView: View {
         index = 0
         picked = nil
         timedOut = false
+        cardExpanded = false
         correctCount = 0
         answeredCount = 0
         yourPoints = 0
@@ -451,6 +469,7 @@ struct RallyView: View {
         withTransaction(instant) {
             picked = nil
             timedOut = false
+            cardExpanded = false
             index = next
         }
         startClock()
@@ -522,10 +541,16 @@ struct VerdictCard: View {
     let picked: Int?
     let timedOut: Bool
     let buttonTitle: String
+    @Binding var isExpanded: Bool
+    /// The card's height with every line of the explanation showing.
+    let onFitHeight: (CGFloat) -> Void
     let onReplay: () -> Void
     let onNext: () -> Void
 
     @State private var showsOverhead = false
+    @State private var cardHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
 
     private var wasCorrect: Bool { !timedOut && picked == ball.question.answerIndex }
     private var verdict: ShotVerdict { ball.question.verdict }
@@ -537,6 +562,7 @@ struct VerdictCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            grabber
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -587,8 +613,21 @@ struct VerdictCard: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 44)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    contentHeight = $0
+                    reportFit()
+                }
+                // Closed, the explanation is a few lines behind a fade. A tap
+                // anywhere on it opens the card rather than asking for a
+                // scroll in a strip that small.
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { if !isExpanded { setExpanded(true) } })
             }
             .frame(minHeight: 90)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                viewportHeight = $0
+                reportFit()
+            }
             // Text scrolling under the buttons fades out instead of being cut
             // mid-line, which read as a layout bug.
             .mask(
@@ -626,7 +665,10 @@ struct VerdictCard: View {
             .padding(.bottom, 10)
             .padding(.bottom, VerdictCard.homeIndicatorClearance)
         }
-        .padding(.top, 14)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+            cardHeight = $0
+            reportFit()
+        }
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.card)
@@ -637,21 +679,68 @@ struct VerdictCard: View {
         .shadow(color: .black.opacity(0.35), radius: 18, y: -6)
     }
 
+    private func setExpanded(_ open: Bool) {
+        guard open != isExpanded else { return }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { isExpanded = open }
+    }
+
+    /// Everything but the scrolling strip stays the same size, so the card
+    /// that shows every line is the current card plus what is scrolled away.
+    private func reportFit() {
+        guard cardHeight > 0, viewportHeight > 0 else { return }
+        onFitHeight((cardHeight - viewportHeight + contentHeight).rounded(.up))
+    }
+
+    /// The handle a sheet has, so the card reads as one that pulls up.
+    private var grabber: some View {
+        Capsule()
+            .fill(.white.opacity(0.22))
+            .frame(width: 36, height: 5)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 6)
+            .padding(.bottom, 6)
+            .contentShape(Rectangle())
+            .onTapGesture { setExpanded(!isExpanded) }
+            .gesture(pull)
+            .accessibilityHidden(true)
+    }
+
+    private var pull: some Gesture {
+        DragGesture(minimumDistance: 12).onEnded { drag in
+            if drag.translation.height < -24 { setExpanded(true) }
+            if drag.translation.height > 24 { setExpanded(false) }
+        }
+    }
+
     /// The identifier lives on the headline, not on the whole card.
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: wasCorrect ? "checkmark.circle.fill"
-                                         : (timedOut ? "clock.badge.xmark.fill" : "xmark.circle.fill"))
-            Text(headline)
+            HStack(spacing: 8) {
+                Image(systemName: wasCorrect ? "checkmark.circle.fill"
+                                             : (timedOut ? "clock.badge.xmark.fill" : "xmark.circle.fill"))
+                Text(headline)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("answer-card")
             Spacer(minLength: 0)
             if showsLegend { legend }
+            Button { setExpanded(!isExpanded) } label: {
+                Image(systemName: "chevron.up")
+                    .font(.footnote.weight(.heavy))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .frame(width: 30, height: 26)
+                    .background(.white.opacity(0.08), in: Capsule())
+            }
+            .accessibilityLabel(isExpanded ? "Show less" : "Show the full explanation")
+            .accessibilityIdentifier("expand-why")
         }
         .font(.subheadline.weight(.heavy))
         .foregroundStyle(wasCorrect ? Theme.rightGreen : Theme.wrongRed)
         .padding(.horizontal, 18)
         .padding(.bottom, 10)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("answer-card")
+        .contentShape(Rectangle())
+        .gesture(pull)
     }
 
     /// Two flights only when you picked a wrong shot; a miss on time and a

@@ -152,6 +152,40 @@ extension AuditTests {
         }
     }
 
+    /// The verdict card opened by its chevron, by a tap on the text, by a pull
+    /// up, then closed by the replay button and a pull down.
+    func testMotionVerdictCardExpands() {
+        launchForMotion(seed: 4141)
+        for ball in 0..<3 {
+            guard tapShot((ball + 1) % 4) else { return attachTree("expand-\(ball)") }
+            settle(3.0)
+            switch ball {
+            case 0:
+                _ = tapIdentifier("expand-why", timeout: 3)
+                settle(2.0)
+                _ = tapIdentifier("replay", timeout: 3)
+                settle(4.5)
+            case 1:
+                // Pull the header up, then back down from where it landed.
+                let header = { self.app.buttons["expand-why"].firstMatch
+                    .coordinate(withNormalizedOffset: CGVector(dx: -4, dy: 0.5)) }
+                let low = header()
+                low.press(forDuration: 0.05, thenDragTo: low.withOffset(CGVector(dx: 0, dy: -160)))
+                settle(2.0)
+                let high = header()
+                high.press(forDuration: 0.05, thenDragTo: high.withOffset(CGVector(dx: 0, dy: 160)))
+                settle(2.0)
+            default:
+                _ = tapIdentifier("expand-why", timeout: 3)
+                settle(1.5)
+                _ = tapIdentifier("expand-why", timeout: 3)
+                settle(1.5)
+            }
+            if !tapIdentifier("next-ball", timeout: 4) { return }
+            settle(1.5)
+        }
+    }
+
     /// The ways a player interrupts a replay: next mid-flight, replay mashed,
     /// Your game opened over it, the app backgrounded during it.
     func testMotionInterruptions() {
