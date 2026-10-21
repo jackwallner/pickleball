@@ -14,8 +14,8 @@ Moved verbatim from AGENTS.md. Dated state here is a snapshot: run `scripts/asc-
 
 - **App Store Connect** record exists: id `6804828001`, name
   `DUPR IQ - Pickleball Drills`, version 1.0 in `PREPARE_FOR_SUBMISSION`.
-  As of 2026-08-24 build 3 is attached and all three IAPs are
-  `READY_TO_SUBMIT`. What remains is App Privacy in the web UI (no public API),
+  As of 2026-10-21 build 20 is attached (build 21 is on TestFlight) and all
+  three IAPs are `READY_TO_SUBMIT`. What remains is App Privacy in the web UI (no public API),
   then `scripts/asc-submit-for-review.py`.
   `scripts/asc-readiness.py` is the read-only check for all of that, and
   `docs/asc-submission-checklist.md` is the durable record of the web-UI-only
