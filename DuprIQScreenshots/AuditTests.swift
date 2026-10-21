@@ -97,6 +97,124 @@ final class AuditTests: ScreenshotHarness {
     }
 }
 
+// MARK: - Motion audit walks
+//
+// Host-recorded with `simctl io recordVideo` so the replay can be studied
+// frame by frame. Each walk picks shots in a fixed rotation, so the set covers
+// right answers, wrong answers and every shot shape.
+extension AuditTests {
+
+    private func launchForMotion(seed: Int, clock: String = "off", pro: Bool = true) {
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-subscription.localProOverride", pro ? "YES" : "NO",
+            "-uitest.reset", "YES",
+            "-uitest.fixture", "demo",
+            "-uitest.seed", String(seed),
+            "-settings.shotClock", clock,
+        ]
+        app.launch()
+        _ = app.wait(for: .runningForeground, timeout: 30)
+        // A contended host can take minutes to draw the first frame; that is
+        // the simulator, not the app, and must not cut a walk short.
+        _ = app.buttons["shot-0"].waitForExistence(timeout: 300)
+        settle(2.5)
+    }
+
+    private func tapShot(_ index: Int) -> Bool {
+        let shot = app.buttons["shot-\(index)"]
+        guard shot.waitForExistence(timeout: 6), shot.isHittable else { return false }
+        shot.tap()
+        return true
+    }
+
+    /// Sixteen balls: every option index in rotation, each replay watched in
+    /// full, then replayed once more from the button.
+    func testMotionWalkFullReplays() {
+        walkFullReplays(seed: 5150)
+    }
+
+    /// A second court, so the set covers more shot shapes and positions.
+    func testMotionWalkSecondSeed() {
+        walkFullReplays(seed: 2718)
+    }
+
+    private func walkFullReplays(seed: Int) {
+        launchForMotion(seed: seed)
+        for ball in 0..<16 {
+            if app.buttons["play-again"].exists { break }
+            guard tapShot(ball % 4) else { return attachTree("motion-\(ball)") }
+            settle(4.5)
+            _ = tapIdentifier("replay", timeout: 3)
+            settle(4.5)
+            guard tapIdentifier("next-ball", timeout: 4) else { return }
+            settle(1.5)
+        }
+    }
+
+    /// The ways a player interrupts a replay: next mid-flight, replay mashed,
+    /// Your game opened over it, the app backgrounded during it.
+    func testMotionInterruptions() {
+        launchForMotion(seed: 6060)
+        // Next while the replay is still in the air.
+        guard tapShot(1) else { return attachTree("interrupt-next") }
+        settle(0.6)
+        _ = tapIdentifier("next-ball", timeout: 3)
+        settle(2.0)
+        // Replay mashed three times.
+        guard tapShot(2) else { return attachTree("interrupt-mash") }
+        settle(0.8)
+        for _ in 0..<3 { _ = tapIdentifier("replay", timeout: 3); settle(0.25) }
+        settle(4.5)
+        _ = tapIdentifier("next-ball", timeout: 3)
+        settle(2.0)
+        // Your game opened mid-replay, then closed.
+        guard tapShot(0) else { return attachTree("interrupt-sheet") }
+        settle(0.7)
+        _ = tapIdentifier("your-game", timeout: 3)
+        settle(2.0)
+        app.buttons["Done"].firstMatch.tap()
+        settle(4.0)
+        _ = tapIdentifier("next-ball", timeout: 3)
+        settle(2.0)
+        // Backgrounded mid-replay, then resumed.
+        guard tapShot(3) else { return attachTree("interrupt-background") }
+        settle(0.7)
+        XCUIDevice.shared.press(.home)
+        settle(2.0)
+        app.activate()
+        settle(5.0)
+        _ = tapIdentifier("replay", timeout: 3)
+        settle(4.5)
+    }
+
+    /// The fast decision timer: one ball left to time out, then a quick answer.
+    func testMotionShotClockTimeout() {
+        launchForMotion(seed: 7070, clock: "tournament")
+        settle(5.5)
+        settle(4.5)
+        _ = tapIdentifier("next-ball", timeout: 4)
+        settle(1.0)
+        _ = tapShot(2)
+        settle(4.5)
+    }
+
+    /// A free player running out: the last ball, the summary, the paywall.
+    func testMotionFreeLimitRun() {
+        launchForMotion(seed: 8080, pro: false)
+        for ball in 0..<16 {
+            if app.buttons["play-again"].exists || app.buttons["summary-paywall"].exists { break }
+            guard tapShot(ball % 4) else { break }
+            settle(1.2)
+            guard tapIdentifier("next-ball", timeout: 4) else { break }
+            settle(0.8)
+        }
+        settle(3.0)
+        _ = tapIdentifier("summary-paywall", timeout: 3)
+        settle(3.0)
+    }
+}
+
 private enum PracticeLimiterBalls {
     static let free = 15
 }

@@ -581,18 +581,25 @@ enum CourtScene {
         return node
     }
 
-    /// One replayed shot: a ball that flies the path, leaving a dotted trail.
-    static func replayNode(_ flight: ShotFlight, color: Color, delay: Double, duration: Double) -> SCNNode {
+    /// One replayed shot: a ball that flies the path, leaving a dotted trail
+    /// and a ring where it lands.
+    ///
+    /// Your shot and the right one differ in shape as well as colour (a
+    /// sparse, smaller trail against a solid one), so the pair still reads for
+    /// a player who cannot tell red from green.
+    static func replayNode(_ flight: ShotFlight, color: Color, dashed: Bool, delay: Double) -> SCNNode {
         let node = SCNNode()
         node.name = "replay-path"
         let samples = flight.samples
-        guard let first = samples.first else { return node }
+        guard let first = samples.first, let last = samples.last else { return node }
+        let duration = flight.airTime
         let step = duration / Double(max(samples.count - 1, 1))
 
         // Sized for the far court: a dot that reads at the near kitchen is
         // invisible at the far baseline, so the trail errs large.
         for (index, sample) in samples.enumerated() where index > 0 {
-            let dot = SCNNode(geometry: SCNSphere(radius: 0.11))
+            if dashed && index % 2 == 1 { continue }
+            let dot = SCNNode(geometry: SCNSphere(radius: dashed ? 0.08 : 0.11))
             dot.geometry?.firstMaterial = glowing(color, intensity: 0.7)
             dot.position = CourtCamera.scenePoint(sample.point, height: sample.height)
             dot.opacity = 0
@@ -603,7 +610,21 @@ enum CourtScene {
             node.addChildNode(dot)
         }
 
-        let ball = SCNNode(geometry: SCNSphere(radius: 0.24))
+        if !flight.endsInNet {
+            // Where it lands, which a path running straight away from the
+            // camera cannot show on its own: the trail stacks into a column.
+            let ring = SCNNode(geometry: SCNTube(innerRadius: 0.55, outerRadius: 0.8, height: 0.02))
+            ring.geometry?.firstMaterial = glowing(color, intensity: 0.6)
+            ring.position = CourtCamera.scenePoint(last.point, height: 0.03)
+            ring.opacity = 0
+            ring.runAction(.sequence([
+                .wait(duration: delay + duration),
+                .fadeOpacity(to: 0.85, duration: 0.12),
+            ]))
+            node.addChildNode(ring)
+        }
+
+        let ball = SCNNode(geometry: SCNSphere(radius: CGFloat(ShotFlight.restingHeight)))
         ball.geometry?.firstMaterial = glowing(color, intensity: 1.0)
         ball.position = CourtCamera.scenePoint(first.point, height: first.height)
         ball.opacity = 0
@@ -611,11 +632,11 @@ enum CourtScene {
         actions += samples.dropFirst().map {
             SCNAction.move(to: CourtCamera.scenePoint($0.point, height: $0.height), duration: step)
         }
-        if flight.endsInNet, let last = samples.last {
+        if flight.endsInNet {
             // Dies in the tape and drops to the floor on your side.
             actions.append(.move(
                 to: CourtCamera.scenePoint(
-                    CourtPoint(x: last.point.x, y: last.point.y - 0.6), height: 0.15
+                    CourtPoint(x: last.point.x, y: last.point.y - 0.6), height: ShotFlight.restingHeight
                 ),
                 duration: 0.3
             ))

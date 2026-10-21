@@ -71,4 +71,33 @@ final class ProductContractTests: XCTestCase {
         }
         XCTAssertTrue(AppBrand.disclaimer.contains("Not affiliated"))
     }
+
+    /// Pace and height are what tell the shots apart in the replay, so a
+    /// drive must arrive before a dink, a dink before a drop, a drop before a
+    /// lob, and the lob must still peak highest.
+    func testReplayPaceAndHeightSeparateTheShots() {
+        let order: [ShotType] = [.drive, .dink, .drop, .lob]
+        let times = order.map(ShotFlight.airTime(for:))
+        XCTAssertEqual(times, times.sorted(), "air time must rise drive < dink < drop < lob")
+        XCTAssertEqual(Set(times).count, times.count)
+        let h = 2.0
+        XCTAssertGreaterThan(ShotFlight.apexHeight(for: .lob, contactHeight: h),
+                             ShotFlight.apexHeight(for: .drop, contactHeight: h))
+        XCTAssertGreaterThan(ShotFlight.apexHeight(for: .drop, contactHeight: h),
+                             ShotFlight.apexHeight(for: .dink, contactHeight: h))
+    }
+
+    /// Fitting a replay to the screen may flatten a lob, but never into the
+    /// tape, and a path that already fits is left exactly as it was.
+    func testFittingAReplayNeverPutsItIntoTheNet() {
+        let shot = Shot(.lob, .deepStraight)
+        let flight = ShotFlight.make(
+            shot, from: CourtPoint(x: 10, y: 4), contactHeight: 2,
+            to: CourtPoint(x: 10, y: 40)
+        )
+        XCTAssertEqual(flight.fitted { _ in true }, flight)
+        let flat = flight.fitted { _ in false }
+        XCTAssertGreaterThanOrEqual(flat.heightAtNet ?? 0, ShotFlight.netHeight + 0.2 - 1e-9)
+        XCTAssertLessThan(flat.samples.map { $0.height }.max() ?? 0, flight.samples.map { $0.height }.max() ?? 0)
+    }
 }

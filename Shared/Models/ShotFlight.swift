@@ -14,6 +14,9 @@ struct ShotFlight: Equatable, Sendable {
     let samples: [Sample]
     /// True when the path ends in the net rather than on the far court.
     let endsInNet: Bool
+    /// Seconds the replay takes to fly the path. Pace is most of what tells a
+    /// drive from a drop, so it varies by shot rather than being one constant.
+    var airTime: Double = 1.0
 
     static let netHeight = 34.0 / 12.0
     static let sampleCount = 28
@@ -31,11 +34,14 @@ struct ShotFlight: Equatable, Sendable {
         if intoNet {
             return netted(from: contact, contactHeight: contactHeight, toward: landing)
         }
-        let end = 0.12
+        // Resting height of the replay ball's centre, so it sits on the court
+        // rather than half sunk into it.
+        let end = restingHeight
         let apex = apexHeight(for: shot.type, contactHeight: contactHeight)
         var flight = ShotFlight(
             samples: arc(from: contact, h0: contactHeight, to: landing, h1: end, apex: apex).samples,
-            endsInNet: false
+            endsInNet: false,
+            airTime: airTime(for: shot.type)
         )
         // Lift the arc until it clears the tape. A replay of the right answer
         // that clips the net would teach the opposite of the lesson.
@@ -44,22 +50,43 @@ struct ShotFlight: Equatable, Sendable {
             lifted += 0.5
             flight = ShotFlight(
                 samples: arc(from: contact, h0: contactHeight, to: landing, h1: end, apex: lifted).samples,
-                endsInNet: false
+                endsInNet: false,
+                airTime: flight.airTime
             )
         }
         return flight
     }
 
+    /// The replay ball's radius in feet, and so the height its centre rests at.
+    static let restingHeight = 0.17
+
     /// How high the ball peaks, by shot shape, in feet.
+    ///
+    /// Kept below what a real drop or lob reaches: the first-person camera is
+    /// framed on the court, so a true 17 ft lob leaves the top of the screen
+    /// and its flight is lost under the HUD. The shapes stay distinct.
     static func apexHeight(for type: ShotType, contactHeight h: Double) -> Double {
         switch type {
         case .dink: return max(h, netHeight) + 0.9
         case .reset: return max(h, netHeight) + 1.1
-        case .drop: return max(h + 3.5, 8.5)
-        case .deepReturn: return max(h + 5, 10)
-        case .lob: return 17
+        case .drop: return max(h + 2.2, 6.2)
+        case .deepReturn: return max(h + 3, 7.5)
+        case .lob: return 10.5
         case .drive, .speedUp: return max(h, netHeight + 0.7) + 0.4
         case .putAway: return h
+        }
+    }
+
+    /// Seconds in the air, by shot shape: a drive is on you before a drop has
+    /// finished rising.
+    static func airTime(for type: ShotType) -> Double {
+        switch type {
+        case .putAway: return 0.5
+        case .drive, .speedUp: return 0.6
+        case .dink, .reset: return 0.95
+        case .drop: return 1.1
+        case .deepReturn: return 1.15
+        case .lob: return 1.45
         }
     }
 
@@ -81,7 +108,7 @@ struct ShotFlight: Equatable, Sendable {
             let rise = 0.6 * 4 * t * (1 - t)
             return Sample(point: point, height: contactHeight + (hit - contactHeight) * t + rise)
         }
-        return ShotFlight(samples: samples, endsInNet: true)
+        return ShotFlight(samples: samples, endsInNet: true, airTime: 0.55)
     }
 
     private struct Arc {
@@ -101,6 +128,42 @@ struct ShotFlight: Equatable, Sendable {
             return Sample(point: point, height: height(t))
         }
         return Arc(samples: samples)
+    }
+
+    /// The same path with the part of its arc above the straight line from
+    /// contact to landing scaled by `factor`, so a high arc can be fitted to
+    /// what the camera shows. A netted path is left alone.
+    func flattened(by factor: Double) -> ShotFlight {
+        guard !endsInNet, let first = samples.first, let last = samples.last, samples.count > 1 else {
+            return self
+        }
+        let span = Double(samples.count - 1)
+        let scaled = samples.enumerated().map { index, sample -> Sample in
+            let t = Double(index) / span
+            let line = first.height + (last.height - first.height) * t
+            return Sample(point: sample.point, height: line + (sample.height - line) * factor)
+        }
+        return ShotFlight(samples: scaled, endsInNet: false, airTime: airTime)
+    }
+
+    /// The flattest version of this path, between `factor` 1 and 0, that
+    /// `fits`, but never one that drops into the net: a replay must not
+    /// teach that a shot over the tape would have hit it.
+    func fitted(_ fits: (ShotFlight) -> Bool) -> ShotFlight {
+        guard !endsInNet, !fits(self) else { return self }
+        var low = 0.0, high = 1.0
+        for _ in 0..<12 {
+            let mid = (low + high) / 2
+            if fits(flattened(by: mid)) { low = mid } else { high = mid }
+        }
+        var factor = low
+        var flight = flattened(by: factor)
+        let clearance = Self.netHeight + 0.2
+        while (flight.heightAtNet ?? .infinity) < clearance, factor < 1 {
+            factor = min(1, factor + 0.05)
+            flight = flattened(by: factor)
+        }
+        return flight
     }
 
     /// Height of the path where it crosses the net plane, interpolated

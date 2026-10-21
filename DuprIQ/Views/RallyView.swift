@@ -25,6 +25,7 @@ struct RallyView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var profile: PlayerProfile
     @Environment(\.requestReview) private var requestReview
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var balls: [RallyBall] = []
     @State private var index = 0
@@ -43,6 +44,9 @@ struct RallyView: View {
     /// Seconds left on the shot clock, or nil when the clock is off or the ball
     /// has already been graded.
     @State private var clockRemaining: Double?
+    /// When the clock last ticked: the timer publisher drifts under load, so
+    /// the clock spends real elapsed time, not a fixed 0.05 s per tick.
+    @State private var clockLastTick: Date?
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
@@ -72,6 +76,17 @@ struct RallyView: View {
         .sheet(isPresented: $showPaywall) { PaywallView(source: "rally").pageSizedOnIPad() }
         .sheet(isPresented: $showYourGame) { YourGameView().pageSizedOnIPad() }
         .onReceive(tick) { _ in advanceClock() }
+        // A replay that ran while "Your game" covered the court, or while the
+        // app was in the background, was never seen: fly it again.
+        .onChange(of: showYourGame) { _, open in
+            if !open && isGraded && !finished { replayToken += 1 }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            // Time in the background does not count against the shot clock.
+            clockLastTick = .now
+            if isGraded && !finished { replayToken += 1 }
+        }
         .onChange(of: subscriptions.isPro) { _, isPro in
             // Buying Pro from the free-limit summary should put a ball in
             // front of you, not leave you on a "come back tomorrow" screen.
@@ -125,7 +140,9 @@ struct RallyView: View {
                     )
                     .frame(height: band, alignment: .top)
                     .clipped()
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Opaque and sliding, not fading: half-faded over the
+                    // option panel, both sets of text printed through.
+                    .transition(.move(edge: .bottom))
                 }
             }
             .ignoresSafeArea(edges: .bottom)
@@ -299,13 +316,19 @@ struct RallyView: View {
 
     private func startClock() {
         clockRemaining = settings.shotClock.seconds
+        clockLastTick = .now
     }
 
     private func advanceClock() {
-        guard !isGraded, !finished, !showYourGame, let remaining = clockRemaining else { return }
-        let next = remaining - 0.05
+        guard let remaining = clockRemaining else { return }
+        let now = Date.now
+        let last = clockLastTick ?? now
+        clockLastTick = now
+        // Paused while "Your game" covers the court: the time does not count.
+        guard !isGraded, !finished, !showYourGame else { return }
+        let next = remaining - now.timeIntervalSince(last)
         if next <= 0 {
-            clockRemaining = 0
+            clockRemaining = nil
             expire()
         } else {
             clockRemaining = next
@@ -419,9 +442,17 @@ struct RallyView: View {
             endRun(atFreeLimit: false)
             return
         }
-        picked = nil
-        timedOut = false
-        index = next
+        // The next ball replaces this one outright. Animated, the SceneKit
+        // court swaps at once while the SwiftUI badges, labels and HUD text
+        // interpolate from the old position for a few frames, which read as a
+        // glitch.
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            picked = nil
+            timedOut = false
+            index = next
+        }
         startClock()
     }
 
@@ -613,6 +644,7 @@ struct VerdictCard: View {
                                          : (timedOut ? "clock.badge.xmark.fill" : "xmark.circle.fill"))
             Text(headline)
             Spacer(minLength: 0)
+            if showsLegend { legend }
         }
         .font(.subheadline.weight(.heavy))
         .foregroundStyle(wasCorrect ? Theme.rightGreen : Theme.wrongRed)
@@ -622,12 +654,34 @@ struct VerdictCard: View {
         .accessibilityIdentifier("answer-card")
     }
 
+    /// Two flights only when you picked a wrong shot; a miss on time and a
+    /// right answer fly one.
+    private var showsLegend: Bool { !wasCorrect && !timedOut && picked != nil }
+
+    /// Matches the trails on the court: yours sparse, the best one solid.
+    private var legend: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 4) {
+                Circle()
+                    .strokeBorder(Theme.wrongRed, style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+                    .frame(width: 9, height: 9)
+                Text("You").foregroundStyle(Theme.inkSecondary)
+            }
+            HStack(spacing: 4) {
+                Circle().fill(Theme.rightGreen).frame(width: 9, height: 9)
+                Text("Best").foregroundStyle(Theme.inkSecondary)
+            }
+        }
+        .font(.caption.weight(.bold))
+        .accessibilityHidden(true)
+    }
+
     private var headline: String {
         if timedOut { return "Time's up. Point to them." }
         if wasCorrect {
             return ball.isLastOfPoint ? "Point won." : "Good. Rally continues."
         }
-        return "Point to them. Watch the replay."
+        return "Point to them."
     }
 }
 

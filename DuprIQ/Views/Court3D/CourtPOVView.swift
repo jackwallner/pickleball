@@ -141,6 +141,28 @@ struct CourtPOVView: View {
         }
     }
 
+    /// Replay arcs flattened just enough to stay below the HUD. The camera is
+    /// fitted to the rings and players, not to a lob's apex, so without this a
+    /// high ball flies off the top and under the HUD's labels.
+    private func framed(_ replay: [Replay], camera: CourtCamera, in size: CGSize) -> [Replay] {
+        let viewport = viewportSize(in: size)
+        // In viewport coordinates: the same floor the player labels respect.
+        let ceiling = chrome == .fullBleedDrill
+            ? Double(Self.playerLabelFloor - chrome.topInset(in: size))
+            : Double(viewport.height) * 0.05
+        return replay.map { path in
+            let flight = path.flight.fitted { candidate in
+                candidate.samples.allSatisfy { sample in
+                    guard let point = camera.project(sample.point, height: sample.height, in: viewport) else {
+                        return true
+                    }
+                    return Double(point.y) >= ceiling
+                }
+            }
+            return Replay(flight: flight, isCorrect: path.isCorrect)
+        }
+    }
+
     var body: some View {
         GeometryReader { geo in
             let camera = camera(for: geo.size)
@@ -153,7 +175,7 @@ struct CourtPOVView: View {
                     aimPoints: aimPoints,
                     colors: options.indices.map { ringColor(for: $0) },
                     emphasised: emphasisedIndex,
-                    replay: replay,
+                    replay: framed(replay, camera: camera, in: geo.size),
                     replayToken: replayToken
                 )
                 .accessibilityHidden(true)
@@ -696,14 +718,15 @@ private struct CourtSceneView: UIViewRepresentable {
             replayRoot.childNodes.forEach { $0.removeFromParentNode() }
             guard !replay.isEmpty else { return }
 
-            var start = 0.2
+            // A short lead-in only: a Replay tap clears the old trails at once,
+            // and a long empty gap after that reads as the button not working.
+            var start = 0.08
             for path in replay {
                 let color = path.isCorrect ? Theme.rightGreen : Theme.wrongRed
-                let duration = path.flight.endsInNet ? 0.7 : 1.05
                 replayRoot.addChildNode(CourtScene.replayNode(
-                    path.flight, color: color, delay: start, duration: duration
+                    path.flight, color: color, dashed: !path.isCorrect, delay: start
                 ))
-                start += duration + 0.35
+                start += path.flight.airTime + (path.flight.endsInNet ? 0.3 : 0) + 0.35
             }
 
             replayGeneration += 1
