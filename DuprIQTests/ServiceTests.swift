@@ -88,7 +88,7 @@ final class ServiceTests: XCTestCase {
         for seed in UInt64(1)...200 {
             let q = question(.dinkRally, seed: seed)
             for (index, shot) in q.options.enumerated() where index != q.answerIndex {
-                if let pattern = MistakeCatalog.pattern(for: shot, in: q.position) {
+                if let pattern = MistakeCatalog.pattern(for: shot, in: q) {
                     found = (q, index, pattern.id)
                     break
                 }

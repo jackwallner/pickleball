@@ -220,6 +220,8 @@ enum PositionGenerator {
         func fits(_ shot: Shot) -> Bool {
             shot != answer && !chosen.contains(shot)
                 && (chosen + [answer]).filter { $0.type == shot.type }.count < 2
+                && isOffered(shot, in: position)
+                && !landsOnTopOfAnother(shot, among: chosen + [answer], in: position)
         }
         for shot in pool where chosen.count < 3 && fits(shot) { chosen.append(shot) }
         // Backstop: never show fewer than four options, even if a phase's
@@ -231,6 +233,32 @@ enum PositionGenerator {
         result.shuffle(using: &rng)
         return result
     }
+
+    /// A dink is a soft ball from the kitchen. Offered from the transition
+    /// zone or deeper it is really a drop, and the replay has to loft it seven
+    /// feet to clear the tape, which is no dink a player has ever hit.
+    private static func isOffered(_ shot: Shot, in position: RallyPosition) -> Bool {
+        guard shot.type == .dink else { return true }
+        return position.contact.y >= CourtGeometry.ourKitchenLine - dinkReach
+    }
+
+    /// How far behind our kitchen line a contact can be and still be a dink.
+    static let dinkReach = 1.5
+
+    /// Two options that land on the same spot are one choice with two labels,
+    /// and grading one of them wrong reads as a coin toss.
+    private static func landsOnTopOfAnother(
+        _ shot: Shot, among others: [Shot], in position: RallyPosition
+    ) -> Bool {
+        let landing = shot.landingPoint(in: position)
+        return others.contains { other in
+            let point = other.landingPoint(in: position)
+            return hypot(point.x - landing.x, point.y - landing.y) < minimumLandingSeparation
+        }
+    }
+
+    /// Feet between any two options' landing points.
+    static let minimumLandingSeparation = 3.0
 
     private static let universalFallbacks: [Shot] = [
         Shot(.dink, .crossCourtKitchen),

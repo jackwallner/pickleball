@@ -47,7 +47,17 @@ extension Shot {
         case .straightKitchen:
             return clamped(x: straightX, y: kitchenDepth)
         case .middle:
-            return clamped(x: CourtGeometry.centerX, y: kitchenDepth + 0.8)
+            // The seam is a line, not a spot: a soft ball finds it in the
+            // kitchen, a deep return or a lob at the baseline, and a drive
+            // between the two players.
+            switch type {
+            case .deepReturn, .lob:
+                return clamped(x: CourtGeometry.centerX, y: deepDepth)
+            case .drive, .speedUp, .putAway:
+                return clamped(x: CourtGeometry.centerX, y: (position.opponentLeft.y + position.opponentRight.y) / 2)
+            case .dink, .drop, .reset:
+                return clamped(x: CourtGeometry.centerX, y: kitchenDepth + 0.8)
+            }
         case .deepCrossCourt:
             return clamped(x: crossX, y: deepDepth)
         case .deepStraight:

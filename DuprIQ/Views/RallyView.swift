@@ -188,7 +188,7 @@ struct RallyView: View {
         var flights: [CourtPOVView.Replay] = []
         if let picked, picked != ball.question.answerIndex,
            let shot = ball.question.options[safe: picked] {
-            let netted = MistakeCatalog.pattern(for: shot, in: ball.position)?.id == "attacked-a-low-ball"
+            let netted = MistakeCatalog.pattern(for: shot, in: ball.question)?.id == "attacked-a-low-ball"
             if let wrong = flight(picked, intoNet: netted) {
                 flights.append(.init(flight: wrong, isCorrect: false))
             }
@@ -532,7 +532,7 @@ struct VerdictCard: View {
 
     private var mistake: MistakePattern? {
         guard !wasCorrect, let picked, let shot = ball.question.options[safe: picked] else { return nil }
-        return MistakeCatalog.pattern(for: shot, in: ball.position)
+        return MistakeCatalog.pattern(for: shot, in: ball.question)
     }
 
     var body: some View {

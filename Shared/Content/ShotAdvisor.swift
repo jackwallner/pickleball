@@ -70,8 +70,8 @@ enum ShotAdvisor {
             hitting \(p.contactSideLabel), so the deep cross-court ball to \
             \(target.label) is the longest one on the court and the one with \
             the most margin. The point is won by getting to the line, not by \
-            the return itself. Driving it low and flat gives them a short ball \
-            and leaves you stuck back.
+            the return itself. A low, hard return gets back to you faster than \
+            you can walk in, and leaves you stuck at the baseline.
             """,
             targetOpponent: target
         )
@@ -131,8 +131,7 @@ enum ShotAdvisor {
             why: """
             Both opponents are established at the kitchen, and your contact is \
             below the net, so there is no drive available that does not sit up. \
-            You are wide \(p.contactSideLabel.replacingOccurrences(of: "from ", with: "")), \
-            so the drop to \(target.label) travels the longest diagonal, which \
+            You are hitting \(p.contactSideLabel), so the drop to \(target.label) travels the longest diagonal, which \
             gives it the most court to land soft and buys you the time to move up.
             """,
             targetOpponent: target

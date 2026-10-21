@@ -98,7 +98,7 @@ final class MasteryStore: ObservableObject {
             state.mistakes[index].fixes = min(state.mistakes[index].misses, state.mistakes[index].fixes + 1)
         }
         if !wasCorrect, let picked, let shot = question.options[safe: picked],
-           let pattern = MistakeCatalog.pattern(for: shot, in: question.position) {
+           let pattern = MistakeCatalog.pattern(for: shot, in: question) {
             recordMistake(pattern, on: date)
         }
         countTowardToday(date)

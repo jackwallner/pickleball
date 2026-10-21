@@ -100,4 +100,28 @@ final class ProductContractTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(flat.heightAtNet ?? 0, ShotFlight.netHeight + 0.2 - 1e-9)
         XCTAssertLessThan(flat.samples.map { $0.height }.max() ?? 0, flight.samples.map { $0.height }.max() ?? 0)
     }
+
+    /// A named trap never describes what the right answer did. A ball whose
+    /// answer drove at the feet once told the player who drove elsewhere that
+    /// they had attacked a ball that could not be attacked.
+    func testATrapNeverContradictsTheRightAnswer() {
+        for phase in RallyPhase.allCases {
+            for seed in UInt64(1)...300 {
+                let q = PositionGenerator.question(phase: phase, seed: seed)
+                let best = q.verdict.best
+                for (label, pattern) in MistakeCatalog.mistakes(for: q) {
+                    let context = "\(phase) seed \(seed): \(label) named \(pattern.id), best \(best.label)"
+                    if pattern.id == "attacked-a-low-ball" {
+                        XCTAssertFalse([.drive, .speedUp, .putAway].contains(best.type), context)
+                    }
+                    if pattern.id == "ignored-the-open-middle" {
+                        XCTAssertEqual(best.target, .middle, context)
+                    }
+                    if pattern.id == "lobbed-into-space-behind-nobody" {
+                        XCTAssertNotEqual(best.type, .lob, context)
+                    }
+                }
+            }
+        }
+    }
 }

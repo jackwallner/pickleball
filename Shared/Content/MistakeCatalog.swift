@@ -25,16 +25,29 @@ enum MistakeCatalog {
     /// Every named trap, keyed by id, so a persisted tally survives a rebuild
     /// of this table as long as the ids stay put.
     static func mistakes(for question: DrillQuestion) -> [String: MistakePattern] {
-        let position = question.position
         var named: [String: MistakePattern] = [:]
         for shot in question.options where shot != question.verdict.best {
-            guard let pattern = pattern(for: shot, in: position) else { continue }
+            guard let pattern = pattern(for: shot, in: question) else { continue }
             named[shot.label] = pattern
         }
         return named
     }
 
-    static func pattern(for shot: Shot, in position: RallyPosition) -> MistakePattern? {
+    /// The trap behind picking `shot` on this question, if it has a name.
+    ///
+    /// Judged against the right answer, not the position alone: a trap the
+    /// best shot walks into as well is not a trap. Without that check a ball
+    /// whose answer was "drive at their feet" told the player who drove to the
+    /// backhand that they had attacked a ball that could not be attacked.
+    static func pattern(for shot: Shot, in question: DrillQuestion) -> MistakePattern? {
+        let best = question.verdict.best
+        guard shot != best,
+              let pattern = rawPattern(for: shot, in: question.position, best: best) else { return nil }
+        if rawPattern(for: best, in: question.position, best: best)?.id == pattern.id { return nil }
+        return pattern
+    }
+
+    private static func rawPattern(for shot: Shot, in position: RallyPosition, best: Shot) -> MistakePattern? {
         let phase = position.phase.rawValue
 
         // Attacking a ball that cannot be attacked is the single most common
@@ -69,8 +82,11 @@ enum MistakeCatalog {
             )
         }
 
-        // Ignoring an open seam in favour of a body.
-        if position.isMiddleOpen, shot.target != .middle, shot.type == .dink || shot.type == .drive {
+        // Ignoring an open seam in favour of a body. Only a trap when the
+        // answer took the seam: a reset or lob that is right for other
+        // reasons does not make every other ball a missed middle.
+        if position.isMiddleOpen, best.target == .middle, shot.target != .middle,
+           shot.type == .dink || shot.type == .drive {
             return MistakePattern(
                 id: "ignored-the-open-middle",
                 phase: phase,
@@ -93,7 +109,7 @@ enum MistakeCatalog {
             return MistakePattern(
                 id: "lobbed-into-space-behind-nobody",
                 phase: phase,
-                summary: "You lobbed opponents who were not crowding the line. A lob only works over a team that has nowhere to retreat to."
+                summary: "You lobbed opponents who were not crowding the line. A lob only beats a team leaning in at the kitchen, with no time to turn and chase it."
             )
         }
 
