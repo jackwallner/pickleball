@@ -1,1 +1,1 @@
-dink,kitchen,thirdshot,drop,drive,serve,return,volley,coach,practice,tactics,strategy,shotselection
+selection,coach,training,drills,dink,drop,drive,reset,lob,kitchen,serve,return,volley,doubles,rally

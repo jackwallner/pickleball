@@ -59,214 +59,118 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(limiter.remaining(isPro: false), PracticeLimiter.freeDailyBalls - 1)
     }
 
-    // MARK: - Accuracy signal
+    // MARK: - Mastery
 
-    func testAPhaseShowsNoPercentageUntilItHasASample() {
-        let progress = ProgressStore(defaults: defaults)
-        XCTAssertEqual(progress.signal(for: .dinkRally), .untried)
-
-        progress.record(phase: .dinkRally, wasCorrect: false)
-        // One wrong ball is not a 0%.
-        XCTAssertEqual(
-            progress.signal(for: .dinkRally),
-            .building(answered: 1, needed: ProgressThreshold.sampleForAccuracy)
-        )
-
-        for _ in 1..<ProgressThreshold.sampleForAccuracy {
-            progress.record(phase: .dinkRally, wasCorrect: true)
-        }
-        guard case .measured(let accuracy) = progress.signal(for: .dinkRally) else {
-            return XCTFail("a full sample should read as measured")
-        }
-        XCTAssertEqual(accuracy, 4.0 / 5.0, accuracy: 0.0001)
+    private func question(_ phase: RallyPhase, seed: UInt64) -> DrillQuestion {
+        PositionGenerator.question(phase: phase, seed: seed)
     }
 
-    func testWeakestPhaseIsOnlyClaimedOnceItIsMeasured() {
-        let progress = ProgressStore(defaults: defaults)
-        XCTAssertNil(progress.measuredWeakestPhase)
-
-        // An untouched phase is a suggestion, never a measured weakness.
-        let suggestion = progress.recommendation
-        XCTAssertNotNil(suggestion)
-        XCTAssertFalse(suggestion?.isMeasured ?? true)
-
-        for _ in 0..<ProgressThreshold.sampleForAccuracy {
-            progress.record(phase: .transition, wasCorrect: false)
-        }
-        for _ in 0..<ProgressThreshold.sampleForAccuracy {
-            progress.record(phase: .dinkRally, wasCorrect: true)
-        }
-        XCTAssertEqual(progress.measuredWeakestPhase, .transition)
-        XCTAssertEqual(progress.recommendation?.phase, .transition)
-        XCTAssertTrue(progress.recommendation?.isMeasured ?? false)
+    private func wrongIndex(_ q: DrillQuestion) -> Int {
+        (q.answerIndex + 1) % q.options.count
     }
 
-    // MARK: - Streak
+    func testAPrincipleShowsNoPercentageUntilItHasASample() {
+        let store = MasteryStore(defaults: defaults)
+        let q = question(.serveReturn, seed: 3)
+        let family = try! XCTUnwrap(Principle.family(forVerdict: q.verdict.principle))
+        XCTAssertEqual(store.signal(for: family), .new)
+
+        for _ in 0..<(MasteryThreshold.sample - 1) { store.record(q, picked: q.answerIndex) }
+        XCTAssertEqual(store.signal(for: family), .building(answered: MasteryThreshold.sample - 1))
+
+        store.record(q, picked: wrongIndex(q))
+        XCTAssertEqual(store.signal(for: family), .measured(0.8))
+    }
+
+    func testAMissNamesItsTrapAndAFocusFixClosesIt() {
+        let store = MasteryStore(defaults: defaults)
+        var found: (DrillQuestion, Int, String)?
+        for seed in UInt64(1)...200 {
+            let q = question(.dinkRally, seed: seed)
+            for (index, shot) in q.options.enumerated() where index != q.answerIndex {
+                if let pattern = MistakeCatalog.pattern(for: shot, in: q.position) {
+                    found = (q, index, pattern.id)
+                    break
+                }
+            }
+            if found != nil { break }
+        }
+        let (q, wrong, id) = try! XCTUnwrap(found)
+
+        store.record(q, picked: wrong)
+        XCTAssertEqual(store.openMistakes.map(\.id), [id])
+        XCTAssertEqual(store.focus(for: .rec).first?.mistakeID, id)
+
+        store.record(q, picked: q.answerIndex, focus: id)
+        XCTAssertTrue(store.openMistakes.isEmpty, "one right focus ball after one miss fixes it")
+        XCTAssertEqual(store.rankedMistakes.first?.misses, 1, "Pro's ranking keeps the history")
+
+        store.record(q, picked: wrong)
+        XCTAssertEqual(store.openMistakes.first?.misses, 2, "a fresh miss reopens the trap")
+    }
+
+    func testWithNothingMeasuredFocusComesFromTheLevel() {
+        let store = MasteryStore(defaults: defaults)
+        XCTAssertEqual(store.focus(for: .new).map(\.phase), ExperienceLevel.new.starterPhases)
+        XCTAssertEqual(store.focus(for: .competitive).map(\.phase), ExperienceLevel.competitive.starterPhases)
+    }
 
     func testOneBallDoesNotStartAStreak() {
-        let progress = ProgressStore(defaults: defaults)
-        progress.record(phase: .dinkRally, wasCorrect: true)
-        XCTAssertEqual(progress.streak, 0, "a single tap is not a practice day")
-        XCTAssertEqual(progress.ballsToPracticeDay, ProgressThreshold.ballsForPracticeDay - 1)
+        let store = MasteryStore(defaults: defaults)
+        store.record(question(.attack, seed: 1), picked: 0)
+        XCTAssertEqual(store.streak, 0)
     }
 
-    func testAStreakStartsAtTheDailyBallThreshold() {
-        let progress = ProgressStore(defaults: defaults)
-        for _ in 0..<ProgressThreshold.ballsForPracticeDay {
-            progress.record(phase: .dinkRally, wasCorrect: true)
-        }
-        XCTAssertEqual(progress.streak, 1)
-        XCTAssertEqual(progress.ballsToPracticeDay, 0)
-
-        // Extra balls on the same day do not inflate it.
-        progress.record(phase: .dinkRally, wasCorrect: true)
-        XCTAssertEqual(progress.streak, 1)
-    }
-
-    func testConsecutiveDaysExtendTheStreakAndAGapResetsIt() {
+    func testConsecutiveDaysExtendTheStreakAndAGapEndsIt() {
+        let store = MasteryStore(defaults: defaults)
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let progress = ProgressStore(defaults: defaults)
-
-        func practiceDay(_ date: Date) {
-            for _ in 0..<ProgressThreshold.ballsForPracticeDay {
-                progress.record(phase: .dinkRally, wasCorrect: true, on: date)
-            }
+        let day0 = calendar.startOfDay(for: .now).addingTimeInterval(-10 * 86_400 + 3_600)
+        let q = question(.attack, seed: 1)
+        func playDay(_ offset: Int) {
+            let date = calendar.date(byAdding: .day, value: offset, to: day0)!
+            for _ in 0..<MasteryThreshold.ballsForPracticeDay { store.record(q, picked: 0, on: date) }
         }
+        playDay(0)
+        XCTAssertEqual(store.streak, 1)
+        playDay(1)
+        XCTAssertEqual(store.streak, 2)
+        playDay(3)
+        XCTAssertEqual(store.streak, 1, "a skipped day restarts the streak")
 
-        practiceDay(calendar.date(byAdding: .day, value: -2, to: today)!)
-        XCTAssertEqual(progress.streak, 1)
-        practiceDay(calendar.date(byAdding: .day, value: -1, to: today)!)
-        XCTAssertEqual(progress.streak, 2)
-        practiceDay(today)
-        XCTAssertEqual(progress.streak, 3)
-
-        let afterAGap = calendar.date(byAdding: .day, value: 3, to: today)!
-        practiceDay(afterAGap)
-        XCTAssertEqual(progress.streak, 1, "a missed day restarts the streak")
+        store.rollOverIfNeeded(now: calendar.date(byAdding: .day, value: 6, to: day0)!)
+        XCTAssertEqual(store.streak, 0, "a streak that lapsed reads as zero before the next ball")
     }
 
-    // MARK: - History
-
-    func testSessionsAndMissedPrinciplesArePersisted() {
-        let progress = ProgressStore(defaults: defaults)
-        progress.record(phase: .transition, wasCorrect: false,
-                        principle: "Reset off your shoetops, never drive")
-        progress.record(phase: .transition, wasCorrect: false,
-                        principle: "Reset off your shoetops, never drive")
-        progress.record(phase: .defense, wasCorrect: false,
-                        principle: "Reset, don't counter-drive")
-        progress.record(phase: .dinkRally, wasCorrect: true,
-                        principle: "Cross-court is the longest, safest diagonal")
-        progress.recordSession(phase: .transition, answered: 4, correct: 1)
-
-        XCTAssertEqual(progress.recentSessions.count, 1)
-        XCTAssertEqual(progress.recentSessions.first?.answered, 4)
-        // Ranked by how often it bites, so the top row is the practice plan.
-        XCTAssertEqual(progress.topMissedPrinciples.first?.count, 2)
-        XCTAssertEqual(progress.topMissedPrinciples.first?.rallyPhase, .transition)
-        XCTAssertEqual(progress.topMissedPrinciples.count, 2, "a correct answer must not log a miss")
-
-        // A second store on the same defaults sees the same history.
-        let reloaded = ProgressStore(defaults: defaults)
-        XCTAssertEqual(reloaded.recentSessions.count, 1)
-        XCTAssertEqual(reloaded.topMissedPrinciples.first?.principle,
-                       "Reset off your shoetops, never drive")
-        XCTAssertEqual(reloaded.totalAnswered, 4)
-        XCTAssertEqual(reloaded.totalSessions, 1)
-    }
-
-    func testCorrectTargetedItemResolvesOnlyItsAssignedMistake() {
-        let store = PracticeRecordStore(defaults: defaults)
-        let target = MistakePattern(
-            id: "attacked-a-low-ball",
-            phase: RallyPhase.dinkRally.rawValue,
-            summary: "target"
-        )
-        let other = MistakePattern(
-            id: "unrelated-pattern",
-            phase: RallyPhase.transition.rawValue,
-            summary: "other"
-        )
-        store.recordMistake(target)
-        store.recordMistake(other)
-        let item = EndlessPractice.targetedItems(for: [target], count: 1, seed: 77)[0]
-
-        store.record(item: item, selectedIndex: item.answerIndex)
-
-        XCTAssertNil(store.mistakes[target.id])
-        XCTAssertEqual(store.mistakes[other.id]?.outstanding, 1)
-    }
-
-    func testSessionTotalIncludesGeneratedAndAuthoredSessions() {
-        let progress = ProgressStore(defaults: defaults)
-
-        progress.recordSession(phase: .transition, answered: 4, correct: 3)
-        progress.recordSession(drillID: "court-awareness")
-
-        XCTAssertEqual(progress.totalSessions, 2)
-        XCTAssertEqual(ProgressStore(defaults: defaults).totalSessions, 2)
-    }
-
-    func testProgressRollsOverBeforeTheNextAnswer() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let progress = ProgressStore(defaults: defaults)
-
-        for _ in 0..<ProgressThreshold.ballsForPracticeDay {
-            progress.record(phase: .dinkRally, wasCorrect: true, on: today)
+    func testRalliesArePersistedAndCapped() {
+        let store = MasteryStore(defaults: defaults)
+        store.recordRally(won: 0, lost: 0, answered: 0, correct: 0)
+        XCTAssertTrue(store.rallies.isEmpty, "an empty run is not history")
+        for _ in 0..<(MasteryStore.maxRallies + 5) {
+            store.recordRally(won: 3, lost: 2, answered: 12, correct: 9)
         }
-        XCTAssertEqual(progress.ballsToday, ProgressThreshold.ballsForPracticeDay)
+        XCTAssertEqual(store.rallies.count, MasteryStore.maxRallies)
 
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
-        progress.rollOverIfNeeded(now: tomorrow)
-
-        XCTAssertEqual(progress.ballsToday, 0)
-        XCTAssertEqual(progress.ballsToPracticeDay, ProgressThreshold.ballsForPracticeDay)
-    }
-
-    func testAnEmptySessionIsNotRecorded() {
-        let progress = ProgressStore(defaults: defaults)
-        progress.recordSession(phase: nil, answered: 0, correct: 0)
-        XCTAssertTrue(progress.recentSessions.isEmpty)
-    }
-
-    func testSessionHistoryIsCapped() {
-        let progress = ProgressStore(defaults: defaults)
-        for _ in 0..<(ProgressStore.maxSessions + 10) {
-            progress.recordSession(phase: .attack, answered: 10, correct: 5)
-        }
-        XCTAssertEqual(progress.recentSessions.count, ProgressStore.maxSessions)
+        let reloaded = MasteryStore(defaults: defaults)
+        XCTAssertEqual(reloaded.rallies.count, MasteryStore.maxRallies)
     }
 
     // MARK: - Playing settings
 
-    func testGeneratedPracticeStartsWithoutADecisionTimer() {
-        let settings = AppSettings(defaults: defaults)
-
-        XCTAssertEqual(settings.shotClock, .off)
-        XCTAssertFalse(settings.isShotClockEnabled)
+    func testTheCourtStartsWithoutADecisionTimer() {
+        XCTAssertEqual(AppSettings(defaults: defaults).shotClock, .off)
     }
 
-    func testEnablingTheDecisionTimerStartsAtLearningPace() {
-        let settings = AppSettings(defaults: defaults)
+    func testOnboardingAnswersPersist() {
+        let profile = PlayerProfile(defaults: defaults)
+        XCTAssertFalse(profile.setupComplete)
+        profile.level = .competitive
+        profile.half = .left
+        profile.markSetupComplete()
 
-        settings.setShotClockEnabled(true)
-        XCTAssertEqual(settings.shotClock, .relaxed)
-        XCTAssertTrue(settings.isShotClockEnabled)
-
-        settings.setShotClockEnabled(false)
-        XCTAssertEqual(settings.shotClock, .off)
-        XCTAssertFalse(settings.isShotClockEnabled)
-    }
-
-    func testDisablingTheLastReminderClearsThePermissionWarning() {
-        let settings = AppSettings(defaults: defaults)
-        settings.reminderPermissionDenied = true
-
-        settings.reminderEnabled = false
-
-        XCTAssertFalse(settings.reminderPermissionDenied)
+        let reloaded = PlayerProfile(defaults: defaults)
+        XCTAssertEqual(reloaded.level, .competitive)
+        XCTAssertEqual(reloaded.half, .left)
+        XCTAssertTrue(reloaded.setupComplete)
     }
 
     // MARK: - Review funnel

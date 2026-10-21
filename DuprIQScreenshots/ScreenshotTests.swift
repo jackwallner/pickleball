@@ -5,129 +5,61 @@ import XCTest
 /// State comes from `-uitest.fixture demo` and the court from `-uitest.seed`,
 /// so the exported set is a chosen story rather than whatever the simulator was
 /// holding. Every capture asserts that the screen it names actually rendered;
-/// under `SCREENSHOT_STRICT=1` a missing control fails the run instead of
-/// quietly exporting a blank.
+/// under `SCREENSHOT_STRICT=1` a missing control fails the run.
 ///
 /// Run: scripts/capture-screenshots.sh <udid> <out-dir> [prefix]
 /// Gate: scripts/capture-screenshots.sh --strict <udid> <out-dir>
 @MainActor
 final class ScreenshotTests: ScreenshotHarness {
 
-    /// 01 Practice lobby: the daily rally, the recommended phase, and the six
-    /// phase courts with their accuracy readouts.
-    func test01Lobby() {
+    /// 01 The court, before an answer: four players' feet, the ball's height
+    /// against the net, and four places to put it. The app opens here.
+    func test01CourtQuestion() {
         launch()
-        guard selectTab("Practice") else { return }
-        expect("mixed-rally", on: "lobby")
-        expect("court-dinkRally", on: "lobby")
-        settle()
-        capture("01_lobby")
-    }
-
-    /// 02 The court read, before an answer is picked. This is the screen that
-    /// has to sell the product: four players' feet and a real question.
-    func test02CourtQuestion() {
-        launch()
-        guard selectTab("Practice") else { return }
-        guard tapIdentifier("mixed-rally") else {
-            attachTree("court_question")
-            return
-        }
         settle(2.0)
         expect("shot-0", on: "court question")
-        capture("02_court_question")
+        capture("01_court_question")
     }
 
-    /// 03 The graded answer: which shot was right and the principle behind it.
-    func test03GradedAnswer() {
+    /// 02 The graded ball, with your shot and the right one replayed on the
+    /// court and the principle behind the answer.
+    func test02Replay() {
         launch()
-        guard selectTab("Practice") else { return }
-        guard tapIdentifier("mixed-rally") else { return }
         settle(2.0)
-        // Any option grades the ball; a wrong pick shows the same answer card.
         guard tapFirstOption() else {
-            attachTree("graded_answer")
+            attachTree("replay")
             return
         }
-        settle(1.4)
-        // The principle card is the product. A capture without it is not this
-        // screenshot, it is the question screen with coloured rows.
+        // Long enough for both replayed paths to land and leave their trails.
+        settle(3.4)
         expect("answer-card", on: "graded answer", visible: true)
-        capture("03_graded_answer")
+        capture("02_replay")
     }
 
-    /// 04 Progress by phase: the readout that tells you which part of the point
-    /// is actually costing you games.
-    func test04Progress() {
+    /// 03 Your game: mastery per principle and the traps costing points.
+    func test03YourGame() {
         launch()
-        guard selectTab("Progress") else { return }
-        settle()
-        capture("04_progress")
+        guard tapIdentifier("your-game") else { return attachTree("your_game") }
+        settle(1.4)
+        capture("03_your_game")
     }
 
-    /// 05 The paywall. `PaywallRenderTests` covers it in isolation with the
-    /// StoreKit catalog attached; this is the in-context version.
-    func test05Paywall() {
+    /// 04 The paywall, reached from a locked row in Your game.
+    func test04Paywall() {
         launch()
-        guard selectTab("Settings") else { return }
-        settle()
-        let seePro = app.buttons["See Pro"].firstMatch
-        guard seePro.waitForExistence(timeout: 4) else {
-            report("Settings had no See Pro row")
-            attachTree("paywall")
-            return
-        }
-        seePro.tap()
+        guard tapIdentifier("your-game") else { return attachTree("paywall") }
+        settle(1.0)
+        guard tapIdentifier("your-game-pro") else { return attachTree("paywall") }
         settle(2.0)
         expect("plan-yearly", on: "paywall")
-        capture("05_paywall")
+        capture("04_paywall")
     }
 
-    /// 06 The first-run court primer. It is the answer to "what am I looking
-    /// at", so it is worth a slot in the set and worth proving it still opens.
-    func test06CourtPrimer() {
-        // No fixture: this is the genuinely-empty first-run state, with the
-        // primer suppression turned back off.
-        app = XCUIApplication()
-        app.launchArguments = [
-            "-subscription.localProOverride", "NO",
-            "-uitest.reset", "YES",
-            "-uitest.seed", "4242",
-        ]
-        app.launch()
-        _ = app.wait(for: .runningForeground, timeout: 30)
-
-        let continueButton = app.buttons["onboarding-continue"]
-        guard continueButton.waitForExistence(timeout: 8) else {
-            report("first launch had no onboarding Continue button")
-            return attachTree("onboarding_welcome")
-        }
-        if continueButton.frame.height < 54 || continueButton.frame.width < 300 {
-            report("onboarding Continue did not expose its full visual hit area")
-        }
-        continueButton.tap()
-
-        let beginnerLevel = app.buttons["onboarding-level-new"]
-        guard beginnerLevel.waitForExistence(timeout: 5) else {
-            report("onboarding had no beginner level option")
-            return attachTree("onboarding_level")
-        }
-        beginnerLevel.tap()
-        app.buttons["onboarding-continue"].tap()
-
-        let startButton = app.buttons["onboarding-continue"]
-        let startPredicate = NSPredicate(format: "label == %@", "Start practising")
-        let startExpectation = XCTNSPredicateExpectation(
-            predicate: startPredicate,
-            object: startButton
-        )
-        guard XCTWaiter.wait(for: [startExpectation], timeout: 5) == .completed else {
-            report("onboarding had no Start practising button")
-            return attachTree("onboarding_ready")
-        }
-        startButton.tap()
-        settle(1.0)
-        expect("primer-done", on: "court primer")
-        capture("06_court_primer")
+    /// 05 First launch: what the court is, before the two setup questions.
+    func test05Onboarding() {
+        launch(fixture: nil)
+        settle(2.0)
+        expect("onboarding-continue", on: "onboarding")
+        capture("05_onboarding")
     }
 }

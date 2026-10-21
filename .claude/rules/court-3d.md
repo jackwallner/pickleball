@@ -10,7 +10,7 @@ paths:
   - "DuprIQTests/AimLabelLayoutTests.swift"
 ---
 
-# DUPR IQ: the first-person court
+# Third Shot: the first-person court
 
 Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 

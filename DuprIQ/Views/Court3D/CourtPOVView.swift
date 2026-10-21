@@ -77,9 +77,18 @@ struct CourtPOVView: View {
     /// read-only without `.disabled()` dimming the panel.
     var onPick: ((Int) -> Void)?
     var chrome: Chrome = .fullBleedDrill
-    /// The line above the buttons. The drill screen asks the question here;
-    /// inside a session runner the runner has already asked it above the card.
+    /// The line above the buttons.
     var prompt: String?
+    /// Shot paths to fly after grading, in order: yours, then the right one.
+    var replay: [Replay] = []
+    /// Bumped by the caller to (re)play `replay`.
+    var replayToken: Int = 0
+
+    /// One path in the post-grading replay.
+    struct Replay {
+        let flight: ShotFlight
+        let isCorrect: Bool
+    }
 
     /// No player initial is drawn above this, because the HUD lives up there.
     private static let playerLabelFloor: CGFloat = 152
@@ -143,7 +152,9 @@ struct CourtPOVView: View {
                     camera: camera,
                     aimPoints: aimPoints,
                     colors: options.indices.map { ringColor(for: $0) },
-                    emphasised: emphasisedIndex
+                    emphasised: emphasisedIndex,
+                    replay: replay,
+                    replayToken: replayToken
                 )
                 .accessibilityHidden(true)
                 .frame(width: geo.size.width, height: viewport.height)
@@ -586,6 +597,8 @@ private struct CourtSceneView: UIViewRepresentable {
     let aimPoints: [CourtPoint]
     let colors: [Color]
     let emphasised: Int?
+    let replay: [CourtPOVView.Replay]
+    let replayToken: Int
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
@@ -608,6 +621,7 @@ private struct CourtSceneView: UIViewRepresentable {
         view.accessibilityElementsHidden = true
         context.coordinator.rebuild(view, position: position, camera: camera)
         context.coordinator.updateAims(view, points: aimPoints, colors: colors, emphasised: emphasised)
+        context.coordinator.replayToken = replayToken
         return view
     }
 
@@ -618,6 +632,10 @@ private struct CourtSceneView: UIViewRepresentable {
             context.coordinator.updateCamera(view, camera: camera)
         }
         context.coordinator.updateAims(view, points: aimPoints, colors: colors, emphasised: emphasised)
+        if context.coordinator.replayToken != replayToken {
+            context.coordinator.replayToken = replayToken
+            context.coordinator.play(view, replay: replay)
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -625,7 +643,10 @@ private struct CourtSceneView: UIViewRepresentable {
     @MainActor
     final class Coordinator {
         var positionID: String?
+        var replayToken = 0
         private var aimRoot: SCNNode?
+        private var replayRoot: SCNNode?
+        private var replayGeneration = 0
 
         func rebuild(_ view: SCNView, position: RallyPosition, camera: CourtCamera) {
             let scene = CourtScene.make(for: position, camera: camera)
@@ -633,6 +654,10 @@ private struct CourtSceneView: UIViewRepresentable {
             aims.name = "aims"
             scene.rootNode.addChildNode(aims)
             aimRoot = aims
+            let replays = SCNNode()
+            replays.name = "replay"
+            scene.rootNode.addChildNode(replays)
+            replayRoot = replays
             view.scene = scene
             view.pointOfView = scene.rootNode.childNode(withName: "camera", recursively: false)
             updateCamera(view, camera: camera)
@@ -660,6 +685,34 @@ private struct CourtSceneView: UIViewRepresentable {
                 ))
             }
             view.setNeedsDisplay()
+        }
+
+        /// Flies each path in turn from the contact: a ball and a trail of
+        /// dots that stays behind, so the two paths can be compared once the
+        /// balls have landed. Plain move actions only, so nothing runs on the
+        /// render thread that this actor owns.
+        func play(_ view: SCNView, replay: [CourtPOVView.Replay]) {
+            guard let replayRoot else { return }
+            replayRoot.childNodes.forEach { $0.removeFromParentNode() }
+            guard !replay.isEmpty else { return }
+
+            var start = 0.2
+            for path in replay {
+                let color = path.isCorrect ? Theme.rightGreen : Theme.wrongRed
+                let duration = path.flight.endsInNet ? 0.7 : 1.05
+                replayRoot.addChildNode(CourtScene.replayNode(
+                    path.flight, color: color, delay: start, duration: duration
+                ))
+                start += duration + 0.35
+            }
+
+            replayGeneration += 1
+            let generation = replayGeneration
+            view.rendersContinuously = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + start + 0.4) { [weak self, weak view] in
+                guard let self, self.replayGeneration == generation else { return }
+                view?.rendersContinuously = false
+            }
         }
     }
 }

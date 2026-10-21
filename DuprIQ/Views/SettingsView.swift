@@ -1,148 +1,85 @@
 import SwiftUI
-import UIKit
 
 struct SettingsView: View {
-    @EnvironmentObject private var subscriptions: SubscriptionService
-    @EnvironmentObject private var progress: ProgressStore
-    @EnvironmentObject private var limiter: PracticeLimiter
-    @EnvironmentObject private var reviews: ReviewPromptTracker
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var profile: PlayerProfile
+    @EnvironmentObject private var subscriptions: SubscriptionService
+
     @State private var showPaywall = false
-    @State private var showTour = false
-    @State private var showPrimer = false
     @State private var restoreMessage: String?
     @State private var isRestoring = false
 
+    private static let manageURL = URL(string: "https://apps.apple.com/account/subscriptions")!
+
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Subscription") {
-                    LabeledContent("Status", value: subscriptions.isPro ? "Pro" : "Free")
-                    if !subscriptions.isPro {
-                        Button("See Pro") { showPaywall = true }
-                            .accessibilityIdentifier("see-pro")
-                    }
-                    Button("Restore purchases") { restore() }
-                        .disabled(isRestoring)
-                        .accessibilityIdentifier("restore-purchases")
-                    if let restoreMessage {
-                        Text(restoreMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+        Form {
+            Section {
+                Picker("Decision timer", selection: $settings.shotClock) {
+                    ForEach(AppSettings.ShotClock.allCases) { option in
+                        Text(option.displayName).tag(option)
                     }
                 }
-
-                Section("Your game") {
-                    NavigationLink {
-                        PlayerProfileView()
-                    } label: {
-                        LabeledContent("Level", value: profile.levelSummary)
-                    }
-                    if let days = profile.daysUntilMatch {
-                        LabeledContent("Next match", value: days == 0 ? "Today" : "\(days) days")
-                    }
-                }
-
-                Section {
-                    Toggle("Decision timer", isOn: Binding(
-                        get: { settings.isShotClockEnabled },
-                        set: { settings.setShotClockEnabled($0) }
-                    ))
-                    .accessibilityIdentifier("decision-timer-toggle")
-                    if settings.isShotClockEnabled {
-                        Picker("Time to choose", selection: $settings.shotClock) {
-                            ForEach(AppSettings.ShotClock.timedOptions) { option in
-                                Text(option.displayName).tag(option)
-                            }
-                        }
-                        .accessibilityIdentifier("decision-timer-pace")
-                    }
-                } header: {
-                    Text("Playing")
-                } footer: {
-                    Text("Off by default while you learn the court. Turn it on later to practise faster reads. When enabled, a timeout counts as a miss.")
-                }
-
-                Section("Appearance") {
-                    Picker("Theme", selection: $settings.appearance) {
-                        ForEach(AppSettings.Appearance.allCases) { option in
-                            Text(option.displayName).tag(option)
-                        }
-                    }
-                }
-
-                Section("Feedback") {
-                    Toggle("Haptics", isOn: $settings.hapticsEnabled)
-                    Toggle("Sound", isOn: $settings.soundEnabled)
-                    Toggle("Celebrations", isOn: $settings.celebrationsEnabled)
-                }
-
-                Section {
-                    Toggle("Daily reminder", isOn: $settings.reminderEnabled)
-                    if settings.reminderEnabled {
-                        DatePicker(
-                            "Remind me at",
-                            selection: $settings.reminderTime,
-                            displayedComponents: .hourAndMinute
-                        )
-                    }
-                } header: {
-                    Text("Reminders")
-                } footer: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(ShellCopy.DailyReminder.body)
-                        if settings.reminderPermissionDenied {
-                            Text("Notifications are off for DUPR IQ. Turn them on in Settings to use reminders.")
-                            Link(
-                                "Open notification settings",
-                                destination: URL(string: UIApplication.openSettingsURLString)!
-                            )
-                        }
-                    }
-                }
-
-                Section("Learn") {
-                    Button("How to read the court") { showPrimer = true }
-                        .accessibilityIdentifier("settings-primer")
-                    NavigationLink("The quick-start primer") { HowToPlayView() }
-                    NavigationLink("How the answers are decided") { CoachingSystemView() }
-                    Button("What this app can do") { showTour = true }
-                }
-
-                Section {
-                    Link("Privacy Policy", destination: PaywallLinks.privacy)
-                    Link("Terms of Use", destination: PaywallLinks.terms)
-                } footer: {
-                    Text(ShellCopy.Legal.duprDisclaimer)
-                }
-
-                #if DEBUG
-                Section("Developer") {
-                    Toggle("Local Pro override", isOn: Binding(
-                        get: { subscriptions.isPro },
-                        set: { subscriptions.setLocalOverride(isPro: $0) }
-                    ))
-                    .accessibilityIdentifier("local-pro")
-                    Button("Reset progress", role: .destructive) {
-                        progress.resetForTesting()
-                        limiter.resetForTesting()
-                        reviews.resetForTesting()
-                    }
-                    .accessibilityIdentifier("reset-progress")
-                }
-                #endif
+                .accessibilityIdentifier("settings-timer")
+                Toggle("Haptics", isOn: $settings.hapticsEnabled)
+            } header: {
+                Text("On court")
+            } footer: {
+                Text("With the timer on, a ball you don't decide on in time is a lost point.")
             }
-            .navigationTitle("Settings")
-            .tabBarClearance()
-            .sheet(isPresented: $showPaywall) { PaywallView() }
-            .sheet(isPresented: $showPrimer) { CourtPrimerView() }
-            .sheet(isPresented: $showTour) { FeatureTourView { showTour = false } }
+
+            Section("You") {
+                Picker("Level", selection: $profile.level) {
+                    ForEach(ExperienceLevel.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("Side", selection: $profile.half) {
+                    ForEach(CourtHalf.allCases) { Text($0.title).tag($0) }
+                }
+            }
+
+            Section {
+                if subscriptions.isPro {
+                    Label("\(AppBrand.proName) is active", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(Theme.rightGreen)
+                    Link("Manage subscription", destination: Self.manageURL)
+                } else {
+                    Button("See \(AppBrand.proName)") { showPaywall = true }
+                        .accessibilityIdentifier("settings-pro")
+                }
+                Button(isRestoring ? "Restoring…" : "Restore purchases", action: restore)
+                    .disabled(isRestoring)
+                if let restoreMessage {
+                    Text(restoreMessage)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+            } header: {
+                Text("Membership")
+            }
+
+            Section {
+                NavigationLink("How answers are decided") { CoachingSystemView() }
+                Link("Privacy Policy", destination: PaywallLinks.privacy)
+                Link("Terms of Use", destination: PaywallLinks.terms)
+                if let mail = URL(string: "mailto:\(AppStoreLinks.feedbackEmail)") {
+                    Link("Send feedback", destination: mail)
+                }
+            } header: {
+                Text("About")
+            } footer: {
+                Text("\(AppBrand.name) \(Self.version). \(AppBrand.disclaimer)")
+            }
         }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPaywall) { PaywallView(source: "settings") }
     }
 
-    /// Restore has to say something. A button that silently does nothing is
-    /// what App Review reads as a broken restore path.
+    private static var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+
     private func restore() {
         isRestoring = true
         restoreMessage = nil
@@ -151,7 +88,7 @@ struct SettingsView: View {
             do {
                 try await subscriptions.restore()
                 restoreMessage = subscriptions.isPro
-                    ? "Pro restored."
+                    ? "\(AppBrand.proName) restored."
                     : "No previous purchase found on this Apple Account."
             } catch {
                 restoreMessage = error.localizedDescription
@@ -160,65 +97,27 @@ struct SettingsView: View {
     }
 }
 
-/// Shot selection is coached opinion, so the app states its system rather than
-/// asserting bare answers. This screen is the honest version of that promise,
-/// and it is also the first place a 4.0 player looks before leaving a review.
+/// The system every answer comes from, stated once so a player can argue with
+/// it rather than with an anonymous "correct".
 struct CoachingSystemView: View {
-    @Environment(\.dismiss) private var dismiss
     var body: some View {
         List {
             Section {
-                Text("""
-                Every answer in DUPR IQ comes from one stated system: keep the \
-                ball unattackable, get to the kitchen line, and hit at the \
-                player who is not set yet. It is the mainstream doubles \
-                orthodoxy taught by most coaches, and the app names the \
-                principle behind each answer so you can disagree with the \
-                principle rather than with an anonymous "correct".
-                """)
+                Text("Shot selection is coached opinion. \(AppBrand.name) commits to the mainstream doubles system: keep the ball unattackable, get to the kitchen line, and hit the player who isn't set. Every answer names the rule it came from.")
+                    .font(.callout)
+                    .foregroundStyle(Theme.inkSecondary)
             }
-            // The nine principles, read straight off the enum the advisor and
-            // the Which Principle? drill both use. A hand-written second copy
-            // of this list is a copy that drifts, and the one place a player
-            // checks the system is the worst place for it to be out of date.
-            Section("The principles") {
-                ForEach(Principle.allCases) { principle in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(principle.displayName).font(.subheadline.weight(.semibold))
-                        Text(principle.howToSpot)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(principle.tag)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .padding(.vertical, 4)
+            ForEach(Principle.measured) { principle in
+                Section(principle.displayName) {
+                    Text(principle.howToSpot)
+                        .font(.callout)
+                        .foregroundStyle(Theme.inkSecondary)
                 }
             }
-            Section {
-                Text("""
-                Situations where a good player would reasonably pick something \
-                else exist, and the explanation says so when they do. If you \
-                think an answer is wrong, the principle name is the thing to \
-                argue with.
-                """)
-                .font(.footnote).foregroundStyle(.secondary)
-            }
         }
-        .navigationTitle("The system")
+        .scrollContentBackground(.hidden)
+        .background(Theme.background.ignoresSafeArea())
+        .navigationTitle("How answers are decided")
         .navigationBarTitleDisplayMode(.inline)
-        .tabBarClearance()
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Back", systemImage: "chevron.left")
-                }
-                .accessibilityIdentifier("nav-back")
-            }
-        }
     }
 }

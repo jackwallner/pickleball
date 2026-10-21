@@ -6,7 +6,7 @@ paths:
   - "scripts/rc-*.py"
 ---
 
-# DUPR IQ: products and RevenueCat
+# Third Shot: products and RevenueCat
 
 Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 

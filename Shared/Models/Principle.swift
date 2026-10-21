@@ -1,18 +1,11 @@
 import Foundation
 
-/// The coaching principles the app answers with.
+/// The coaching principles every answer is filed under.
 ///
-/// `ShotAdvisor` already names a principle on every verdict, but those names
-/// are sentence-length and situation-specific ("Dink into the seam they left
-/// open"). This enum is the coarser family each of them belongs to, and it
-/// exists because naming the family is its own drillable skill: a player who
-/// can say "this is a keep-it-unattackable problem" before choosing a shot
-/// picks the right shot far more often than one who pattern-matches on the
-/// picture.
-///
-/// That is what `PrincipleMatchQuestion` drills, and this enum is its answer
-/// set. It is also the vocabulary `CoachingSystemView` teaches, so the two
-/// cannot drift: every principle here is one the stated system actually holds.
+/// `ShotAdvisor` names a sentence-length rule on every verdict ("Dink into the
+/// seam they left open"). This enum is the coarser family each of those rules
+/// belongs to, and it is what "Your game" measures: nine families a player can
+/// get better at, rather than fifteen phrasings of them.
 enum Principle: String, Codable, CaseIterable, Identifiable, Sendable {
     case unattackable
     case getToTheLine
@@ -92,4 +85,40 @@ enum Principle: String, Codable, CaseIterable, Identifiable, Sendable {
             return "The ball is above net height and you are close enough to hit down on it. This is the one moment the soft game is over. Hit it downward at a body or a seam, not at a sideline."
         }
     }
+
+    /// The family a verdict's rule belongs to.
+    ///
+    /// Keyed by the advisor's exact wording, so `ShotAdvisorTests` guards the
+    /// table: a new rule with no family fails `testEveryVerdictHasAFamily`
+    /// rather than silently dropping out of the mastery numbers.
+    static func family(forVerdict principle: String) -> Principle? {
+        verdictFamilies[principle]
+    }
+
+    /// The families at least one generated verdict can land in, in the order
+    /// "Your game" lists them.
+    static var measured: [Principle] {
+        let used = Set(verdictFamilies.values)
+        return allCases.filter(used.contains)
+    }
+
+    private static let verdictFamilies: [String: Principle] = [
+        "Return deep, then take the line": .returnDeep,
+        "Drop when they're set": .unattackable,
+        "From the middle, drop straight": .getToTheLine,
+        "A high ball is a drive, even on the third": .finishDown,
+        "Drive at the player who isn't set": .hitWhoIsntSet,
+        "Dink at the player who isn't set": .hitWhoIsntSet,
+        "Attack the player who isn't set": .hitWhoIsntSet,
+        "Dink into the seam they left open": .middleSeam,
+        "Middle solves the poach problem": .middleSeam,
+        "Cross-court is the longest, safest diagonal": .longestDiagonal,
+        "Lob when they crowd the line": .longestDiagonal,
+        "Reset off your shoetops, never drive": .reset,
+        "Reset, don't counter-drive": .reset,
+        "Finish down at the feet": .finishDown,
+        "Finish through the seam": .finishDown,
+        "Take the free ball through the seam": .finishDown,
+        "Take the free ball in transition": .finishDown,
+    ]
 }

@@ -7,7 +7,7 @@ paths:
   - "Shared/Services/SubscriptionService.swift"
 ---
 
-# DUPR IQ: screenshots and UI tests
+# Third Shot: screenshots and UI tests
 
 Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 

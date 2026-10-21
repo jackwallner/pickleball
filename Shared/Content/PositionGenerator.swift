@@ -213,11 +213,19 @@ enum PositionGenerator {
         var pool = distractors(for: position).filter { $0 != answer }
         pool = Array(Set(pool)).sorted { $0.id < $1.id }
         pool.shuffle(using: &rng)
-        var chosen = Array(pool.prefix(3))
+        // At most two options share a shot shape. Three dinks and a lob is a
+        // question about targets wearing a shot-selection costume, and the
+        // panel can only tell two same-shape buttons apart by their place.
+        var chosen: [Shot] = []
+        func fits(_ shot: Shot) -> Bool {
+            shot != answer && !chosen.contains(shot)
+                && (chosen + [answer]).filter { $0.type == shot.type }.count < 2
+        }
+        for shot in pool where chosen.count < 3 && fits(shot) { chosen.append(shot) }
         // Backstop: never show fewer than four options, even if a phase's
         // distractor list collides heavily with the answer.
-        for fallback in Self.universalFallbacks where chosen.count < 3 {
-            if fallback != answer && !chosen.contains(fallback) { chosen.append(fallback) }
+        for fallback in Self.universalFallbacks where chosen.count < 3 && fits(fallback) {
+            chosen.append(fallback)
         }
         var result = chosen + [answer]
         result.shuffle(using: &rng)

@@ -54,7 +54,6 @@ class ScreenshotHarness: XCTestCase {
             // the Settings toggle flips, and a leftover YES hides the paywall.
             "-subscription.localProOverride", "NO",
             "-uitest.reset", "YES",
-            "-uitest.skipPrimer", "YES",
             // Generated practice is untimed for a new player. Keep the capture
             // explicit so simulator leftovers cannot turn pressure back on.
             "-settings.shotClock", "off",

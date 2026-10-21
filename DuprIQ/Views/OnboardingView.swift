@@ -1,205 +1,210 @@
 import SwiftUI
 
-/// First run: what the app is, where the player's game is, and what it will do
-/// with that answer.
-///
-/// Three pages, not eight. The shell this was ported from asked a licence
-/// track, a jurisdiction, a code-book edition and an exam date, because all
-/// four changed what a candidate should study. Pickleball has one axis worth
-/// asking about, and padding the flow to feel thorough would just be four
-/// screens between someone and the first drill.
+/// Three screens: what the court is, where you are as a player, and which
+/// half you play. Both answers change what the court generates.
 struct OnboardingView: View {
     @EnvironmentObject private var profile: PlayerProfile
-    @EnvironmentObject private var progress: ProgressStore
-    @AppStorage("duprIQ.skillLevel") private var skillLevel = ""
 
-    @State private var page = 0
-    @State private var showLevelRequired = false
+    private enum Step: Int, CaseIterable { case court, level, half }
 
-    var onFinish: () -> Void
+    @State private var step: Step = .court
+    @State private var level: ExperienceLevel?
+    @State private var half: CourtHalf?
+
+    /// A fixed, legal example: one opponent at the line, one still short, and
+    /// a ball sitting up. The answer is to drive at the one who isn't set.
+    private static let example = RallyPosition(
+        id: "onboarding", phase: .thirdShot,
+        you: CourtPoint(x: 6.5, y: 3.5),
+        partner: CourtPoint(x: 14, y: 4),
+        opponentLeft: CourtPoint(x: 6, y: 29.6),
+        opponentRight: CourtPoint(x: 14.5, y: 34.5),
+        contact: CourtPoint(x: 7, y: 6.2),
+        ballHeight: .aboveNet,
+        yourScore: 4, theirScore: 6, isServingTeam: true
+    )
+
+    private static let exampleOptions: [Shot] = [
+        Shot(.drop, .crossCourtKitchen),
+        Shot(.drive, .atFeet),
+        Shot(.lob, .deepCrossCourt),
+        Shot(.reset, .straightKitchen),
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
-            TabView(selection: $page) {
-                welcomePage.tag(0)
-                levelPage.tag(1)
-                readyPage.tag(2)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            progressDots
+                .padding(.top, 12)
 
-            if showLevelRequired && page == 1 && !profile.hasSelectedLevel {
-                Text("Choose the level that fits you best to continue.")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Theme.court)
-                    .accessibilityIdentifier("onboarding-level-required")
-            }
-
-            Button {
-                advance()
-            } label: {
-                Text(page == 2 ? "Start practising" : "Continue")
-                    .primaryCTA()
-            }
-            .buttonStyle(PressableCTAStyle())
-            .accessibilityIdentifier("onboarding-continue")
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-        }
-        .background(Theme.background)
-    }
-
-    // MARK: - Pages
-
-    private var welcomePage: some View {
-        page(
-            icon: "sportscourt.fill",
-            title: "Shot selection, drilled",
-            body: "A court, four players' feet, and four shots to choose from. Every answer names the coaching principle it came from, so you leave knowing why rather than just what."
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                benefit("infinity", ShellCopy.Onboarding.generatorBenefit)
-                benefit("quote.bubble.fill", ShellCopy.Onboarding.principleBenefit)
-                benefit("lock.open.fill", ShellCopy.Onboarding.freeCourtsBenefit)
-            }
-        }
-    }
-
-    private var levelPage: some View {
-        page(
-            icon: "figure.pickleball",
-            title: "Where's your game?",
-            body: "This orders what the app shows you first. You can change it any time in Settings."
-        ) {
-            VStack(spacing: 8) {
-                ForEach(ExperienceLevel.allCases) { level in
-                    Button {
-                        profile.selectLevel(level)
-                        skillLevel = level.rawValue
-                        showLevelRequired = false
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: level.icon)
-                                .foregroundStyle(profile.level == level && profile.hasSelectedLevel ? .white : Theme.court)
-                                .frame(width: 26)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(level.title)
-                                    .font(.subheadline.weight(.semibold))
-                                Text(level.detail)
-                                    .font(.caption)
-                                    .opacity(0.8)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .multilineTextAlignment(.leading)
-                        .foregroundStyle(profile.level == level && profile.hasSelectedLevel ? Color.white : Theme.ink)
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(profile.level == level && profile.hasSelectedLevel ? Theme.court : Theme.card)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Theme.rule, lineWidth: profile.level == level && profile.hasSelectedLevel ? 0 : 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("onboarding-level-\(level.rawValue)")
+            Group {
+                switch step {
+                case .court: courtStep
+                case .level: levelStep
+                case .half: halfStep
                 }
             }
-        }
-    }
+            .frame(maxWidth: Theme.readableContentWidth)
+            .frame(maxHeight: .infinity)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
 
-    private var readyPage: some View {
-        page(
-            icon: "checkmark.seal.fill",
-            title: profile.hasSelectedLevel ? profile.level.title : "You're set",
-            body: profile.hasSelectedLevel ? profile.level.emphasis : "Two courts are free forever, and the free tier grades fifteen balls a day."
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                benefit("calendar", "Fifteen graded balls a day, free")
-                benefit("chart.bar.fill", "Accuracy by phase, so you know where to work")
-                benefit("bolt.fill", "Pro adds unlimited balls, history, and your missed principles")
-                Text(ShellCopy.Legal.duprDisclaimer)
-                    .font(.caption2)
-                    .foregroundStyle(Theme.inkTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 6)
+            Button(action: next) {
+                Text(step == .half ? "Take me to the court" : "Continue")
+                    .primaryCTA(color: canContinue ? Theme.court : Theme.card)
             }
-        }
-    }
-
-    // MARK: - Scaffolding
-
-    private func advance() {
-        if page == 1 && !profile.hasSelectedLevel {
-            Haptics.impact(.light, intensity: 0.8)
-            withAnimation { showLevelRequired = true }
-            return
-        }
-        if page < 2 {
-            withAnimation { page += 1 }
-        } else {
-            finish()
-        }
-    }
-
-    @ViewBuilder
-    private func page<Content: View>(
-        icon: String,
-        title: String,
-        body: String,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        // Centering, not top-aligned. A plain ScrollView pinned the welcome
-        // page's four short lines to the top and left the bottom 40% of the
-        // screen empty, which is the first thing a new player ever sees.
-        CenteringScrollView {
-            VStack(spacing: 18) {
-                Image(systemName: icon)
-                    .font(.system(size: 44, weight: .semibold))
-                    .foregroundStyle(Theme.court)
-                    .padding(.top, 8)
-                Text(title)
-                    .font(Theme.display(28))
-                    .foregroundStyle(Theme.ink)
-                    .multilineTextAlignment(.center)
-                Text(body)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                content()
-                    .padding(.top, 4)
-            }
+            .buttonStyle(PressableCTAStyle())
+            .disabled(!canContinue)
+            .accessibilityIdentifier("onboarding-continue")
             .padding(.horizontal, 24)
-            .padding(.bottom, 60)
-            .frame(maxWidth: 520)
-            .frame(maxWidth: .infinity)
+            .padding(.bottom, 12)
+            .frame(maxWidth: Theme.readableContentWidth)
         }
+        .frame(maxWidth: .infinity)
+        .background(Theme.background.ignoresSafeArea())
+        .animation(.spring(response: 0.4, dampingFraction: 0.9), value: step)
     }
 
-    private func benefit(_ icon: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon)
-                .foregroundStyle(Theme.court)
-                .frame(width: 22)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(Theme.ink)
-                .fixedSize(horizontal: false, vertical: true)
+    // MARK: - Steps
+
+    private var courtStep: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            CourtPOVView(
+                position: Self.example,
+                options: Self.exampleOptions,
+                aimPoints: ShotAiming.aimPoints(for: Self.exampleOptions, in: Self.example),
+                phase: .deciding,
+                onPick: nil,
+                chrome: .embedded
+            )
+            .frame(height: 380)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("See the court. Call the shot.")
+                    .font(Theme.display(34))
+                    .foregroundStyle(Theme.ink)
+                Text("Every ball is a real rally position from where you stand. Read the ball's height against the net and where their feet are, then pick where it goes.")
+                    .font(.body)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer(minLength: 0)
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
     }
 
-    private func finish() {
-        progress.hasOnboarded = true
-        profile.markSetupComplete()
-        // A player who has only ever run this version must not be shown notes
-        // about what changed in it.
-        WhatsNew.markCurrentAsBaseline()
-        onFinish()
+    private var levelStep: some View {
+        question(
+            "Where's your game right now?",
+            detail: "Your first focus points start where rallies at your level are usually lost."
+        ) {
+            ForEach(ExperienceLevel.allCases) { option in
+                choice(option.title, detail: option.detail, selected: level == option,
+                       id: "level-\(option.rawValue)") { level = option }
+            }
+        }
+    }
+
+    private var halfStep: some View {
+        question(
+            "Which side do you play?",
+            detail: "Positions put you on that half, so the angles are the ones you see on court."
+        ) {
+            ForEach(CourtHalf.allCases) { option in
+                choice(option.title, detail: option.detail, selected: half == option,
+                       id: "half-\(option.rawValue)") { half = option }
+            }
+        }
+    }
+
+    // MARK: - Pieces
+
+    private func question<Content: View>(
+        _ title: String, detail: String, @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(Theme.display(32))
+                .foregroundStyle(Theme.ink)
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 8)
+            content()
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 36)
+    }
+
+    private func choice(
+        _ title: String, detail: String, selected: Bool, id: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(Theme.ink)
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? Theme.Surface.ball : Theme.inkTertiary)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(selected ? Theme.court.opacity(0.35) : Theme.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(selected ? Theme.courtLight : Theme.rule, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressableCTAStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(id)
+    }
+
+    private var progressDots: some View {
+        HStack(spacing: 6) {
+            ForEach(Step.allCases, id: \.self) { item in
+                Capsule()
+                    .fill(item.rawValue <= step.rawValue ? Theme.courtLight : Theme.rule)
+                    .frame(width: item == step ? 22 : 8, height: 8)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+    }
+
+    private var canContinue: Bool {
+        switch step {
+        case .court: return true
+        case .level: return level != nil
+        case .half: return half != nil
+        }
+    }
+
+    private func next() {
+        switch step {
+        case .court:
+            step = .level
+        case .level:
+            step = .half
+        case .half:
+            if let level { profile.level = level }
+            if let half { profile.half = half }
+            profile.markSetupComplete()
+        }
     }
 }

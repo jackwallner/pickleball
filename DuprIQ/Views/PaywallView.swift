@@ -22,9 +22,8 @@ struct PaywallView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
     @Environment(\.dismiss) private var dismiss
 
-    /// Where the sheet was opened from. Not sent anywhere: it exists so the
-    /// call sites read as distinct entry points and a future funnel question
-    /// ("which door do people buy from") has somewhere to hang.
+    /// Where the sheet was opened from, which becomes the impression id's
+    /// surface in `ConversionDiagnostics`.
     var source: String = "unspecified"
 
     @State private var plan: PaywallPlan = .yearly
@@ -38,31 +37,57 @@ struct PaywallView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Every ball, every phase")
-                        .font(.largeTitle.bold())
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Play every ball")
+                            .font(Theme.display(34))
+                            .foregroundStyle(Theme.ink)
+                        Text("Free gives you \(PracticeLimiter.freeDailyBalls) balls a day. Pro takes the limit off and shows you what is costing you points.")
+                            .font(.callout)
+                            .foregroundStyle(Theme.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(Self.benefits, id: \.title) { benefit in
+                            HStack(alignment: .top, spacing: 14) {
+                                Image(systemName: benefit.icon)
+                                    .font(.headline)
+                                    .foregroundStyle(Theme.Surface.ball)
+                                    .frame(width: 26)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(benefit.title)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(Theme.ink)
+                                    Text(benefit.detail)
+                                        .font(.footnote)
+                                        .foregroundStyle(Theme.inkSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
 
                     if subscriptions.storeState == .unavailable {
                         unavailableCard
                     }
 
-                    ForEach(PaywallPlan.allCases) { option in
-                        planRow(option)
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Self.benefits, id: \.self) { benefit in
-                            Label(benefit, systemImage: "checkmark.circle.fill")
-                                .font(.callout)
+                    VStack(spacing: 10) {
+                        ForEach(PaywallPlan.allCases) { option in
+                            planRow(option)
                         }
                     }
                 }
-                .padding()
+                .padding(20)
+                .frame(maxWidth: Theme.readableContentWidth)
+                .frame(maxWidth: .infinity)
             }
+            .background(Theme.background.ignoresSafeArea())
             .safeAreaInset(edge: .bottom) {
                 footer
             }
-            .navigationTitle("DUPR IQ Pro")
+            .navigationTitle(AppBrand.proName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -72,54 +97,60 @@ struct PaywallView: View {
             .task {
                 await subscriptions.ensureOfferings()
                 selectAvailablePlanIfNeeded()
-                subscriptions.trackPaywallImpression(id: "dupriq_main_paywall", oncePerSession: true)
+                subscriptions.trackPaywallImpression(id: "dupriq_\(source)_paywall", oncePerSession: true)
             }
         }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - Pieces
 
     private func planRow(_ option: PaywallPlan) -> some View {
-        Button {
+        let selected = plan == option
+        return Button {
             plan = option
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(option.title).font(.body.weight(.semibold))
+                    Text(option.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
                     priceLabel(for: option)
                 }
                 Spacer()
-                Image(systemName: plan == option
-                      ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(plan == option ? Color.accentColor : .secondary)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? Theme.Surface.ball : Theme.inkTertiary)
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(selected ? Theme.court.opacity(0.35) : Theme.card)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(selected ? Theme.courtLight : Theme.rule, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
         .disabled(!isPlanAvailable(option))
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("plan-\(option.rawValue)")
     }
 
-    /// A price is either real or absent.
-    ///
-    /// The sheet used to fall back to hard-coded strings whenever RevenueCat
-    /// had nothing, which meant a production offering failure rendered a
-    /// polished, plausible price list wired to a Continue button that could not
-    /// charge anyone. A redacted placeholder while loading, and no price at all
-    /// when the store is down, is the honest version.
+    /// A price is either real or absent. A redacted placeholder while loading,
+    /// and no price at all when the store is down.
     @ViewBuilder
     private func priceLabel(for option: PaywallPlan) -> some View {
         if let price = subscriptions.paywallPrice(for: option) {
             Text(price.localized + suffix(for: option))
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote).foregroundStyle(Theme.inkSecondary)
         } else if subscriptions.storeState == .unavailable || subscriptions.storeState == .available {
             Text(subscriptions.storeState == .available ? "Not offered" : "Price unavailable")
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote).foregroundStyle(Theme.inkSecondary)
         } else {
             Text("Loading price")
-                .font(.footnote).foregroundStyle(.secondary)
+                .font(.footnote).foregroundStyle(Theme.inkSecondary)
                 .redacted(reason: .placeholder)
         }
     }
@@ -136,19 +167,19 @@ struct PaywallView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("The App Store isn't reachable", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.ink)
             Text("We can't load prices right now, so nothing here can be purchased. Check your connection and try again.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.inkSecondary)
             Button("Try again") {
                 Task { await subscriptions.loadOfferings() }
             }
             .buttonStyle(.bordered)
             .accessibilityIdentifier("paywall-retry")
         }
-        .padding()
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var footer: some View {
@@ -156,26 +187,28 @@ struct PaywallView: View {
             if let disclosure = purchaseDisclosure {
                 Text(disclosure)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)
             }
 
             if let error {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.wrongRed)
                     .multilineTextAlignment(.center)
             }
 
             Button(action: purchase) {
-                if isWorking {
-                    ProgressView().frame(maxWidth: .infinity)
-                } else {
-                    Text(continueTitle).frame(maxWidth: .infinity)
+                Group {
+                    if isWorking {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text(continueTitle)
+                    }
                 }
+                .primaryCTA(color: isStoreReady ? Theme.court : Theme.card)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(PressableCTAStyle())
             .disabled(isWorking || !isStoreReady)
             .accessibilityIdentifier("paywall-continue")
 
@@ -185,9 +218,18 @@ struct PaywallView: View {
                 Link("Privacy Policy", destination: PaywallLinks.privacy)
             }
             .font(.footnote)
+            .tint(Theme.courtLight)
         }
-        .padding()
-        .background(.bar)
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .frame(maxWidth: Theme.readableContentWidth)
+        .frame(maxWidth: .infinity)
+        .background(
+            Theme.background
+                .overlay(alignment: .top) { Rectangle().fill(Theme.rule).frame(height: 1) }
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     private var continueTitle: String {
@@ -232,12 +274,19 @@ struct PaywallView: View {
         return "\(billing) Renews \(period) until canceled. Manage or cancel in Settings > Apple Account > Subscriptions; cancel at least 24 hours before renewal."
     }
 
+    private struct Benefit {
+        let icon: String
+        let title: String
+        let detail: String
+    }
+
     private static let benefits = [
-        "Unlimited graded balls, not 15 a day",
-        "Every rally phase, including transition and defense",
-        "Session history: every rally you finish, kept and scored",
-        "Your missed principles ranked, so you know what to drill",
-        "New positions generated forever, never a fixed question bank",
+        Benefit(icon: "infinity", title: "Unlimited balls",
+                detail: "As many runs a day as you want."),
+        Benefit(icon: "scope", title: "Your traps, ranked",
+                detail: "The tempting wrong shots costing you the most points."),
+        Benefit(icon: "clock.arrow.circlepath", title: "Every run kept",
+                detail: "Score and right calls for every run you play."),
     ]
 
     private func isPlanAvailable(_ option: PaywallPlan) -> Bool {

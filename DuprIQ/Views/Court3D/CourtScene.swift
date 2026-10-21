@@ -581,6 +581,50 @@ enum CourtScene {
         return node
     }
 
+    /// One replayed shot: a ball that flies the path, leaving a dotted trail.
+    static func replayNode(_ flight: ShotFlight, color: Color, delay: Double, duration: Double) -> SCNNode {
+        let node = SCNNode()
+        node.name = "replay-path"
+        let samples = flight.samples
+        guard let first = samples.first else { return node }
+        let step = duration / Double(max(samples.count - 1, 1))
+
+        // Sized for the far court: a dot that reads at the near kitchen is
+        // invisible at the far baseline, so the trail errs large.
+        for (index, sample) in samples.enumerated() where index > 0 {
+            let dot = SCNNode(geometry: SCNSphere(radius: 0.11))
+            dot.geometry?.firstMaterial = glowing(color, intensity: 0.7)
+            dot.position = CourtCamera.scenePoint(sample.point, height: sample.height)
+            dot.opacity = 0
+            dot.runAction(.sequence([
+                .wait(duration: delay + step * Double(index)),
+                .fadeOpacity(to: 0.8, duration: 0.06),
+            ]))
+            node.addChildNode(dot)
+        }
+
+        let ball = SCNNode(geometry: SCNSphere(radius: 0.24))
+        ball.geometry?.firstMaterial = glowing(color, intensity: 1.0)
+        ball.position = CourtCamera.scenePoint(first.point, height: first.height)
+        ball.opacity = 0
+        var actions: [SCNAction] = [.wait(duration: delay), .fadeIn(duration: 0.05)]
+        actions += samples.dropFirst().map {
+            SCNAction.move(to: CourtCamera.scenePoint($0.point, height: $0.height), duration: step)
+        }
+        if flight.endsInNet, let last = samples.last {
+            // Dies in the tape and drops to the floor on your side.
+            actions.append(.move(
+                to: CourtCamera.scenePoint(
+                    CourtPoint(x: last.point.x, y: last.point.y - 0.6), height: 0.15
+                ),
+                duration: 0.3
+            ))
+        }
+        ball.runAction(.sequence(actions))
+        node.addChildNode(ball)
+        return node
+    }
+
     // MARK: - Primitives
 
     private static func box(

@@ -1,44 +1,52 @@
 ---
 paths:
   - "Shared/Content/RallyBuilder.swift"
-  - "Shared/Content/EndlessPractice.swift"
+  - "Shared/Models/ShotFlight.swift"
   - "Shared/Services/AppSettings.swift"
-  - "DuprIQ/Views/DrillSessionView.swift"
-  - "DuprIQ/Views/Drills/*.swift"
-  - "DuprIQ/Views/Components/QuestionUI.swift"
+  - "DuprIQ/Views/RallyView.swift"
+  - "DuprIQ/Views/Court3D/CourtPOVView.swift"
   - "DuprIQTests/RallyBuilderTests.swift"
 ---
 
-# DUPR IQ: rallies and session runners
-
-Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
+# Third Shot: rallies, focus points and the replay
 
 ### Points, not balls
 
 `RallyBuilder` builds POINTS. A correct decision advances the same rally to your
-next shot; a wrong one loses the point and skips the rest of it, the way a real
-one ends. `RallyBuilderTests` pins the part that would otherwise train an
-impossible sequence: the serving team never returns serve and the returning team
-never hits the third shot. Metering is unchanged — every graded ball still costs
-one from the daily allowance, and a session is still truncated to the allowance
+next shot; a wrong one loses the point and skips the rest of it. `RallyBuilderTests`
+pins the part that would otherwise train an impossible sequence: the serving team
+never returns serve and the returning team never hits the third shot. Every graded
+ball costs one from the daily allowance, and a run is truncated to the allowance
 rather than promising balls it cannot grade.
 
-`AppSettings.ShotClock` adds pressure after the player understands the court read.
-Generated practice defaults to untimed because a beginner first has to learn the
-ball, feet, rings, and labels. Settings exposes an off-by-default Decision Timer;
-enabling it starts at a nine-second learning pace, with game and fast options after
-that. When enabled, a ball the player does not decide about is graded as a miss.
+### Focus points (the adaptive part)
 
-**Every mode that plays a generated ball draws the same court.** The pivot to the first-person court (see `court-3d.md`)
-changed `DrillSessionView` and `QuickSessionView` and missed `PracticeRunView`,
-so Timed Challenge and Fix My Mistakes, both Pro-locked, went on serving the
-overhead diagram above a list of sentences that the pivot had replaced
-everywhere else. The fix was one call site: `QuestionPager` already renders
-`CourtPOVView` when it is handed `shots`, and that runner was not handing them
-over. `CourtPOVView.Chrome` is what makes the same view work in both places: a
-full-bleed drill reserves the HUD band and the verdict card's strip and draws
-your paddle, an embedded 340 point card reserves almost nothing, shrinks the
-captions, and culls the paddle (in a card it is a dark notch in the corner that
-reads as a clipping artefact). `EndlessPractice.prompt` lost its ball height and
-contact side at the same time: correct copy above an overhead diagram, a
-giveaway printed over a render whose whole job is to make you read them.
+Every `RallyBuilder.focusEvery` (3rd) point is a single focus ball. Its target
+comes from `MasteryStore.focus(for:)`: open traps first (a `MistakeTally` with more
+misses than fixes since the last miss), then the weakest measured phase, then the
+player's level's `starterPhases`. A trap-targeted focus ball is rejection-sampled
+until the named trap is one of its four options. Answering one right counts as a
+fix; a fresh miss resets fixes to zero. The HUD labels it `FOCUS · <trap>`.
+
+### Side orientation
+
+`PlayerProfile.half` mirrors positions so you stand on the half you chose. It is
+safe only because the advisor is mirror-symmetric
+(`testTheAnswerIsUnchangedUnderALeftRightMirror`); the verdict is re-derived from
+the mirrored position, never assumed.
+
+### The replay
+
+After every graded ball, `CourtPOVView` flies `ShotFlight` paths from the contact:
+your shot in red first (a drive at a below-net ball dies in the tape), then the
+right one in green, each leaving a dotted trail. It replays when `RallyView` bumps
+`replayToken` (on grading and on the Replay button). The SceneKit side uses plain
+`SCNAction.move` sequences, never `customAction`: a closure created on the main
+actor and run on SceneKit's render thread trips Swift 6's isolation check.
+`ProductContractTests` pins that every right answer's path clears the net.
+
+### The decision timer
+
+`AppSettings.ShotClock` is off by default; a beginner first has to learn the ball,
+feet and rings. When on, an undecided ball is graded as a miss. The clock pauses
+while "Your game" is open over the court.

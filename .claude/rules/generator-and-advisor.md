@@ -2,28 +2,25 @@
 paths:
   - "Shared/Content/PositionGenerator.swift"
   - "Shared/Content/ShotAdvisor.swift"
-  - "Shared/Content/EndlessPractice.swift"
+  - "Shared/Content/MistakeCatalog.swift"
   - "Shared/Models/RallyPosition.swift"
   - "Shared/Models/Shot.swift"
   - "Shared/Models/CourtGeometry.swift"
-  - "DuprIQ/Views/Components/QuestionUI.swift"
   - "DuprIQTests/PositionGeneratorTests.swift"
   - "DuprIQTests/ShotAdvisorTests.swift"
-  - "DuprIQTests/ContentTests.swift"
+  - "DuprIQTests/ProductContractTests.swift"
   - "DuprIQTests/ServiceTests.swift"
 ---
 
-# DUPR IQ: the generator, the advisor and their contracts
+# Third Shot: the generator, the advisor and their contracts
 
 Moved verbatim from AGENTS.md. Loads when a matching file is read; update it here.
 
-**`EndlessPractice` is the graft seam.** It turns a `DrillQuestion` into the
-same `QuickItem` the authored drills emit, so the session runners never have to
-know whether a question was written by hand or generated a second ago. The one
-thing that could not be adapted away is the court: `QuickItem` carries an
-optional `position`, and `QuestionPager` renders `CourtDiagramView` when it
-finds one and a row of `Given` chips when it does not. Four sets of feet ARE
-the question; flattening them into prose would delete the app.
+**Options are four, and at most two share a shot shape.** Three dinks and a
+lob is a target question wearing a shot-selection costume, and the panel can
+only tell two same-shape buttons apart by their place (`ShotAiming.captions`
+adds the target when a shape repeats). `ProductContractTests` pins both, plus
+that every verdict principle string maps to a `Principle` family.
 
 `PositionGeneratorTests` and `ShotAdvisorTests` are the content contract.
 If a generated position is off-court, the answer is missing from the

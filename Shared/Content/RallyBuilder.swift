@@ -1,14 +1,23 @@
 import Foundation
 
+/// What a focus point is aimed at: a phase, and optionally the named trap the
+/// generated position must contain as one of its options.
+struct RallyFocus: Equatable, Sendable {
+    let phase: RallyPhase
+    let mistakeID: String?
+}
+
 /// One decision inside a point.
 struct RallyBall: Identifiable, Sendable {
     let question: DrillQuestion
-    /// Which point of the session this belongs to.
+    /// Which point of the run this belongs to.
     let pointIndex: Int
     /// Which decision this is inside that point, from zero.
     let shotIndex: Int
     /// The number of decisions the point holds in total.
     let shotsInPoint: Int
+    /// Set when this ball was generated to test one of the player's weak spots.
+    var focus: RallyFocus? = nil
 
     var id: String { "\(pointIndex)-\(shotIndex)-\(question.id)" }
     var isLastOfPoint: Bool { shotIndex == shotsInPoint - 1 }
@@ -17,33 +26,25 @@ struct RallyBall: Identifiable, Sendable {
 
 /// Builds points, not flashcards.
 ///
-/// The single biggest thing separating this app from a quiz was that every
-/// generated ball arrived from nowhere and went nowhere. A real point is a
-/// sequence: you return, you survive their third, you dink until one of them
-/// gives you a ball above the net, and then you finish it. Each of those is a
-/// decision the advisor can already grade; what was missing was the thread
-/// between them.
-///
-/// So a point here is an ordered run of phases, and the session is a run of
-/// points. Getting a decision right advances the rally. Getting one wrong ends
-/// the point, which is exactly what happens on a court and is a far better
-/// teacher than a green tick and an unrelated next question.
+/// A point is an ordered run of YOUR decisions: return or third, the walk in,
+/// the kitchen, and the finish. Getting one right advances the rally; getting
+/// one wrong ends the point. Every third point is a focus point, a single ball
+/// generated to test the trap or phase that has been costing this player the
+/// most, so the court leans into their weak spots without announcing a drill.
 enum RallyBuilder {
 
+    /// Every `focusEvery`th point is a focus point when there is a focus.
+    static let focusEvery = 3
+
     /// The decisions you actually face in a point, depending on which team you
-    /// are on.
-    ///
-    /// These are YOUR shots only. On the returning team you never hit a third
-    /// shot, so the chain skips it; on the serving team you never hit a return.
-    /// Getting that wrong would train a sequence that cannot happen.
+    /// are on. On the returning team you never hit a third shot; on the
+    /// serving team you never hit a return.
     static func script(servingTeam: Bool, rng: inout SeededGenerator) -> [RallyPhase] {
         if servingTeam {
-            // Serve, then the third, then the walk in, then the kitchen.
             var phases: [RallyPhase] = [.thirdShot, .transition, .dinkRally]
             phases.append([RallyPhase.attack, .defense].randomElement(using: &rng) ?? .attack)
             return phases
         }
-        // Return, survive whatever comes back, then the kitchen exchange.
         var phases: [RallyPhase] = [.serveReturn]
         phases.append([RallyPhase.defense, .dinkRally].randomElement(using: &rng) ?? .dinkRally)
         phases.append(.dinkRally)
@@ -51,38 +52,46 @@ enum RallyBuilder {
         return phases
     }
 
-    /// A session of points, flattened into the balls that make them up.
+    /// A run of points, flattened into the balls that make them up.
     ///
     /// `ballBudget` is the free tier's remaining allowance, so the last point
-    /// is truncated rather than promised and then cut off. A session that says
-    /// "point 3" and stops halfway through it is the paywall arriving as a
-    /// surprise, which is the thing the lobby check exists to prevent.
-    static func session(ballBudget: Int, seed: UInt64, phase: RallyPhase? = nil) -> [RallyBall] {
+    /// is truncated rather than promised and then cut off.
+    static func session(
+        ballBudget: Int,
+        seed: UInt64,
+        focus: [RallyFocus] = [],
+        half: CourtHalf = .either
+    ) -> [RallyBall] {
         guard ballBudget > 0 else { return [] }
         var rng = SeededGenerator(seed: seed)
         var balls: [RallyBall] = []
         var pointIndex = 0
+        var focusIndex = 0
 
         while balls.count < ballBudget {
-            let phases: [RallyPhase]
-            if let phase {
-                // A single-phase drill is still a point, it is just a point
-                // made of one decision repeated. Chaining unrelated phases
-                // under a "Dink rally" title would be a different drill than
-                // the one the player tapped.
-                phases = [phase]
-            } else {
-                phases = script(servingTeam: Bool.random(using: &rng), rng: &rng)
+            if !focus.isEmpty, pointIndex % focusEvery == focusEvery - 1 {
+                let target = focus[focusIndex % focus.count]
+                focusIndex += 1
+                let question = focusQuestion(
+                    target, seed: seed &+ UInt64(pointIndex &* 7_919), half: half
+                )
+                balls.append(RallyBall(
+                    question: question, pointIndex: pointIndex,
+                    shotIndex: 0, shotsInPoint: 1, focus: target
+                ))
+                pointIndex += 1
+                continue
             }
-            let room = ballBudget - balls.count
-            let taken = Array(phases.prefix(room))
+
+            let phases = script(servingTeam: Bool.random(using: &rng), rng: &rng)
+            let taken = Array(phases.prefix(ballBudget - balls.count))
             for (shotIndex, phase) in taken.enumerated() {
                 let question = PositionGenerator.question(
                     phase: phase,
                     seed: seed &+ UInt64((pointIndex &* 1_000 &+ shotIndex) &* 104_729)
                 )
                 balls.append(RallyBall(
-                    question: question,
+                    question: oriented(question, half: half),
                     pointIndex: pointIndex,
                     shotIndex: shotIndex,
                     // Keep the original script length. If the allowance ends
@@ -96,10 +105,44 @@ enum RallyBuilder {
         return balls
     }
 
+    /// A position of the focus phase that offers the named trap as an option.
+    ///
+    /// Bounded rejection sampling: a phase whose trap does not apply to the
+    /// position it rolls falls back to an untargeted position of that phase.
+    static func focusQuestion(_ focus: RallyFocus, seed: UInt64, half: CourtHalf = .either) -> DrillQuestion {
+        for attempt in 0..<32 {
+            let candidate = oriented(
+                PositionGenerator.question(phase: focus.phase, seed: seed &+ UInt64(attempt &* 31)),
+                half: half
+            )
+            guard let id = focus.mistakeID else { return candidate }
+            if MistakeCatalog.mistakes(for: candidate).values.contains(where: { $0.id == id }) {
+                return candidate
+            }
+        }
+        return oriented(PositionGenerator.question(phase: focus.phase, seed: seed), half: half)
+    }
+
+    /// Mirrors a question so the player stands on the half they chose. The
+    /// advisor is mirror-symmetric (pinned by `ShotAdvisorTests`), so the same
+    /// four shots stay valid and the answer is re-derived, not assumed.
+    static func oriented(_ question: DrillQuestion, half: CourtHalf) -> DrillQuestion {
+        let onLeft = question.position.you.isLeftHalf
+        switch half {
+        case .either: return question
+        case .left where onLeft, .right where !onLeft: return question
+        default:
+            let mirrored = question.position.mirrored
+            return DrillQuestion(
+                position: mirrored,
+                options: question.options,
+                verdict: ShotAdvisor.verdict(for: mirrored)
+            )
+        }
+    }
+
     /// The index of the first ball of the point after `pointIndex`, or nil when
-    /// the session is over. Losing a point skips the rest of it: the rally is
-    /// dead, and asking someone to keep playing out a point they already lost
-    /// is the flashcard behaviour this whole model replaces.
+    /// the run is over. Losing a point skips the rest of it.
     static func firstBall(after pointIndex: Int, in balls: [RallyBall]) -> Int? {
         balls.firstIndex { $0.pointIndex > pointIndex }
     }

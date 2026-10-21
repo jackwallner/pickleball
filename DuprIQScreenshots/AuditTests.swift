@@ -7,7 +7,7 @@ import XCTest
 @MainActor
 final class AuditTests: ScreenshotHarness {
 
-    func testFirstRunCTAsAndUntimedCourtStayInteractive() {
+    func testFirstRunGoesStraightToAPlayableCourt() {
         app = XCUIApplication()
         app.launchArguments = [
             "-subscription.localProOverride", "NO",
@@ -21,45 +21,53 @@ final class AuditTests: ScreenshotHarness {
         XCTAssertTrue(continueButton.waitForExistence(timeout: 8))
         XCTAssertTrue(continueButton.isHittable)
         XCTAssertGreaterThanOrEqual(continueButton.frame.height, 54)
-        XCTAssertGreaterThanOrEqual(continueButton.frame.width, 300)
         continueButton.tap()
 
-        XCTAssertTrue(app.buttons["onboarding-level-new"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["level-new"].waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["onboarding-continue"].isEnabled, "a level has to be picked")
+        app.buttons["level-new"].tap()
         app.buttons["onboarding-continue"].tap()
-        XCTAssertTrue(app.staticTexts["onboarding-level-required"].waitForExistence(timeout: 3))
-        app.buttons["onboarding-level-new"].tap()
+
+        XCTAssertTrue(app.buttons["half-left"].waitForExistence(timeout: 4))
+        app.buttons["half-left"].tap()
         app.buttons["onboarding-continue"].tap()
-
-        let startButton = app.buttons["onboarding-continue"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 4))
-        XCTAssertEqual(startButton.label, "Start practising")
-        XCTAssertGreaterThanOrEqual(startButton.frame.height, 54)
-        startButton.tap()
-
-        let primerButton = app.buttons["primer-done"]
-        XCTAssertTrue(primerButton.waitForExistence(timeout: 5))
-        XCTAssertTrue(primerButton.isHittable)
-        primerButton.tap()
-
-        let mixedRally = app.buttons["mixed-rally"]
-        XCTAssertTrue(mixedRally.waitForExistence(timeout: 5))
-        mixedRally.tap()
-        settle(6.0)
 
         let firstShot = app.buttons["shot-0"]
-        XCTAssertTrue(firstShot.exists)
-        XCTAssertTrue(firstShot.isHittable, "an untimed beginner court must remain playable")
+        XCTAssertTrue(firstShot.waitForExistence(timeout: 8), "onboarding ends on the court, not a lobby")
+        XCTAssertTrue(firstShot.isHittable)
         firstShot.tap()
 
+        XCTAssertTrue(app.buttons["replay"].waitForExistence(timeout: 5))
         let nextButton = app.buttons["next-ball"]
-        XCTAssertTrue(nextButton.waitForExistence(timeout: 5))
         XCTAssertTrue(nextButton.isHittable)
         XCTAssertGreaterThanOrEqual(nextButton.frame.height, 54)
-        XCTAssertGreaterThanOrEqual(nextButton.frame.width, 300)
         nextButton.tap()
 
         XCTAssertTrue(app.buttons["shot-0"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["shot-0"].isHittable)
+    }
+
+    /// Plays a whole free day: every ball is gradeable, focus balls appear,
+    /// and the run ends on the summary rather than mid-point.
+    func testAFullRunEndsOnTheSummary() {
+        launchForAudit(seed: 909)
+        var sawFocus = false
+        for _ in 0..<PracticeLimiterBalls.free {
+            if app.buttons["play-again"].exists || app.buttons["summary-paywall"].exists { break }
+            guard app.buttons["shot-0"].waitForExistence(timeout: 6) else { break }
+            if app.descendants(matching: .any)["focus-ball"].exists { sawFocus = true }
+            app.buttons["shot-0"].tap()
+            guard app.buttons["next-ball"].waitForExistence(timeout: 4) else {
+                return XCTFail("a graded ball had no next button")
+            }
+            app.buttons["next-ball"].tap()
+        }
+        XCTAssertTrue(sawFocus, "a run of points should include a focus ball")
+        XCTAssertTrue(
+            app.buttons["play-again"].waitForExistence(timeout: 5)
+                || app.buttons["summary-paywall"].exists,
+            "the run should end on the summary"
+        )
     }
 
     private func launchForAudit(seed: Int) {
@@ -67,7 +75,7 @@ final class AuditTests: ScreenshotHarness {
         app.launchArguments = [
             "-subscription.localProOverride", "YES",
             "-uitest.reset", "YES",
-            "-uitest.skipPrimer", "YES",
+            "-uitest.fixture", "demo",
             "-uitest.seed", String(seed),
             "-settings.shotClock", "off",
         ]
@@ -76,66 +84,19 @@ final class AuditTests: ScreenshotHarness {
         settle(2.0)
     }
 
-    /// Walk a mixed rally, pausing on every question and every verdict.
-    func testWalkTheRally() {
+    // Frame-grab walk used by the court audits.
+    func testWalkTwelveBallsForFrameCapture() {
         launchForAudit(seed: 4242)
-        guard selectTab("Practice") else { return }
-        guard tapIdentifier("mixed-rally") else { return attachTree("audit") }
-
-        for ball in 0..<10 {
-            if app.buttons["session-done"].exists { break }
-            settle(2.4)
-            guard tapFirstOption() else {
-                capture("audit_walk_pick_\(ball)")
-                attachTree("walk_pick_\(ball)")
-                break
-            }
-            settle(2.2)
-            guard tapIdentifier("next-ball", timeout: 4) else {
-                attachTree("ball\(ball)_next")
-                break
-            }
-        }
-        settle(2.0)
-    }
-
-    /// The two Pro modes that render content INSIDE a session runner rather
-    /// than full bleed. Timed Challenge uses the generated court; Match
-    /// Warm-Up intentionally remains an authored text-choice session.
-    func testEmbeddedCourtModes() {
-        for tile in ["tile-timed", "tile-warmup"] {
-            launchForAudit(seed: 909)
-            guard selectTab("Practice") else { return }
-            guard tapIdentifier(tile) else {
-                attachTree(tile)
-                continue
-            }
-            settle(3.4)
-            if !tapFirstOption() {
-                capture("audit_embedded_pick_\(tile)")
-                attachTree("embedded_pick_\(tile)")
-            }
-            settle(3.0)
-            app.terminate()
+        settle(3.0)
+        for _ in 0..<12 {
+            guard tapFirstOption() else { return attachTree("audit") }
+            settle(3.6)
+            guard tapIdentifier("next-ball", timeout: 4) else { return }
+            settle(2.0)
         }
     }
+}
 
-    /// One question per phase, held long enough to read the framing.
-    func testEveryPhase() {
-        for phase in ["serveReturn", "thirdShot", "transition", "dinkRally", "attack", "defense"] {
-            launchForAudit(seed: 909)
-            guard selectTab("Practice") else { return }
-            guard tapIdentifier("court-\(phase)") else {
-                attachTree("phase-\(phase)")
-                continue
-            }
-            settle(3.0)
-            capture("audit_question_\(phase)")
-            if tapFirstOption() {
-                settle(2.4)
-                capture("audit_graded_\(phase)")
-            }
-            app.terminate()
-        }
-    }
+private enum PracticeLimiterBalls {
+    static let free = 15
 }

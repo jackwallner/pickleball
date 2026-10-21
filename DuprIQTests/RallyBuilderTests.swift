@@ -126,17 +126,57 @@ final class RallyBuilderTests: XCTestCase {
         XCTAssertNil(RallyBuilder.firstBall(after: last, in: balls))
     }
 
-    /// A phase drill is still a rally, it is just one made of one decision. If
-    /// it chained other phases the player would be answering a different drill
-    /// from the one they tapped.
-    func testASinglePhaseSessionOnlyEverAsksThatPhase() {
-        for phase in RallyPhase.allCases {
-            let balls = RallyBuilder.session(ballBudget: 8, seed: 11, phase: phase)
-            XCTAssertEqual(balls.count, 8)
-            for ball in balls {
-                XCTAssertEqual(ball.position.phase, phase)
+    /// Every third point is a single focus ball, and when the focus names a
+    /// trap the generated position must actually offer that trap.
+    func testFocusPointsLandEveryThirdPointAndCarryTheirTrap() {
+        let focus = [
+            RallyFocus(phase: .dinkRally, mistakeID: "attacked-a-low-ball"),
+            RallyFocus(phase: .transition, mistakeID: nil),
+        ]
+        for seed in UInt64(1)...40 {
+            let balls = RallyBuilder.session(ballBudget: 30, seed: seed &* 131, focus: focus)
+            let focusBalls = balls.filter { $0.focus != nil }
+            XCTAssertFalse(focusBalls.isEmpty)
+            for ball in focusBalls {
+                XCTAssertEqual(ball.pointIndex % RallyBuilder.focusEvery, RallyBuilder.focusEvery - 1)
                 XCTAssertEqual(ball.shotsInPoint, 1)
-                XCTAssertTrue(ball.isLastOfPoint)
+                XCTAssertEqual(ball.position.phase, ball.focus?.phase)
+            }
+            for ball in balls where ball.focus == nil {
+                XCTAssertNotEqual(ball.pointIndex % RallyBuilder.focusEvery, RallyBuilder.focusEvery - 1)
+            }
+        }
+    }
+
+    func testAFocusQuestionOffersTheNamedTrapWhenThePhaseCanSetIt() {
+        var offered = 0
+        for seed in UInt64(1)...60 {
+            let question = RallyBuilder.focusQuestion(
+                RallyFocus(phase: .dinkRally, mistakeID: "attacked-a-low-ball"), seed: seed
+            )
+            XCTAssertEqual(question.position.phase, .dinkRally)
+            if MistakeCatalog.mistakes(for: question).values.contains(where: { $0.id == "attacked-a-low-ball" }) {
+                offered += 1
+            }
+        }
+        XCTAssertGreaterThan(offered, 50, "rejection sampling should find the trap almost every time")
+    }
+
+    func testNoFocusMeansNoFocusPoints() {
+        let balls = RallyBuilder.session(ballBudget: 30, seed: 5)
+        XCTAssertTrue(balls.allSatisfy { $0.focus == nil })
+    }
+
+    /// The side a player chose is the side they stand on, and mirroring never
+    /// changes which shot is right.
+    func testThePlayerStandsOnTheHalfTheyChose() {
+        for half in [CourtHalf.left, .right] {
+            let balls = RallyBuilder.session(
+                ballBudget: 30, seed: 77, focus: [RallyFocus(phase: .attack, mistakeID: nil)], half: half
+            )
+            for ball in balls {
+                XCTAssertEqual(ball.position.you.isLeftHalf, half == .left, ball.position.id)
+                XCTAssertEqual(ball.question.answer, ShotAdvisor.verdict(for: ball.position).best)
             }
         }
     }

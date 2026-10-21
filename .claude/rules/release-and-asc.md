@@ -8,7 +8,7 @@ paths:
   - ".github/workflows/*"
 ---
 
-# DUPR IQ: App Store Connect and the marketing site
+# Third Shot: App Store Connect and the marketing site
 
 Moved verbatim from AGENTS.md. Dated state here is a snapshot: run `scripts/asc-readiness.py` before trusting it. Loads when a matching file is read; update it here.
 

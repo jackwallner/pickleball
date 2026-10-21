@@ -1,36 +1,30 @@
 import StoreKit
 import SwiftUI
 
-/// The core loop: you are on the court, the ball is coming, and you pick where
-/// it goes. Experienced players can add an optional decision timer in Settings.
+/// The app. You are on the court, the ball is coming, and you pick where it
+/// goes.
 ///
-/// Three things about this screen are deliberate and were not true of the
-/// version it replaces.
+/// **The court never moves.** It is a fixed, full-bleed layer and everything
+/// else is an overlay on it, so grading a ball swaps the option panel for the
+/// verdict card without anything reflowing.
 ///
-/// **The court never moves.** Grading used to shrink the diagram, insert an
-/// explanation above the options and slide a bar in from the bottom, all on one
-/// tap and none of it animated, which threw the option you had just tapped off
-/// the screen. Here the court is a fixed, full-bleed layer and everything else
-/// is an overlay on top of it. Nothing reflows, ever.
+/// **A point is a rally, not a card.** A right decision advances the same
+/// point to your next shot; a wrong one loses it. Every third point is a focus
+/// point aimed at whatever has been costing you the most.
 ///
-/// **A point is a rally, not a card.** Getting a decision right advances the
-/// same point to your next shot; getting one wrong loses it. That is what makes
-/// this a game you play rather than a deck you turn over, and it costs nothing
-/// in grading: every individual ball is still one `DrillQuestion` graded by
-/// `ShotAdvisor` exactly as before.
-///
-struct DrillSessionView: View {
-    let phase: RallyPhase?
-    let sessionLength: Int
+/// **Every graded ball is replayed.** Your shot and the right one fly from the
+/// contact in the 3D court, so a miss is something you watch go wrong rather
+/// than a red row.
+struct RallyView: View {
+    static let pointsPerRun = 12
 
     @EnvironmentObject private var subscriptions: SubscriptionService
-    @EnvironmentObject private var progress: ProgressStore
-    @StateObject private var records = PracticeRecordStore.shared
+    @EnvironmentObject private var mastery: MasteryStore
     @EnvironmentObject private var limiter: PracticeLimiter
     @EnvironmentObject private var reviews: ReviewPromptTracker
-    @Environment(\.requestReview) private var requestReview
     @EnvironmentObject private var settings: AppSettings
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var profile: PlayerProfile
+    @Environment(\.requestReview) private var requestReview
 
     @State private var balls: [RallyBall] = []
     @State private var index = 0
@@ -40,21 +34,17 @@ struct DrillSessionView: View {
     @State private var answeredCount = 0
     @State private var yourPoints = 0
     @State private var theirPoints = 0
+    @State private var replayToken = 0
     @State private var showPaywall = false
-    @State private var showAbandonConfirmation = false
+    @State private var showYourGame = false
     @State private var finished = false
     @State private var stoppedAtFreeLimit = false
-    @State private var recordedSession = false
+    @State private var recordedRun = false
     /// Seconds left on the shot clock, or nil when the clock is off or the ball
     /// has already been graded.
     @State private var clockRemaining: Double?
 
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
-
-    init(phase: RallyPhase? = nil, sessionLength: Int = 12) {
-        self.phase = phase
-        self.sessionLength = sessionLength
-    }
 
     var body: some View {
         Group {
@@ -65,50 +55,36 @@ struct DrillSessionView: View {
                     correct: correctCount,
                     answered: answeredCount,
                     stoppedAtFreeLimit: stoppedAtFreeLimit,
-                    recommendation: progress.recommendation,
+                    nextFocus: nextFocusLine,
                     onSeePro: { showPaywall = true },
-                    onDone: { dismiss() }
+                    onYourGame: { showYourGame = true },
+                    onPlayAgain: playAgain
                 )
             } else if let ball = balls[safe: index] {
                 court(ball)
             } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Theme.background)
+                Theme.Surface.apron
+                    .ignoresSafeArea()
                     .onAppear(perform: build)
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden, for: .tabBar)
-        .toolbar(finished ? .visible : .hidden, for: .navigationBar)
-        .sheet(isPresented: $showPaywall) { PaywallView() }
-        .confirmationDialog(
-            "Leave this session?",
-            isPresented: $showAbandonConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Leave, keep my \(answeredCount) balls", role: .destructive) {
-                endSession(atFreeLimit: false, countsAsCompletion: false)
-                dismiss()
-            }
-            Button("Keep playing", role: .cancel) { }
-        } message: {
-            Text("The balls you've already answered are recorded. The rest of this session is discarded.")
-        }
-        .onAppear { if balls.isEmpty { build() } }
+        .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showPaywall) { PaywallView(source: "rally") }
+        .sheet(isPresented: $showYourGame) { YourGameView() }
         .onReceive(tick) { _ in advanceClock() }
+        .onChange(of: subscriptions.isPro) { _, isPro in
+            // Buying Pro from the free-limit summary should put a ball in
+            // front of you, not leave you on a "come back tomorrow" screen.
+            if isPro && finished && stoppedAtFreeLimit { playAgain() }
+        }
     }
 
     // MARK: - The court
 
-    /// One full-bleed layer of court, with everything else floating over it.
     private func court(_ ball: RallyBall) -> some View {
         GeometryReader { geo in
             // The full-bleed height, which is what `CourtPOVView` reserved its
-            // option band against. `geo.size` here is inset by the safe area,
-            // and capping the verdict card against the smaller number is how
-            // the card and the band it is supposed to replace drift apart.
+            // option band against.
             let full = CGSize(
                 width: geo.size.width,
                 height: geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
@@ -124,12 +100,10 @@ struct DrillSessionView: View {
                 options: ball.question.options,
                 aimPoints: aimPoints(for: ball),
                 phase: povPhase(for: ball),
-                onPick: picked == nil ? { select($0, in: ball) } : nil,
-                // The question is asked above the four buttons, inside the
-                // panel, because that is where the answer is given. It used to
-                // float alone in the middle of the empty near court, which is
-                // the part of the screen the panel now occupies.
-                prompt: "Choose where to hit it"
+                onPick: isGraded ? nil : { select($0, in: ball) },
+                prompt: "Choose where to hit it",
+                replay: replayFlights(for: ball),
+                replayToken: replayToken
             )
             .ignoresSafeArea()
 
@@ -140,28 +114,15 @@ struct DrillSessionView: View {
 
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
-                if picked != nil || timedOut {
-                    // The card runs to the physical bottom of the screen. Left
-                    // inside the safe area it floated with a band of court
-                    // showing under it, which read as a sheet that had not
-                    // finished animating in.
-                    //
-                    // It lands on exactly the band the option panel occupied,
-                    // so grading a ball swaps one for the other and the court
-                    // above it does not move. Before the split the card came up
-                    // over the middle of the render and covered the ball and
-                    // aim rings, which is to say it covered the position it
-                    // was explaining.
+                if isGraded {
                     VerdictCard(
                         ball: ball,
                         picked: picked,
                         timedOut: timedOut,
                         buttonTitle: nextButtonTitle,
+                        onReplay: { replayToken += 1 },
                         onNext: advance
                     )
-                    // Never taller than the band the panel had. The card's
-                    // explanation scrolls, so a short screen loses reading
-                    // room rather than eating court.
                     .frame(height: band, alignment: .top)
                     .clipped()
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -169,23 +130,18 @@ struct DrillSessionView: View {
             }
             .ignoresSafeArea(edges: .bottom)
         }
-        // The one animation on this screen, and it moves only the card. The
-        // court underneath is untouched, which is the entire point.
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: picked)
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: timedOut)
         .background(Theme.Surface.apron)
-        // The court runs edge to edge under a dark sky, and the app's default
-        // appearance is light, so iOS drew the clock and the battery in
-        // near-black on near-black at the top of every ball. `.preferredColorScheme`
-        // does not reach the status bar from a pushed view, and there is no
-        // light band up there to put dark glyphs on. The screen is a game
-        // screen with its own scoreboard, shot counter and clock, so it takes
-        // the whole display and gives the state back in the HUD.
+        // A game screen with its own scoreboard and clock; the system status
+        // bar would draw dark glyphs on a dark sky.
         .statusBarHidden(true)
     }
 
+    private var isGraded: Bool { picked != nil || timedOut }
+
     private func povPhase(for ball: RallyBall) -> CourtPOVView.Phase {
-        guard picked != nil || timedOut else { return .deciding }
+        guard isGraded else { return .deciding }
         return .graded(picked: picked ?? -1, answer: ball.question.answerIndex)
     }
 
@@ -198,22 +154,50 @@ struct DrillSessionView: View {
         )
     }
 
+    /// Your shot first, in red, then the right one in green. A right answer
+    /// replays once, in green.
+    private func replayFlights(for ball: RallyBall) -> [CourtPOVView.Replay] {
+        guard isGraded else { return [] }
+        let points = aimPoints(for: ball)
+        let contactHeight = CourtScene.ballHeight(ball.position.ballHeight)
+        func flight(_ option: Int, intoNet: Bool) -> ShotFlight? {
+            guard let shot = ball.question.options[safe: option],
+                  let landing = points[safe: option] else { return nil }
+            return ShotFlight.make(
+                shot, from: ball.position.contact, contactHeight: contactHeight,
+                to: landing, intoNet: intoNet
+            )
+        }
+        var flights: [CourtPOVView.Replay] = []
+        if let picked, picked != ball.question.answerIndex,
+           let shot = ball.question.options[safe: picked] {
+            let netted = MistakeCatalog.pattern(for: shot, in: ball.position)?.id == "attacked-a-low-ball"
+            if let wrong = flight(picked, intoNet: netted) {
+                flights.append(.init(flight: wrong, isCorrect: false))
+            }
+        }
+        if let right = flight(ball.question.answerIndex, intoNet: false) {
+            flights.append(.init(flight: right, isCorrect: true))
+        }
+        return flights
+    }
+
     // MARK: - HUD
 
     private func hud(_ ball: RallyBall) -> some View {
         VStack(spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
-                Button(action: leave) {
-                    Image(systemName: "chevron.left")
+                Button { showYourGame = true } label: {
+                    Image(systemName: "chart.bar.fill")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
                         .background(.black.opacity(0.45), in: Circle())
                 }
-                .accessibilityLabel("Back")
-                .accessibilityIdentifier("nav-back")
+                .accessibilityLabel("Your game")
+                .accessibilityIdentifier("your-game")
 
-                scoreboard(ball)
+                scoreboard
 
                 Spacer(minLength: 0)
 
@@ -222,20 +206,24 @@ struct DrillSessionView: View {
                 }
             }
             .padding(.horizontal, 14)
-            // Capped and centred, or the scoreboard and the shot clock end up
-            // at opposite corners of a 13 inch iPad with three feet of court
-            // between them.
             .frame(maxWidth: Theme.readableContentWidth)
             .frame(maxWidth: .infinity)
 
             HStack(spacing: 10) {
-                Text(ball.position.phase.title.uppercased())
-                    .font(.caption2.weight(.heavy))
-                    .kerning(1.2)
-                Text("SHOT \(ball.shotIndex + 1) OF \(ball.shotsInPoint)")
-                    .font(.caption2.weight(.heavy))
-                    .kerning(1.2)
-                    .opacity(0.75)
+                if let focus = ball.focus {
+                    Label(focusTitle(focus), systemImage: "scope")
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(Theme.Surface.ball)
+                        .accessibilityIdentifier("focus-ball")
+                } else {
+                    Text(ball.position.phase.title.uppercased())
+                        .font(.caption2.weight(.heavy))
+                        .kerning(1.2)
+                    Text("SHOT \(ball.shotIndex + 1) OF \(ball.shotsInPoint)")
+                        .font(.caption2.weight(.heavy))
+                        .kerning(1.2)
+                        .opacity(0.75)
+                }
                 Spacer(minLength: 0)
                 if !subscriptions.isPro {
                     Text("\(limiter.remaining(isPro: false)) free left")
@@ -262,7 +250,12 @@ struct DrillSessionView: View {
         )
     }
 
-    private func scoreboard(_ ball: RallyBall) -> some View {
+    private func focusTitle(_ focus: RallyFocus) -> String {
+        let what = focus.mistakeID.map(MistakeCatalog.title(for:)) ?? focus.phase.title
+        return "FOCUS · \(what.uppercased())"
+    }
+
+    private var scoreboard: some View {
         HStack(spacing: 6) {
             Text("\(yourPoints)")
                 .foregroundStyle(Theme.Surface.ball)
@@ -294,6 +287,14 @@ struct DrillSessionView: View {
         return index + 1 >= balls.count
     }
 
+    private var nextFocusLine: String? {
+        guard let focus = mastery.focus(for: profile.level).first else { return nil }
+        if let id = focus.mistakeID {
+            return "Next run leans on \(MistakeCatalog.title(for: id).lowercased())."
+        }
+        return "Next run leans on the \(focus.phase.title.lowercased())."
+    }
+
     // MARK: - Clock
 
     private func startClock() {
@@ -301,8 +302,7 @@ struct DrillSessionView: View {
     }
 
     private func advanceClock() {
-        guard picked == nil, !timedOut, !finished,
-              let remaining = clockRemaining else { return }
+        guard !isGraded, !finished, !showYourGame, let remaining = clockRemaining else { return }
         let next = remaining - 0.05
         if next <= 0 {
             clockRemaining = 0
@@ -312,30 +312,21 @@ struct DrillSessionView: View {
         }
     }
 
-    /// When the optional timer is enabled, an unanswered ball is a miss.
+    /// When the optional timer is on, an unanswered ball is a miss.
     private func expire() {
         guard let ball = balls[safe: index] else { return }
         limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
-            endSession(atFreeLimit: true)
+            endRun(atFreeLimit: true)
             return
         }
         timedOut = true
         answeredCount += 1
         theirPoints += 1
         Haptics.wrongAnswer()
-        progress.record(
-            phase: ball.position.phase,
-            wasCorrect: false,
-            principle: ball.question.verdict.principle
-        )
-        records.record(
-            itemID: ball.position.phase.itemPrefix + ball.position.id,
-            courtID: ball.position.phase.courtID,
-            correct: false,
-            isReviewable: false
-        )
+        mastery.record(ball.question, picked: nil, focus: ball.focus?.mistakeID)
         limiter.consume(isPro: subscriptions.isPro)
+        replayToken += 1
     }
 
     // MARK: - Flow
@@ -344,31 +335,47 @@ struct DrillSessionView: View {
         let allowance = limiter.remaining(isPro: subscriptions.isPro)
         guard allowance > 0 else {
             stoppedAtFreeLimit = true
-            recordedSession = true
+            recordedRun = true
             finished = true
             return
         }
-        let budget = min(sessionLength, allowance)
-        balls = RallyBuilder.session(ballBudget: budget, seed: drillSeed(), phase: phase)
+        balls = RallyBuilder.session(
+            ballBudget: min(Self.pointsPerRun, allowance),
+            seed: runSeed(),
+            focus: mastery.focus(for: profile.level),
+            half: profile.half
+        )
         startClock()
     }
 
-    private func drillSeed() -> UInt64 {
+    private func runSeed() -> UInt64 {
         #if DEBUG
-        // A screenshot has to be the same court every run, or the App Store
-        // asset is whatever the clock happened to say.
+        // A screenshot has to be the same court every run.
         if let fixed = DebugFixtures.requestedSeed { return fixed }
         #endif
         return UInt64(Date().timeIntervalSince1970)
     }
 
+    private func playAgain() {
+        balls = []
+        index = 0
+        picked = nil
+        timedOut = false
+        correctCount = 0
+        answeredCount = 0
+        yourPoints = 0
+        theirPoints = 0
+        stoppedAtFreeLimit = false
+        recordedRun = false
+        finished = false
+        build()
+    }
+
     private func select(_ offset: Int, in ball: RallyBall) {
-        // A session can straddle midnight. Roll over here, in an event handler
-        // rather than a view body, so the cap the tap is graded against is
-        // today's cap and not the one this screen was built with.
+        // A run can straddle midnight; grade against today's cap.
         limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
-            endSession(atFreeLimit: true)
+            endRun(atFreeLimit: true)
             return
         }
         clockRemaining = nil
@@ -383,55 +390,33 @@ struct DrillSessionView: View {
             Haptics.wrongAnswer()
         }
         answeredCount += 1
-        progress.record(
-            phase: ball.position.phase,
-            wasCorrect: wasCorrect,
-            principle: ball.question.verdict.principle
-        )
-        // A generated position's id is a one-off, so the store rolls every ball
-        // in a phase onto one row; the MISTAKE is what comes back, not the
-        // question.
-        records.record(
-            itemID: ball.position.phase.itemPrefix + ball.position.id,
-            courtID: ball.position.phase.courtID,
-            correct: wasCorrect,
-            isReviewable: false
-        )
-        if !wasCorrect,
-           let pattern = MistakeCatalog.pattern(
-               for: ball.question.options[offset], in: ball.position
-           ) {
-            records.recordMistake(pattern)
-        }
+        mastery.record(ball.question, picked: offset, focus: ball.focus?.mistakeID)
         limiter.consume(isPro: subscriptions.isPro)
+        replayToken += 1
     }
 
     private func advance() {
         guard let ball = balls[safe: index] else {
-            endSession(atFreeLimit: false)
+            endRun(atFreeLimit: false)
             return
         }
         let lostPoint = timedOut || picked != ball.question.answerIndex
 
         limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
-            endSession(atFreeLimit: true)
+            endRun(atFreeLimit: true)
             return
         }
 
         let next: Int?
-        if lostPoint {
-            // The rally is dead. Playing out the rest of a point you already
-            // lost is the flashcard behaviour this model exists to remove.
-            next = RallyBuilder.firstBall(after: ball.pointIndex, in: balls)
-        } else if ball.isLastOfPoint {
+        if lostPoint || ball.isLastOfPoint {
             next = RallyBuilder.firstBall(after: ball.pointIndex, in: balls)
         } else {
             next = index + 1 < balls.count ? index + 1 : nil
         }
 
         guard let next else {
-            endSession(atFreeLimit: false)
+            endRun(atFreeLimit: false)
             return
         }
         picked = nil
@@ -440,17 +425,18 @@ struct DrillSessionView: View {
         startClock()
     }
 
-    /// One place that closes a session, so the history, the review counter and
+    /// One place that closes a run, so the history, the review counter and
     /// the free-limit state can never disagree about whether it happened.
-    private func endSession(atFreeLimit: Bool, countsAsCompletion: Bool = true) {
+    private func endRun(atFreeLimit: Bool) {
         clockRemaining = nil
         stoppedAtFreeLimit = atFreeLimit
-        if !recordedSession {
-            recordedSession = true
-            progress.recordSession(
-                phase: phase, answered: answeredCount, correct: correctCount
+        if !recordedRun {
+            recordedRun = true
+            mastery.recordRally(
+                won: yourPoints, lost: theirPoints,
+                answered: answeredCount, correct: correctCount
             )
-            if answeredCount > 0, countsAsCompletion {
+            if answeredCount > 0 {
                 reviews.recordSessionFinished()
                 if reviews.shouldRequestReview {
                     Task { @MainActor in
@@ -464,22 +450,10 @@ struct DrillSessionView: View {
         }
         finished = true
     }
-
-    private func leave() {
-        if answeredCount > 0 && !finished {
-            showAbandonConfirmation = true
-        } else {
-            dismiss()
-        }
-    }
 }
 
-/// The shot clock, as a ring that drains.
-///
-/// A ring rather than a number because it has to be readable in peripheral
-/// vision while the player is looking at the far kitchen. It turns from optic
-/// yellow to the wrong-answer red over the last third, so urgency arrives
-/// before the number would have been read.
+/// The shot clock, as a ring that drains. Readable in peripheral vision while
+/// the player is looking at the far kitchen; it turns red over the last third.
 struct ShotClockRing: View {
     let remaining: Double
     let total: Double
@@ -506,28 +480,29 @@ struct ShotClockRing: View {
     }
 }
 
-/// The verdict, as a card that slides up OVER the court.
-///
-/// It overlays rather than inserting into a stack on purpose: an inserted card
-/// pushes everything below it down the screen, which is what made answering a
-/// ball feel like the app had lost its place. Here the court behind it is
-/// untouched and still shows the rings, so the explanation and the thing it is
-/// explaining are on screen together.
+/// The verdict, as a card that slides up over the option panel's band, so the
+/// court above it (and the replay running on it) is never covered.
 struct VerdictCard: View {
-    /// The card ignores the bottom safe area so no court shows under it, which
-    /// means the button has to keep clear of the home indicator itself.
+    /// The card ignores the bottom safe area, so the buttons keep clear of the
+    /// home indicator themselves.
     static let homeIndicatorClearance: CGFloat = 22
 
     let ball: RallyBall
     let picked: Int?
     let timedOut: Bool
     let buttonTitle: String
+    let onReplay: () -> Void
     let onNext: () -> Void
 
     @State private var showsOverhead = false
 
     private var wasCorrect: Bool { !timedOut && picked == ball.question.answerIndex }
     private var verdict: ShotVerdict { ball.question.verdict }
+
+    private var mistake: MistakePattern? {
+        guard !wasCorrect, let picked, let shot = ball.question.options[safe: picked] else { return nil }
+        return MistakeCatalog.pattern(for: shot, in: ball.position)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -537,6 +512,13 @@ struct VerdictCard: View {
                     Text(verdict.best.label)
                         .font(Theme.display(23))
                         .foregroundStyle(Theme.ink)
+
+                    if let mistake {
+                        Text(mistake.summary)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(Theme.wrongRed)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     if let target = verdict.targetOpponent {
                         Label("Aimed at \(target.label), marked \(target.marker)",
@@ -554,10 +536,9 @@ struct VerdictCard: View {
                         .foregroundStyle(Theme.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    // The overhead is where it belongs now: not as the way you
-                    // make the decision, but as the whiteboard a coach draws on
-                    // AFTER it, to show you the geometry you could not see from
-                    // where you were standing.
+                    // The overhead is the whiteboard a coach draws on after
+                    // the point, showing geometry you could not see from where
+                    // you were standing.
                     DisclosureGroup(isExpanded: $showsOverhead) {
                         CourtDiagramView(
                             position: ball.position,
@@ -569,41 +550,52 @@ struct VerdictCard: View {
                     } label: {
                         Text("Show it from above")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.court)
+                            .foregroundStyle(Theme.courtLight)
                     }
-                    .tint(Theme.court)
+                    .tint(Theme.courtLight)
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 44)
             }
-            // No fixed cap any more. The card is handed the option panel's
-            // band by `DrillSessionView` and the header and the button are the
-            // only fixed parts of it, so the explanation takes whatever is left
-            // and scrolls when that is not enough. A hard 210 here plus a
-            // hard band there was two numbers that had to agree and did not.
             .frame(minHeight: 90)
+            // Text scrolling under the buttons fades out instead of being cut
+            // mid-line, which read as a layout bug.
+            .mask(
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 18)
+                }
+            )
             .scrollIndicators(.visible)
             .accessibilityHint("Scroll for the full explanation")
 
-            // The identifier goes on the Button itself, before the layout
-            // modifiers. Applied after `.padding` it lands on the padded
-            // container, which SwiftUI exports as an "Other" element: the
-            // screenshot harness looked it up with `app.buttons["next-ball"]`,
-            // found nothing, and every capture run walked exactly one ball
-            // while still reporting success.
-            Button(action: onNext) {
-                Text(buttonTitle).primaryCTA(color: Theme.court)
-            }
+            HStack(spacing: 10) {
+                Button(action: onReplay) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 56, height: 56)
+                        .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .accessibilityLabel("Replay the shots")
+                .accessibilityIdentifier("replay")
+                .buttonStyle(PressableCTAStyle())
+
+                // The identifier goes on the Button itself; on a container it
+                // is inherited by everything inside and the button vanishes
+                // from the accessibility tree.
+                Button(action: onNext) {
+                    Text(buttonTitle).primaryCTA(color: Theme.court)
+                }
                 .accessibilityIdentifier("next-ball")
                 .buttonStyle(PressableCTAStyle())
-                .padding(.horizontal, 18)
-                .padding(.bottom, 10)
-                .padding(.bottom, VerdictCard.homeIndicatorClearance)
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+            .padding(.bottom, VerdictCard.homeIndicatorClearance)
         }
         .padding(.top, 14)
-        // Reading width, centred. Full bleed on an iPad put a two-line
-        // explanation on one 1000 point line, which is a paragraph nobody
-        // tracks across.
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(Theme.card)
@@ -615,12 +607,6 @@ struct VerdictCard: View {
     }
 
     /// The identifier lives on the headline, not on the whole card.
-    ///
-    /// An identifier applied to a container is inherited by every view inside
-    /// it, and the inherited one WINS: with `answer-card` on the card, the
-    /// primary button reported `answer-card` too and `next-ball` did not exist
-    /// anywhere in the tree. Every capture run walked exactly one ball and then
-    /// gave up, while still reporting success.
     private var header: some View {
         HStack(spacing: 8) {
             Image(systemName: wasCorrect ? "checkmark.circle.fill"
@@ -641,92 +627,83 @@ struct VerdictCard: View {
         if wasCorrect {
             return ball.isLastOfPoint ? "Point won." : "Good. Rally continues."
         }
-        return "Point to them."
+        return "Point to them. Watch the replay."
     }
 }
 
-/// How the session ended: the score first, because the session was a game.
+/// How the run ended: the score first, because it was a game.
 struct RallySummaryView: View {
     let yourPoints: Int
     let theirPoints: Int
     let correct: Int
     let answered: Int
     let stoppedAtFreeLimit: Bool
-    let recommendation: (phase: RallyPhase, isMeasured: Bool)?
+    let nextFocus: String?
     let onSeePro: () -> Void
-    let onDone: () -> Void
+    let onYourGame: () -> Void
+    let onPlayAgain: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
+            HStack {
+                Button(action: onYourGame) {
+                    Label("Your game", systemImage: "chart.bar.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .accessibilityIdentifier("summary-your-game")
+                Spacer()
+            }
+
             Spacer()
-            Text("\(yourPoints) – \(theirPoints)")
-                .font(Theme.numeric(56, weight: .heavy))
-                .foregroundStyle(Theme.ink)
-                .accessibilityLabel("Final score, you \(yourPoints), them \(theirPoints)")
-            Text(blurb)
-                .font(.headline)
-                .foregroundStyle(Theme.ink)
-                .multilineTextAlignment(.center)
+
             if answered > 0 {
+                Text("\(yourPoints) – \(theirPoints)")
+                    .font(Theme.numeric(56, weight: .heavy))
+                    .foregroundStyle(Theme.ink)
+                    .accessibilityLabel("Final score, you \(yourPoints), them \(theirPoints)")
                 Text("\(correct) of \(answered) shots were the right call.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkSecondary)
-            } else {
-                Text("No balls were available to start.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.inkSecondary)
+                    .font(.headline)
+                    .foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.center)
             }
 
             if stoppedAtFreeLimit {
                 VStack(spacing: 8) {
-                    Text("That's your \(PracticeLimiter.freeDailyBalls) free balls for today.")
-                        .font(.subheadline.weight(.semibold))
+                    Text("That's today's \(PracticeLimiter.freeDailyBalls) free balls.")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.ink)
                         .multilineTextAlignment(.center)
-                    Text("The counter resets tomorrow. Pro removes it entirely.")
-                        .font(.footnote)
+                    Text("A fresh set arrives tomorrow. \(AppBrand.proName) takes the limit off.")
+                        .font(.subheadline)
                         .foregroundStyle(Theme.inkSecondary)
                         .multilineTextAlignment(.center)
-                    Button("See Pro", action: onSeePro)
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("summary-paywall")
                 }
-                .padding(.top, 4)
-            } else if let recommendation {
-                Text(recommendation.isMeasured
-                     ? "Next up: \(recommendation.phase.title.lowercased()) is your weakest phase."
-                     : "Next up: try \(recommendation.phase.title.lowercased()), which you haven't played yet.")
-                    .font(.footnote)
+            } else if let nextFocus {
+                Text(nextFocus)
+                    .font(.subheadline)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)
             }
 
             Spacer()
-            Button(action: onDone) {
-                Text("Done").primaryCTA(color: Theme.court)
-            }
-                .accessibilityIdentifier("session-done")
+
+            if stoppedAtFreeLimit {
+                Button(action: onSeePro) {
+                    Text("See \(AppBrand.proName)").primaryCTA(color: Theme.court)
+                }
+                .accessibilityIdentifier("summary-paywall")
                 .buttonStyle(PressableCTAStyle())
+            } else {
+                Button(action: onPlayAgain) {
+                    Text("Play another run").primaryCTA(color: Theme.court)
+                }
+                .accessibilityIdentifier("play-again")
+                .buttonStyle(PressableCTAStyle())
+            }
         }
         .padding(24)
+        .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.background)
-    }
-
-    private var blurb: String {
-        guard answered > 0 else { return "Free practice resets tomorrow." }
-        let denom = max(answered, 1)
-        let ratio = Double(correct) / Double(denom)
-        switch ratio {
-        case 0.9...: return "That's tournament-grade shot selection."
-        case 0.7..<0.9: return "Solid. The misses are where the rating is."
-        case 0.5..<0.7: return "Middle of the pack. Read their feet before you swing."
-        default: return "This is the phase to live in for a week."
-        }
-    }
-}
-
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+        .background(Theme.background.ignoresSafeArea())
     }
 }
