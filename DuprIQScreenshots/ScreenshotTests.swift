@@ -40,7 +40,10 @@ final class ScreenshotTests: ScreenshotHarness {
     func test03YourGame() {
         launch()
         guard tapIdentifier("your-game") else { return attachTree("your_game") }
-        settle(1.4)
+        // The tap alone proves nothing: on iPad the page sheet was still
+        // presenting at 1.4 s and the shot showed the bare court.
+        expect("open-settings", on: "your_game", visible: true)
+        settle(1.0)
         capture("03_your_game")
     }
 

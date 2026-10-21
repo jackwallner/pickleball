@@ -34,6 +34,10 @@ cd "$ROOT"
 # missing element on screen 4 should not throw away screens 1 to 3.
 VERSION="$(awk '/MARKETING_VERSION/ {gsub(/[":]/, "", $2); print $2; exit}' project.yml)"
 
+# A pinned clock and full battery, so no shot carries the capture's wall time.
+xcrun simctl status_bar "$UDID" override --time 9:41 --dataNetwork wifi --wifiMode active \
+  --wifiBars 3 --batteryState charged --batteryLevel 100 || true
+
 # TEST_RUNNER_-prefixed settings arrive in the UI test process as plain env
 # vars, which is how the runner learns the marketing version it must mark as
 # already seen to keep the What's New sheet off every screenshot.

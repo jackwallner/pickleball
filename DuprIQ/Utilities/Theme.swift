@@ -203,3 +203,17 @@ enum Haptics {
         #endif
     }
 }
+
+extension View {
+    /// A form sheet on a 13-inch iPad cuts "Your game" off after six rows and
+    /// hides the paywall's third plan; page sizing gives both the screen they
+    /// need. iPhone is unchanged.
+    @ViewBuilder
+    func pageSizedOnIPad() -> some View {
+        if #available(iOS 18.0, *) {
+            presentationSizing(.page)
+        } else {
+            self
+        }
+    }
+}

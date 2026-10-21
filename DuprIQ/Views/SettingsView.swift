@@ -73,7 +73,7 @@ struct SettingsView: View {
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPaywall) { PaywallView(source: "settings") }
+        .sheet(isPresented: $showPaywall) { PaywallView(source: "settings").pageSizedOnIPad() }
     }
 
     private static var version: String {

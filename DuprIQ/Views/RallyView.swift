@@ -69,8 +69,8 @@ struct RallyView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showPaywall) { PaywallView(source: "rally") }
-        .sheet(isPresented: $showYourGame) { YourGameView() }
+        .sheet(isPresented: $showPaywall) { PaywallView(source: "rally").pageSizedOnIPad() }
+        .sheet(isPresented: $showYourGame) { YourGameView().pageSizedOnIPad() }
         .onReceive(tick) { _ in advanceClock() }
         .onChange(of: subscriptions.isPro) { _, isPro in
             // Buying Pro from the free-limit summary should put a ball in

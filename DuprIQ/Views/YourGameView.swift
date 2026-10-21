@@ -43,7 +43,7 @@ struct YourGameView: View {
                     .accessibilityIdentifier("open-settings")
                 }
             }
-            .sheet(isPresented: $showPaywall) { PaywallView(source: "your-game") }
+            .sheet(isPresented: $showPaywall) { PaywallView(source: "your-game").pageSizedOnIPad() }
         }
         .preferredColorScheme(.dark)
     }
