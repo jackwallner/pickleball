@@ -40,10 +40,13 @@ enum MistakeCatalog {
     /// whose answer was "drive at their feet" told the player who drove to the
     /// backhand that they had attacked a ball that could not be attacked.
     static func pattern(for shot: Shot, in question: DrillQuestion) -> MistakePattern? {
-        let best = question.verdict.best
+        pattern(for: shot, in: question.position, best: question.verdict.best)
+    }
+
+    static func pattern(for shot: Shot, in position: RallyPosition, best: Shot) -> MistakePattern? {
         guard shot != best,
-              let pattern = rawPattern(for: shot, in: question.position, best: best) else { return nil }
-        if rawPattern(for: best, in: question.position, best: best)?.id == pattern.id { return nil }
+              let pattern = rawPattern(for: shot, in: position, best: best) else { return nil }
+        if rawPattern(for: best, in: position, best: best)?.id == pattern.id { return nil }
         return pattern
     }
 
@@ -61,6 +64,18 @@ enum MistakeCatalog {
             )
         }
 
+        // The mirror image: a ball above the net, an attack as the answer, and
+        // a soft ball instead. Letting a high ball go hands them the attack.
+        if position.ballHeight == .aboveNet,
+           [.drive, .speedUp, .putAway].contains(best.type),
+           [.dink, .drop, .reset].contains(shot.type) {
+            return MistakePattern(
+                id: "let-a-high-ball-go",
+                phase: phase,
+                summary: "You played soft off a ball above the net. A high ball is your chance to hit down; letting it go gives them the next attack."
+            )
+        }
+
         // Driving the return is the mistake the serve-return phase exists to
         // train out: it wins nothing and it keeps you pinned at the baseline.
         if position.phase == .serveReturn, shot.type == .drive {
@@ -72,13 +87,13 @@ enum MistakeCatalog {
         }
 
         // A shot at the player who IS set, when the other one is still moving.
-        if let lagging = position.laggingOpponentSide,
+        if let lagging = position.laggingOpponentSide, shot.type != .lob,
            let aimed = aimedOpponent(for: shot, in: position),
            aimed == lagging.opposite {
             return MistakePattern(
                 id: "hit-the-player-who-was-set",
                 phase: phase,
-                summary: "You hit at the opponent who was already set. \(lagging.label.capitalizedFirst) had not made the line, and that is the one who cannot handle a ball at their feet."
+                summary: "You played the ball to the opponent who was already set. \(lagging.label.capitalizedFirst) had not made the line, and that is the one who cannot handle a ball at their feet."
             )
         }
 
@@ -121,7 +136,8 @@ enum MistakeCatalog {
         switch id {
         case "attacked-a-low-ball": return "Attacking a low ball"
         case "drove-the-return": return "Driving the return"
-        case "hit-the-player-who-was-set": return "Hitting the set player"
+        case "hit-the-player-who-was-set": return "Playing to the set player"
+        case "let-a-high-ball-go": return "Letting a high ball go"
         case "ignored-the-open-middle": return "Missing the open middle"
         case "counter-drove-under-pressure": return "Counter-driving under pressure"
         case "lobbed-into-space-behind-nobody": return "Lobbing a team that isn't crowding"
@@ -132,7 +148,7 @@ enum MistakeCatalog {
     static let allIDs = [
         "attacked-a-low-ball", "drove-the-return", "hit-the-player-who-was-set",
         "ignored-the-open-middle", "counter-drove-under-pressure",
-        "lobbed-into-space-behind-nobody",
+        "lobbed-into-space-behind-nobody", "let-a-high-ball-go",
     ]
 
     private static func aimedOpponent(for shot: Shot, in position: RallyPosition) -> OpponentSide? {

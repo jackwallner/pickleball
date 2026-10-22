@@ -30,6 +30,12 @@ struct DrillQuestion: Identifiable, Sendable {
     }
 
     var answer: Shot { options[answerIndex] }
+
+    /// Options that keep the rally alive without being the best call.
+    func isPlayable(_ index: Int) -> Bool {
+        guard let shot = options[safe: index] else { return false }
+        return ShotAdvisor.isPlayable(shot, in: position, best: verdict.best)
+    }
 }
 
 /// Deterministic, seedable RNG so a drill can be replayed exactly. The system
@@ -232,6 +238,17 @@ enum PositionGenerator {
         for fallback in Self.universalFallbacks where chosen.count < 3 && fits(fallback) {
             chosen.append(fallback)
         }
+        // A ball where every option is playable cannot be lost. Keep at least
+        // one shot that is a real mistake.
+        let playable = { ShotAdvisor.isPlayable($0, in: position, best: answer) }
+        if chosen.allSatisfy(playable), let out = chosen.lastIndex(where: playable) {
+            let removed = chosen.remove(at: out)
+            if let wrong = (pool + Self.universalFallbacks).first(where: { !playable($0) && fits($0) }) {
+                chosen.append(wrong)
+            } else {
+                chosen.insert(removed, at: out)
+            }
+        }
         var result = chosen + [answer]
         result.shuffle(using: &rng)
         return result
@@ -268,13 +285,17 @@ enum PositionGenerator {
         Shot(.drive, .deepStraight),
         Shot(.lob, .deepCrossCourt),
         Shot(.reset, .straightKitchen),
+        Shot(.drive, .middle),
+        Shot(.lob, .deepStraight),
     ]
 
     private static func distractors(for position: RallyPosition) -> [Shot] {
         switch position.phase {
         case .serveReturn:
+            // No lob: a deep return already is the high ball, and naming a
+            // second one "lob" taught a difference the app never explains.
             return [Shot(.drive, .deepStraight), Shot(.drop, .crossCourtKitchen),
-                    Shot(.lob, .deepCrossCourt), Shot(.deepReturn, .middle),
+                    Shot(.deepReturn, .deepCrossCourt), Shot(.deepReturn, .middle),
                     Shot(.drive, .backhand)]
         case .thirdShot:
             return [Shot(.drop, .crossCourtKitchen), Shot(.drive, .atFeet),
@@ -289,7 +310,8 @@ enum PositionGenerator {
                     Shot(.dink, .atFeet), Shot(.speedUp, .backhand),
                     Shot(.lob, .deepCrossCourt)]
         case .attack:
-            return [Shot(.putAway, .atFeet), Shot(.drive, .atFeet),
+            // One hard ball at the feet, not two names for it.
+            return [Shot(.putAway, .atFeet), Shot(.reset, .straightKitchen),
                     Shot(.speedUp, .backhand), Shot(.dink, .crossCourtKitchen),
                     Shot(.lob, .deepCrossCourt)]
         case .defense:

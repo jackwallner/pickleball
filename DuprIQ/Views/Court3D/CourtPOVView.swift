@@ -33,7 +33,7 @@ struct CourtPOVView: View {
         case deciding
         /// The picked option and the correct one. Both are needed: the ring the
         /// player chose has to stay visible next to the one they should have.
-        case graded(picked: Int, answer: Int)
+        case graded(picked: Int, answer: Int, pickedPlayable: Bool = false)
 
         var isGraded: Bool { if case .graded = self { return true }; return false }
     }
@@ -93,6 +93,8 @@ struct CourtPOVView: View {
     struct Replay {
         let flight: ShotFlight
         let isCorrect: Bool
+        /// Not the best ball, but not a mistake: drawn in gold, not red.
+        var isPlayable = false
     }
 
     /// No player initial is drawn above this, because the HUD lives up there.
@@ -164,7 +166,7 @@ struct CourtPOVView: View {
                     return Double(point.y) >= ceiling
                 }
             }
-            return Replay(flight: flight, isCorrect: path.isCorrect)
+            return Replay(flight: flight, isCorrect: path.isCorrect, isPlayable: path.isPlayable)
         }
     }
 
@@ -448,9 +450,9 @@ struct CourtPOVView: View {
         switch phase {
         case .deciding:
             return .open
-        case let .graded(picked, answer):
+        case let .graded(picked, answer, pickedPlayable):
             if index == answer { return .correct }
-            if index == picked { return .wrong }
+            if index == picked { return pickedPlayable ? .playable : .wrong }
             return .dimmed
         }
     }
@@ -459,17 +461,18 @@ struct CourtPOVView: View {
         switch state(for: index) {
         case .open: return ""
         case .correct:
-            if case let .graded(picked, _) = phase, picked == index {
+            if case let .graded(picked, _, _) = phase, picked == index {
                 return "Correct. This was your answer."
             }
             return "This was the correct answer."
         case .wrong: return "Incorrect. This was your answer."
+        case .playable: return "Playable, not the best. This was your answer."
         case .dimmed: return "Not the answer, not selected."
         }
     }
 
     private var emphasisedIndex: Int? {
-        if case let .graded(_, answer) = phase { return answer }
+        if case let .graded(_, answer, _) = phase { return answer }
         return nil
     }
 
@@ -482,6 +485,7 @@ struct CourtPOVView: View {
         switch state(for: index) {
         case .open: return Theme.Surface.ball
         case .correct: return Theme.rightGreen
+        case .playable: return Theme.gold
         case .wrong: return Theme.wrongRed
         case .dimmed: return Color(white: 0.55)
         }
@@ -491,6 +495,7 @@ struct CourtPOVView: View {
         switch state(for: index) {
         case .open: return Theme.Surface.ball.opacity(0.7)
         case .correct: return Theme.rightGreen
+        case .playable: return Theme.gold.opacity(0.8)
         case .wrong: return Theme.wrongRed.opacity(0.8)
         case .dimmed: return .white.opacity(0.2)
         }
@@ -502,7 +507,7 @@ struct CourtPOVView: View {
 }
 
 /// How one option is faring: before the tap, and after it.
-enum AimTargetState { case open, correct, wrong, dimmed }
+enum AimTargetState { case open, correct, playable, wrong, dimmed }
 
 /// The numbered badge drawn on a ring.
 ///
@@ -528,6 +533,7 @@ struct AimBadge: View {
         switch state {
         case .open: return Theme.Surface.ball
         case .correct: return Theme.rightGreen
+        case .playable: return Theme.gold
         case .wrong: return Theme.wrongRed
         case .dimmed: return Color(white: 0.42)
         }
@@ -536,7 +542,7 @@ struct AimBadge: View {
     private var ink: Color {
         switch state {
         case .open: return Theme.Surface.play
-        case .correct, .wrong, .dimmed: return .white
+        case .correct, .playable, .wrong, .dimmed: return .white
         }
     }
 }
@@ -595,6 +601,7 @@ struct AimOptionButton: View {
         switch state {
         case .open: return Color(red: 0.04, green: 0.10, blue: 0.12).opacity(0.56)
         case .correct: return Theme.rightGreen
+        case .playable: return Theme.gold
         case .wrong: return Theme.wrongRed
         case .dimmed: return Color(white: 0.14).opacity(0.86)
         }
@@ -603,7 +610,7 @@ struct AimOptionButton: View {
     private var stroke: Color {
         switch state {
         case .open: return .white.opacity(0.30)
-        case .correct, .wrong: return .white.opacity(0.75)
+        case .correct, .playable, .wrong: return .white.opacity(0.75)
         case .dimmed: return .white.opacity(0.16)
         }
     }
@@ -611,7 +618,7 @@ struct AimOptionButton: View {
     private var numberFill: Color {
         switch state {
         case .open: return Theme.Surface.ball
-        case .correct, .wrong: return .white.opacity(0.92)
+        case .correct, .playable, .wrong: return .white.opacity(0.92)
         case .dimmed: return Color(white: 0.42)
         }
     }
@@ -620,6 +627,7 @@ struct AimOptionButton: View {
         switch state {
         case .open: return Theme.Surface.play
         case .correct: return Theme.rightGreen
+        case .playable: return Theme.gold
         case .wrong: return Theme.wrongRed
         case .dimmed: return .white
         }
@@ -749,7 +757,7 @@ private struct CourtSceneView: UIViewRepresentable {
             // and a long empty gap after that reads as the button not working.
             var start = 0.08
             for path in replay {
-                let color = path.isCorrect ? Theme.rightGreen : Theme.wrongRed
+                let color = path.isCorrect ? Theme.rightGreen : (path.isPlayable ? Theme.gold : Theme.wrongRed)
                 replayRoot.addChildNode(CourtScene.replayNode(
                     path.flight, color: color, dashed: !path.isCorrect, delay: start
                 ))

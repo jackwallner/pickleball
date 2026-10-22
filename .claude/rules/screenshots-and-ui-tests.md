@@ -64,3 +64,15 @@ Moved verbatim from AGENTS.md. Loads when a matching file is read; update it her
   trees and control frames to `build/edgecase/shots/<tag>/`. XCUITest lists
   elements that are `accessibilityHidden`, so its trees cannot prove what
   VoiceOver reads.
+
+- **Release gate.** `qa/gate.json` runs `DuprIQScreenshots/ReleaseJourneysUITests`
+  through `qa-gate run ~/pickleball` (newcomer, AX3, reduce motion; german skips
+  until localized). `release.py check` blocks without a passing receipt for the
+  exact commit. `-uitest.freeLeft N` starts a run with N free balls left, which is
+  how the daily-limit journey reaches the summary paywall in one ball. Ledger
+  entries in `qa/ledger.jsonl` accept known non-defects (Q001: the status bar
+  returning on the summary).
+
+- **`ContentDumpTests`** writes `build/content-sample.md` (25 positions per phase
+  with options, best, traps and playable marks) when run with
+  `TEST_RUNNER_CONTENT_DUMP=1`. It is what a coach reviewer reads.

@@ -141,4 +141,60 @@ final class ProductContractTests: XCTestCase {
         let returns = seeds.map { PositionGenerator.question(phase: .serveReturn, seed: $0) }
         XCTAssertGreaterThan(Set(returns.map { $0.verdict.best.target }).count, 1, "every return goes the same way")
     }
+
+    // MARK: - Coaching review
+
+    /// A coach's review found third-shot drives graded best into two set
+    /// players and drives at the feet off a ball below the net. Both teach
+    /// the shot a rec player most needs to unlearn.
+    func testNoDriveIsBestIntoTwoSetPlayersOrOffALowBall() {
+        for q in questions() {
+            let best = q.verdict.best
+            let context = "\(q.position.id): \(best.label) / \(q.verdict.principle)"
+            if q.position.phase == .thirdShot, q.position.opponentsBothAtKitchen {
+                XCTAssertNotEqual(best.type, .drive, context)
+            }
+            if !q.position.ballHeight.isAttackable {
+                XCTAssertFalse([.drive, .speedUp, .putAway].contains(best.type), context)
+            }
+        }
+    }
+
+    /// "Playing to the set player" is about where a groundstroke goes; a lob
+    /// over the set player is the point of a lob.
+    func testTheSetPlayerTrapIsNeverOnALob() {
+        for q in questions() {
+            for (index, shot) in q.options.enumerated() where shot.type == .lob {
+                let pattern = MistakeCatalog.pattern(for: shot, in: q)
+                XCTAssertNotEqual(pattern?.id, "hit-the-player-who-was-set", "\(q.position.id) option \(index)")
+            }
+        }
+    }
+
+    /// Gold means "fine, the rally goes on", so it can never also carry a
+    /// named mistake, and every ball must still have a wrong answer to find.
+    func testPlayableOptionsAreCleanAndNeverTheWholeBoard() {
+        for q in questions() {
+            let playable = q.options.indices.filter(q.isPlayable)
+            XCTAssertFalse(playable.contains(q.answerIndex), q.position.id)
+            for index in playable {
+                XCTAssertNil(MistakeCatalog.pattern(for: q.options[index], in: q), "\(q.position.id) option \(index)")
+            }
+            let wrong = q.options.indices.filter { $0 != q.answerIndex && !q.isPlayable($0) }
+            XCTAssertFalse(wrong.isEmpty, "\(q.position.id): \(q.options.map(\.label))")
+        }
+    }
+
+    /// Two soft shots to the same kitchen are the same stroke at rec level;
+    /// marking one of them a lost point is what made graders feel arbitrary.
+    func testSoftAlternativesToASoftAnswerArePlayable() {
+        let soft: Set<ShotType> = [.drop, .reset, .dink]
+        for q in questions() where soft.contains(q.verdict.best.type) {
+            for (index, shot) in q.options.enumerated() where index != q.answerIndex && soft.contains(shot.type) {
+                if MistakeCatalog.pattern(for: shot, in: q) == nil {
+                    XCTAssertTrue(q.isPlayable(index), "\(q.position.id): \(shot.label) vs \(q.verdict.best.label)")
+                }
+            }
+        }
+    }
 }

@@ -5,6 +5,9 @@ import Foundation
 struct RallyFocus: Equatable, Sendable {
     let phase: RallyPhase
     let mistakeID: String?
+    /// Picked from the player's level rather than from their own misses, so
+    /// it is not labelled as something they need to fix.
+    var isStarter: Bool = false
 }
 
 /// One decision inside a point.
@@ -75,9 +78,15 @@ enum RallyBuilder {
                 let question = focusQuestion(
                     target, seed: seed &+ UInt64(pointIndex &* 7_919), half: half
                 )
+                // Rejection sampling can miss; then the ball tests the phase,
+                // and must not claim to test a trap it does not offer.
+                let offered = target.mistakeID.map { id in
+                    MistakeCatalog.mistakes(for: question).values.contains { $0.id == id }
+                } ?? true
                 balls.append(RallyBall(
                     question: question, pointIndex: pointIndex,
-                    shotIndex: 0, shotsInPoint: 1, focus: target
+                    shotIndex: 0, shotsInPoint: 1,
+                    focus: offered ? target : RallyFocus(phase: target.phase, mistakeID: nil, isStarter: target.isStarter)
                 ))
                 pointIndex += 1
                 continue

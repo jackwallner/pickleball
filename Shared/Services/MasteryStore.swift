@@ -168,7 +168,7 @@ final class MasteryStore: ObservableObject {
             focus.append(RallyFocus(phase: weakest, mistakeID: nil))
         }
         if focus.isEmpty {
-            focus = level.starterPhases.map { RallyFocus(phase: $0, mistakeID: nil) }
+            focus = level.starterPhases.map { RallyFocus(phase: $0, mistakeID: nil, isStarter: true) }
         }
         return focus
     }

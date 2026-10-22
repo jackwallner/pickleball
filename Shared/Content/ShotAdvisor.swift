@@ -54,23 +54,47 @@ enum ShotAdvisor {
         }
     }
 
+    /// A shot a coach would let go: not the best ball, but no mistake either.
+    /// A playable pick keeps the rally alive; only the best one counts as the
+    /// right call. Without this tier a straight drop lost the point to a
+    /// cross-court drop, which no coach would call a lost point.
+    static func isPlayable(_ shot: Shot, in position: RallyPosition, best: Shot) -> Bool {
+        guard shot != best,
+              MistakeCatalog.pattern(for: shot, in: position, best: best) == nil else { return false }
+        let soft: Set<ShotType> = [.drop, .reset, .dink]
+        let attack: Set<ShotType> = [.drive, .speedUp, .putAway]
+        if soft.contains(best.type), soft.contains(shot.type) { return true }
+        if best.type == .deepReturn, shot.type == .deepReturn { return true }
+        if attack.contains(best.type), attack.contains(shot.type), position.ballHeight.isAttackable { return true }
+        // A drive off a third ball that sits up is a 4.0 play: worse than the
+        // drop against two set players, but not a mistake.
+        if position.phase == .thirdShot, position.ballHeight == .aboveNet, shot.type == .drive { return true }
+        // A defensive lob over a team crowding the line, from the baseline.
+        if position.phase == .defense, shot.type == .lob, position.yourZone == .baseline,
+           position.opponentsBothAtKitchen, position.ballHeight == .netHeight { return true }
+        return false
+    }
+
     // MARK: - Phases
 
     private static func serveReturn(_ p: RallyPosition) -> ShotVerdict {
         // The return is the one shot where depth beats everything, including a
         // tempting high ball. Driving a return keeps you at the baseline, which
         // is the mistake the whole phase exists to train out.
-        if p.isContactNearMiddle {
+        if p.isContactNearMiddle || p.isMiddleOpen {
+            let reason = p.isMiddleOpen
+                ? "They are standing \(feet(p.opponentSpread)) apart, so the middle is the biggest deep target on the court"
+                : "You are hitting from the middle, where there is no long diagonal to use"
             return ShotVerdict(
                 best: Shot(.deepReturn, .middle),
                 principle: "Return deep, then take the line",
                 why: """
                 A high, deep return pins the serving team behind the baseline and \
-                buys you the seconds you need to walk in to the kitchen. You are \
-                hitting from the middle, where there is no long diagonal to use, \
-                so send it deep down the middle: both servers hesitate over who \
-                takes it, and neither gets an angle back at you. A low, hard \
-                return gets back to you faster than you can walk in.
+                buys you the seconds you need to walk in to the kitchen. \
+                \(reason): send it deep down the middle, where both servers \
+                hesitate over who takes it and neither gets an angle back at \
+                you. A low, hard return gets back to you faster than you can \
+                walk in.
                 """,
                 targetOpponent: nil
             )
@@ -94,47 +118,45 @@ enum ShotAdvisor {
 
     private static func thirdShot(_ p: RallyPosition) -> ShotVerdict {
         if let lagging = p.laggingOpponentSide {
+            if p.ballHeight == .aboveNet {
+                return ShotVerdict(
+                    best: Shot(.drive, .atFeet),
+                    principle: "Drive at the player who isn't set",
+                    why: """
+                    \(lagging.label.capitalizedFirst) is still moving through the \
+                    transition zone and this ball sits up. A ball driven at the \
+                    feet of a player who has not stopped moving is the hardest \
+                    one to handle; be ready to drop the next ball and follow it in.
+                    """,
+                    targetOpponent: lagging
+                )
+            }
             return ShotVerdict(
-                best: Shot(.drive, .atFeet),
-                principle: "Drive at the player who isn't set",
+                best: Shot(.drop, .atFeet),
+                principle: "Drop at the player who isn't set",
                 why: """
-                \(lagging.label.capitalizedFirst) is still moving through the \
-                transition zone. A ball driven at the feet of a player who has \
-                not stopped moving is the hardest ball in pickleball to handle, \
-                and it is why you look at their feet before you pick this shot. \
-                Dropping here would hand them the time they need to reach the \
-                line.
+                \(lagging.label.capitalizedFirst) is still moving up, and your \
+                contact is too low to drive. Drop it at their feet: a soft ball \
+                landing on a moving player forces a low pickup, and the ball \
+                they lift is the one you attack once you are in.
                 """,
                 targetOpponent: lagging
             )
         }
-        if p.ballHeight == .aboveNet {
-            let target = p.straightOpponentSide
-            return ShotVerdict(
-                best: Shot(.drive, .backhand),
-                principle: "A high ball is a drive, even on the third",
-                why: """
-                The drop is the default third shot, not a rule. This ball is \
-                sitting above net height, so you can drive it flat at the \
-                backhand hip of \(target.label), the one directly in front of \
-                you, and follow it in. Turning a free ball into a soft drop \
-                gives away the one advantage you were handed.
-                """,
-                targetOpponent: target
-            )
-        }
-        // Both set, ball low: the only question left is which diagonal exists.
+        // Both set. The drop is the third shot even off a ball that sits up:
+        // a drive from the baseline at two players already at the line comes
+        // back at your feet before you have taken a step.
+        let opening = p.ballHeight == .aboveNet
+            ? "The ball sits up and a drive is tempting, but both opponents are set at the line, and a drive from back here comes straight back at your feet."
+            : "Both opponents are set at the kitchen and your contact is below the net, so any drive has to come up and sits up for them."
         if p.isContactNearMiddle {
             return ShotVerdict(
                 best: Shot(.drop, .straightKitchen),
                 principle: "From the middle, drop straight",
                 why: """
-                Both opponents are established at the kitchen and your contact \
-                is below the net, so there is no drive available that does not \
-                sit up. You are hitting from the middle of the court, which \
-                means the cross-court diagonal is barely longer than the \
-                straight one: take the shorter, straighter drop in front of you \
-                and cut the angle you give back.
+                \(opening) You are hitting from the middle, where the cross-court \
+                diagonal is barely longer than the straight one: take the \
+                straighter drop in front of you and cut the angle you give back.
                 """,
                 targetOpponent: nil
             )
@@ -144,10 +166,9 @@ enum ShotAdvisor {
             best: Shot(.drop, .crossCourtKitchen),
             principle: "Drop when they're set",
             why: """
-            Both opponents are established at the kitchen, and your contact is \
-            below the net, so there is no drive available that does not sit up. \
-            You are hitting \(p.contactSideLabel), so the drop to \(target.label) travels the longest diagonal, which \
-            gives it the most court to land soft and buys you the time to move up.
+            \(opening) You are hitting \(p.contactSideLabel), so the drop to \
+            \(target.label) travels the longest diagonal, which gives it the \
+            most court to land soft and buys you the time to move up.
             """,
             targetOpponent: target
         )
@@ -177,14 +198,13 @@ enum ShotAdvisor {
         }
         return ShotVerdict(
             best: Shot(.reset, .straightKitchen),
-            principle: "Reset off your shoetops, never drive",
+            principle: "Reset in transition",
             why: """
-            You are caught in the transition zone with a ball at or below net \
-            height. Take the pace off and land it soft in the kitchen in front \
-            of you, then split-step and keep moving forward. The straight reset \
-            travels the shortest distance, which is what makes it the one you \
-            can control under pressure, and it is the one that does not open an \
-            angle while you are still moving.
+            You are caught in the transition zone with a ball that is not above \
+            the net, and a drive from here has to come up. Take the pace off \
+            and land it soft in the kitchen, then split-step and keep moving \
+            forward. The straight reset travels the shortest distance, which \
+            makes it the easiest to control while you are still moving.
             """,
             targetOpponent: nil
         )
@@ -204,30 +224,17 @@ enum ShotAdvisor {
                 targetOpponent: lagging
             )
         }
-        if p.ballHeight == .netHeight {
-            return ShotVerdict(
-                best: Shot(.dink, .middle),
-                principle: "Middle solves the poach problem",
-                why: """
-                The ball is at net height: not attackable, but not comfortable \
-                for them either. The middle dink makes two players decide who \
-                takes it, and indecision between partners produces the popped-up \
-                ball you are actually fishing for.
-                """,
-                targetOpponent: nil
-            )
-        }
         if p.isMiddleOpen {
             return ShotVerdict(
                 best: Shot(.dink, .middle),
                 principle: "Dink into the seam they left open",
                 why: """
-                Contact is below the net with everyone set, so this is a \
+                The ball is not above the net and everyone is set, so this is a \
                 patience ball, and the patient ball is not automatically the \
                 cross-court one. They are standing \(feet(p.opponentSpread)) \
                 apart: the middle is the widest piece of open kitchen on the \
-                court, and a dink into the seam is the one neither of them can \
-                take with a comfortable forehand.
+                court, and a dink into the seam makes them decide who takes it. \
+                That moment of doubt is where the ball that pops up comes from.
                 """,
                 targetOpponent: nil
             )
@@ -237,12 +244,12 @@ enum ShotAdvisor {
             best: Shot(.dink, .crossCourtKitchen),
             principle: "Cross-court is the longest, safest diagonal",
             why: """
-            Contact is below the net with everyone set at the line and the \
-            middle covered, so this is a patience ball. The dink to \
+            The ball is not above the net, everyone is set at the line and the \
+            middle is covered, so this is a patience ball. The dink to \
             \(target.label) gives you the longest diagonal and the lowest part \
             of the net, so it is the one you can hit a hundred times without \
-            missing. Speeding it up from below the net is how you lose the point \
-            you were winning.
+            missing. Speeding up a ball that is not above the net is how you \
+            lose the point you were winning.
             """,
             targetOpponent: target
         )
@@ -283,28 +290,14 @@ enum ShotAdvisor {
             The ball is above net height with both opponents at the line and \
             the middle covered, so you can hit down but you cannot hit through. \
             Aim at the feet and the hip of \(target.label), the one straight in \
-            front of you, not at the sideline: a ball driven at the body cannot \
-            be blocked cleanly.
+            front of you, not at the sideline: a ball at the hip is the hardest \
+            one to block back with control.
             """,
             targetOpponent: target
         )
     }
 
     private static func defense(_ p: RallyPosition) -> ShotVerdict {
-        if p.yourZone == .baseline && p.opponentsBothAtKitchen && p.ballHeight == .netHeight {
-            let target = p.crossCourtOpponentSide
-            return ShotVerdict(
-                best: Shot(.lob, .deepCrossCourt),
-                principle: "Lob when they crowd the line",
-                why: """
-                They are both leaning over the kitchen line and you have a ball \
-                at a height you can lift. The lob over \(target.label) travels \
-                the longest diagonal, so it has the most court to drop in, and it \
-                makes them turn and run rather than step back and swing.
-                """,
-                targetOpponent: target
-            )
-        }
         return ShotVerdict(
             best: Shot(.reset, .straightKitchen),
             principle: "Reset, don't counter-drive",
