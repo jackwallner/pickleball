@@ -50,3 +50,28 @@ actor and run on SceneKit's render thread trips Swift 6's isolation check.
 `AppSettings.ShotClock` is off by default; a beginner first has to learn the ball,
 feet and rings. When on, an undecided ball is graded as a miss. The clock pauses
 while "Your game" is open over the court.
+
+### The verdict card
+
+Closed, the card is the height of the option band it replaced, which leaves
+the explanation a few lines behind a fade. The grabber, the chevron
+(`expand-why`), a tap on the text or a pull up opens it to fit its text, capped
+at 70% of the screen; Replay, a new ball, returning from the background and
+closing "Your game" all close it, because an open card hides the replay.
+
+### Input guards
+
+- Next sits where the option band was. `startClock()` stamps `ballShownAt` on
+  every new ball and `select` ignores taps for 0.6 s after it, so a quick
+  second tap on Next cannot grade a ball nobody has seen. XCUITest's "fast"
+  tap pair lands about 0.5 s apart, so a 0.4 s guard does not survive it.
+- Changing the shot clock in Settings mid-ball applies at once: Off stops the
+  running clock instead of letting it expire unseen.
+- The court and "Your game" cap Dynamic Type at XXXL (`.dynamicTypeSize`): the
+  HUD, band and card are sized against the 3D view, and past XXXL they wrapped
+  over the players and broke words. Onboarding is uncapped and scrolls
+  (`ViewThatFits`) with Continue pinned.
+- `CourtPOVView` hides its overlays until SceneKit reports a first frame
+  (`FirstFrameSignal`, 1 s fallback), so a cold launch never shows labels over
+  an empty field.
+

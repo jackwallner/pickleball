@@ -40,6 +40,9 @@ struct RallyView: View {
     @State private var cardExpanded = false
     /// The height the card asks for to show everything without scrolling.
     @State private var cardFitHeight: CGFloat = 0
+    /// When the current ball appeared. Next sits where the option band was,
+    /// so a quick second tap on Next would otherwise grade a ball unseen.
+    @State private var ballShownAt = Date.distantPast
     @State private var showPaywall = false
     @State private var showYourGame = false
     @State private var finished = false
@@ -76,6 +79,10 @@ struct RallyView: View {
                     .onAppear(perform: build)
             }
         }
+        // The court is a game screen with fixed geometry: the option band,
+        // the card and the HUD are sized against the 3D view. Past XXXL the
+        // HUD wraps over the players and the card headline breaks mid-word.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showPaywall) { PaywallView(source: "rally").pageSizedOnIPad() }
         .sheet(isPresented: $showYourGame) { YourGameView().pageSizedOnIPad() }
@@ -83,13 +90,19 @@ struct RallyView: View {
         // A replay that ran while "Your game" covered the court, or while the
         // app was in the background, was never seen: fly it again.
         .onChange(of: showYourGame) { _, open in
-            if !open && isGraded && !finished { replayToken += 1 }
+            if !open && isGraded && !finished { replayAgain() }
+        }
+        // Turning the timer off mid-ball stops it; turning it on starts it fresh.
+        .onChange(of: settings.shotClock) { _, _ in
+            guard !isGraded, !finished else { return }
+            clockRemaining = settings.shotClock.seconds
+            clockLastTick = .now
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             // Time in the background does not count against the shot clock.
             clockLastTick = .now
-            if isGraded && !finished { replayToken += 1 }
+            if isGraded && !finished { replayAgain() }
         }
         .onChange(of: subscriptions.isPro) { _, isPro in
             // Buying Pro from the free-limit summary should put a ball in
@@ -141,11 +154,7 @@ struct RallyView: View {
                         buttonTitle: nextButtonTitle,
                         isExpanded: $cardExpanded,
                         onFitHeight: { cardFitHeight = $0 },
-                        onReplay: {
-                            // The replay is the court; an open card would hide it.
-                            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { cardExpanded = false }
-                            replayToken += 1
-                        },
+                        onReplay: replayAgain,
                         onNext: advance
                     )
                     .frame(height: cardHeight(band: band, screenHeight: screenHeight), alignment: .top)
@@ -166,6 +175,27 @@ struct RallyView: View {
     }
 
     private var isGraded: Bool { picked != nil || timedOut }
+
+    /// The replay is the court; an open card would hide it.
+    private func replayAgain() {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { cardExpanded = false }
+        replayToken += 1
+    }
+
+    /// VoiceOver hears the verdict the moment it lands, not after walking
+    /// past the court to find the card.
+    private func announceVerdict(for ball: RallyBall) {
+        let best = ball.question.verdict.best.label
+        let line: String
+        if timedOut {
+            line = "Time's up. Point to them. Best was \(best)."
+        } else if picked == ball.question.answerIndex {
+            line = "Good. \(best)."
+        } else {
+            line = "Point to them. Best was \(best)."
+        }
+        AccessibilityNotification.Announcement(line).post()
+    }
 
     /// Closed, the card fits the option band it replaced. Open, it grows to
     /// its text, up to the point where the court would stop reading as one.
@@ -331,7 +361,9 @@ struct RallyView: View {
 
     // MARK: - Clock
 
+    /// Runs whenever a new ball is put in front of the player.
     private func startClock() {
+        ballShownAt = .now
         clockRemaining = settings.shotClock.seconds
         clockLastTick = .now
     }
@@ -367,6 +399,7 @@ struct RallyView: View {
         mastery.record(ball.question, picked: nil, focus: ball.focus?.mistakeID)
         limiter.consume(isPro: subscriptions.isPro)
         replayToken += 1
+        announceVerdict(for: ball)
     }
 
     // MARK: - Flow
@@ -413,6 +446,7 @@ struct RallyView: View {
     }
 
     private func select(_ offset: Int, in ball: RallyBall) {
+        guard Date.now.timeIntervalSince(ballShownAt) > 0.6 else { return }
         // A run can straddle midnight; grade against today's cap.
         limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
@@ -434,6 +468,7 @@ struct RallyView: View {
         mastery.record(ball.question, picked: offset, focus: ball.focus?.mistakeID)
         limiter.consume(isPro: subscriptions.isPro)
         replayToken += 1
+        announceVerdict(for: ball)
     }
 
     private func advance() {
@@ -688,7 +723,10 @@ struct VerdictCard: View {
     /// that shows every line is the current card plus what is scrolled away.
     private func reportFit() {
         guard cardHeight > 0, viewportHeight > 0 else { return }
-        onFitHeight((cardHeight - viewportHeight + contentHeight).rounded(.up))
+        // Open, the text ends well above the buttons; the fade it scrolls
+        // under closed only needs a little of the bottom padding.
+        let fadeRoom: CGFloat = 30
+        onFitHeight((cardHeight - viewportHeight + contentHeight - fadeRoom).rounded(.up))
     }
 
     /// The handle a sheet has, so the card reads as one that pulls up.

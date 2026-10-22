@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var step: Step = .court
     @State private var level: ExperienceLevel?
     @State private var half: CourtHalf?
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// A fixed, legal example: one opponent at the line, one still short, and
     /// a ball sitting up. The answer is to drive at the one who isn't set.
@@ -36,13 +37,14 @@ struct OnboardingView: View {
             progressDots
                 .padding(.top, 12)
 
-            Group {
-                switch step {
-                case .court: courtStep
-                case .level: levelStep
-                case .half: halfStep
-                }
+            // At the largest text sizes a step is taller than the screen;
+            // then it scrolls and Continue stays pinned below it.
+            ViewThatFits(in: .vertical) {
+                stepContent
+                ScrollView { stepContent }
+                    .scrollBounceBehavior(.basedOnSize)
             }
+            .id(step)
             .frame(maxWidth: Theme.readableContentWidth)
             .frame(maxHeight: .infinity)
             .transition(.asymmetric(
@@ -68,6 +70,15 @@ struct OnboardingView: View {
 
     // MARK: - Steps
 
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case .court: courtStep
+        case .level: levelStep
+        case .half: halfStep
+        }
+    }
+
     private var courtStep: some View {
         VStack(alignment: .leading, spacing: 20) {
             CourtPOVView(
@@ -78,7 +89,7 @@ struct OnboardingView: View {
                 onPick: nil,
                 chrome: .embedded
             )
-            .frame(height: 380)
+            .frame(height: sizeClass == .regular ? 600 : 380)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .accessibilityHidden(true)
 
@@ -86,6 +97,7 @@ struct OnboardingView: View {
                 Text("See the court. Call the shot.")
                     .font(Theme.display(34))
                     .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("Every ball is a real rally position from where you stand. Read the ball's height against the net and where their feet are, then pick where it goes.")
                     .font(.body)
                     .foregroundStyle(Theme.inkSecondary)
@@ -130,6 +142,7 @@ struct OnboardingView: View {
             Text(title)
                 .font(Theme.display(32))
                 .foregroundStyle(Theme.ink)
+                .fixedSize(horizontal: false, vertical: true)
             Text(detail)
                 .font(.callout)
                 .foregroundStyle(Theme.inkSecondary)

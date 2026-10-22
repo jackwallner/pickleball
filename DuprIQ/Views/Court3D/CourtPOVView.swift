@@ -84,6 +84,11 @@ struct CourtPOVView: View {
     /// Bumped by the caller to (re)play `replay`.
     var replayToken: Int = 0
 
+    /// False until SceneKit has drawn the court once. A cold launch spends a
+    /// moment compiling shaders, and the labels and buttons drawn over an
+    /// empty field read as a broken screen.
+    @State private var sceneReady = false
+
     /// One path in the post-grading replay.
     struct Replay {
         let flight: ShotFlight
@@ -176,24 +181,34 @@ struct CourtPOVView: View {
                     colors: options.indices.map { ringColor(for: $0) },
                     emphasised: emphasisedIndex,
                     replay: framed(replay, camera: camera, in: geo.size),
-                    replayToken: replayToken
+                    replayToken: replayToken,
+                    onFirstFrame: { sceneReady = true }
                 )
                 .accessibilityHidden(true)
                 .frame(width: geo.size.width, height: viewport.height)
                 .frame(maxWidth: .infinity, alignment: .top)
                 .offset(y: chrome.topInset(in: geo.size))
 
-                tethers(placements)
-                playerLabels(with: camera, in: geo.size)
-                ringBadges(placements)
+                Group {
+                    tethers(placements)
+                    playerLabels(with: camera, in: geo.size)
+                    ringBadges(placements)
 
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    optionPanel(placements, in: geo.size)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        optionPanel(placements, in: geo.size)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .opacity(sceneReady ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: sceneReady)
             }
             .contentShape(Rectangle())
+        }
+        // Never leave the overlay hidden if a first frame is not reported.
+        .task {
+            try? await Task.sleep(for: .seconds(1))
+            sceneReady = true
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(position.spokenDescription(
@@ -363,6 +378,7 @@ struct CourtPOVView: View {
                     .font(.subheadline.weight(.heavy))
                     .foregroundStyle(.white.opacity(0.94))
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityHidden(onPick == nil)
             }
             ForEach(rows.indices, id: \.self) { row in
                 HStack(spacing: chrome.isCompact ? 6 : 10) {
@@ -418,6 +434,9 @@ struct CourtPOVView: View {
             .accessibilityHint("Aims \(shot.target.label)")
             .accessibilityValue(accessibilityValue(for: index))
             .accessibilityIdentifier("shot-\(index)")
+            // Graded, the verdict card covers the band; VoiceOver should not
+            // walk four buttons nobody can see or press.
+            .accessibilityHidden(onPick == nil)
         }
     }
 
@@ -621,6 +640,7 @@ private struct CourtSceneView: UIViewRepresentable {
     let emphasised: Int?
     let replay: [CourtPOVView.Replay]
     let replayToken: Int
+    let onFirstFrame: @MainActor () -> Void
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
@@ -641,6 +661,11 @@ private struct CourtSceneView: UIViewRepresentable {
         // spoken by `CourtPOVView` as one label.
         view.isAccessibilityElement = false
         view.accessibilityElementsHidden = true
+        let firstFrame = FirstFrameSignal { [onFirstFrame] in
+            Task { @MainActor in onFirstFrame() }
+        }
+        context.coordinator.firstFrame = firstFrame
+        view.delegate = firstFrame
         context.coordinator.rebuild(view, position: position, camera: camera)
         context.coordinator.updateAims(view, points: aimPoints, colors: colors, emphasised: emphasised)
         context.coordinator.replayToken = replayToken
@@ -666,6 +691,8 @@ private struct CourtSceneView: UIViewRepresentable {
     final class Coordinator {
         var positionID: String?
         var replayToken = 0
+        /// Held here because `SCNView.delegate` is weak.
+        var firstFrame: FirstFrameSignal?
         private var aimRoot: SCNNode?
         private var replayRoot: SCNNode?
         private var replayGeneration = 0
@@ -737,5 +764,26 @@ private struct CourtSceneView: UIViewRepresentable {
                 view?.rendersContinuously = false
             }
         }
+    }
+}
+
+/// Reports, once, that SceneKit has drawn a frame. The renderer calls it on
+/// its own thread, so the flag sits behind a lock and the report hops to the
+/// main actor.
+final class FirstFrameSignal: NSObject, SCNSceneRendererDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+    private let onFire: @Sendable () -> Void
+
+    init(onFire: @escaping @Sendable () -> Void) {
+        self.onFire = onFire
+    }
+
+    func renderer(_ renderer: any SCNSceneRenderer, didRenderScene scene: SCNScene, atTime time: TimeInterval) {
+        lock.lock()
+        let first = !fired
+        fired = true
+        lock.unlock()
+        if first { onFire() }
     }
 }

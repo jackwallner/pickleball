@@ -56,3 +56,11 @@ Moved verbatim from AGENTS.md. Loads when a matching file is read; update it her
 - Both `setUp()` and any other override of a nonisolated XCTestCase method run
   outside the MainActor even on a `@MainActor` test class, so launching the app
   there trips Swift 6's sending check. Launch from the test body.
+
+- **`DuprIQScreenshots/EdgeCaseTests` is the edge-case audit.** Run it with
+  `scripts/edge-case-walk.sh <udid> <tag> <video 0|1> <test>...` after setting
+  the sim's text size (`xcrun simctl ui <udid> content_size ...`) or against
+  an iPad from `scripts/with-ipad-sim.sh`. It writes screenshots, accessibility
+  trees and control frames to `build/edgecase/shots/<tag>/`. XCUITest lists
+  elements that are `accessibilityHidden`, so its trees cannot prove what
+  VoiceOver reads.

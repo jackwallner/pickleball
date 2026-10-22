@@ -45,6 +45,8 @@ struct YourGameView: View {
             }
             .sheet(isPresented: $showPaywall) { PaywallView(source: "your-game").pageSizedOnIPad() }
         }
+        // Past XXXL the stat tiles truncate their labels to "day…".
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .preferredColorScheme(.dark)
     }
 
