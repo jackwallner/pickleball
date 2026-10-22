@@ -11,6 +11,17 @@ struct DuprIQApp: App {
     @StateObject private var settings = AppSettings.shared
     @StateObject private var profile = PlayerProfile.shared
 
+    // Fixtures before the first frame: a screenshot run has to wipe and seed
+    // state before RootView decides what to draw, and a blank holding frame
+    // while it waited added to the launch.
+    init() {
+        #if DEBUG
+        DebugFixtures.applyIfRequested(
+            mastery: .shared, limiter: .shared, reviews: .shared, profile: .shared
+        )
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

@@ -4,18 +4,11 @@ import SwiftUI
 /// you on the court with a ball coming.
 struct RootView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
-    @EnvironmentObject private var mastery: MasteryStore
-    @EnvironmentObject private var limiter: PracticeLimiter
-    @EnvironmentObject private var reviews: ReviewPromptTracker
     @EnvironmentObject private var profile: PlayerProfile
-
-    @State private var ready = false
 
     var body: some View {
         Group {
-            if !ready {
-                Theme.background.ignoresSafeArea()
-            } else if profile.setupComplete {
+            if profile.setupComplete {
                 NavigationStack { RallyView() }
             } else {
                 OnboardingView()
@@ -24,14 +17,6 @@ struct RootView: View {
         .preferredColorScheme(.dark)
         .tint(Theme.courtLight)
         .task {
-            // Fixtures first: a screenshot run has to wipe and seed state
-            // before the first frame decides what to draw.
-            #if DEBUG
-            DebugFixtures.applyIfRequested(
-                mastery: mastery, limiter: limiter, reviews: reviews, profile: profile
-            )
-            #endif
-            ready = true
             subscriptions.start()
             ConversionDiagnostics.recordAppOpen()
             #if DEBUG
