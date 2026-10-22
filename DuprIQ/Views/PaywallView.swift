@@ -198,6 +198,16 @@ struct PaywallView: View {
                     .multilineTextAlignment(.center)
             }
 
+            // The links sit above the button so it lands exactly where the
+            // summary's "See Pro" was: same inset, same bottom margin.
+            HStack(spacing: 16) {
+                Button("Restore", action: restore)
+                Link("Terms of Use", destination: PaywallLinks.terms)
+                Link("Privacy Policy", destination: PaywallLinks.privacy)
+            }
+            .font(.footnote)
+            .tint(Theme.courtLight)
+
             Button(action: purchase) {
                 Group {
                     if isWorking {
@@ -211,18 +221,10 @@ struct PaywallView: View {
             .buttonStyle(PressableCTAStyle())
             .disabled(isWorking || !isStoreReady)
             .accessibilityIdentifier("paywall-continue")
-
-            HStack(spacing: 16) {
-                Button("Restore", action: restore)
-                Link("Terms of Use", destination: PaywallLinks.terms)
-                Link("Privacy Policy", destination: PaywallLinks.privacy)
-            }
-            .font(.footnote)
-            .tint(Theme.courtLight)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 24)
         .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(.bottom, 24)
         .frame(maxWidth: Theme.readableContentWidth)
         .frame(maxWidth: .infinity)
         .background(

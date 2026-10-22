@@ -88,6 +88,7 @@ struct CourtPOVView: View {
     /// moment compiling shaders, and the labels and buttons drawn over an
     /// empty field read as a broken screen.
     @State private var sceneReady = false
+    @State private var sceneMounted = false
 
     /// One path in the post-grading replay.
     struct Replay {
@@ -176,16 +177,22 @@ struct CourtPOVView: View {
             let placements = layout(with: camera, in: geo.size)
             let viewport = viewportSize(in: geo.size)
             ZStack(alignment: .top) {
-                CourtSceneView(
-                    position: position,
-                    camera: camera,
-                    aimPoints: aimPoints,
-                    colors: options.indices.map { ringColor(for: $0) },
-                    emphasised: emphasisedIndex,
-                    replay: framed(replay, camera: camera, in: geo.size),
-                    replayToken: replayToken,
-                    onFirstFrame: { sceneReady = true }
-                )
+                Group {
+                    if sceneMounted {
+                        CourtSceneView(
+                            position: position,
+                            camera: camera,
+                            aimPoints: aimPoints,
+                            colors: options.indices.map { ringColor(for: $0) },
+                            emphasised: emphasisedIndex,
+                            replay: framed(replay, camera: camera, in: geo.size),
+                            replayToken: replayToken,
+                            onFirstFrame: { sceneReady = true }
+                        )
+                    } else {
+                        Color.clear
+                    }
+                }
                 .accessibilityHidden(true)
                 .frame(width: geo.size.width, height: viewport.height)
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -207,8 +214,13 @@ struct CourtPOVView: View {
             }
             .contentShape(Rectangle())
         }
+        // SceneKit's setup runs on the main thread and held back the first
+        // frame of the whole screen, HUD included, for two seconds of blank
+        // apron at launch. The screen draws first; the court mounts after.
         // Never leave the overlay hidden if a first frame is not reported.
         .task {
+            try? await Task.sleep(for: .milliseconds(50))
+            sceneMounted = true
             try? await Task.sleep(for: .seconds(1))
             sceneReady = true
         }

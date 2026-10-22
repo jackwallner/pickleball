@@ -698,7 +698,10 @@ struct VerdictCard: View {
                 .contentShape(Rectangle())
                 .simultaneousGesture(TapGesture().onEnded { if !isExpanded { setExpanded(true) } })
             }
-            .frame(minHeight: 90)
+            // Low enough that the closed card always fits its band. A taller
+            // floor overflowed the band, the clip took the bottom margin, and
+            // Next sat 7 pt lower closed than open.
+            .frame(minHeight: 56)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                 viewportHeight = $0
                 reportFit()
