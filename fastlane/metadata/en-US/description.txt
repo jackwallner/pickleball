@@ -4,7 +4,7 @@ Third Shot puts you in a real doubles point, seen in 3D from where you are stand
 
 Watch every shot replayed. After each ball, your shot and the right one fly from where you hit it, on the same court. Drive a ball that was below the net and you watch it die in the tape, with the coaching principle that explains why.
 
-Points, not flashcards. Get the read right and the rally continues to your next shot: return, third shot, the walk to the kitchen, the dink rally, and the finish. Get it wrong and the point is theirs.
+Points, not flashcards. Get the read right and the rally continues to your next shot: return, third shot, the walk to the kitchen, the dink rally, and the finish. A playable shot that was not the best keeps the rally alive and shows you what was better. A mistake hands them the point.
 
 The court learns your game. Every third point is a focus point, built to test the tempting wrong shot that has cost you the most, until you stop taking it. Tell it whether you play the left or right side and positions put you there.
 

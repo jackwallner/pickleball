@@ -108,6 +108,8 @@ enum Principle: String, Codable, CaseIterable, Identifiable, Sendable {
         "From the middle, drop straight": .getToTheLine,
         "A high ball is a drive, even on the third": .finishDown,
         "Drive at the player who isn't set": .hitWhoIsntSet,
+        "Drop at the player who isn't set": .hitWhoIsntSet,
+        "Reset in transition": .reset,
         "Dink at the player who isn't set": .hitWhoIsntSet,
         "Attack the player who isn't set": .hitWhoIsntSet,
         "Dink into the seam they left open": .middleSeam,

@@ -32,6 +32,7 @@ struct RallyView: View {
     @State private var picked: Int?
     @State private var timedOut = false
     @State private var correctCount = 0
+    @State private var playableCount = 0
     @State private var answeredCount = 0
     @State private var yourPoints = 0
     @State private var theirPoints = 0
@@ -64,6 +65,7 @@ struct RallyView: View {
                     yourPoints: yourPoints,
                     theirPoints: theirPoints,
                     correct: correctCount,
+                    playable: playableCount,
                     answered: answeredCount,
                     stoppedAtFreeLimit: stoppedAtFreeLimit,
                     nextFocus: nextFocusLine,
@@ -176,6 +178,12 @@ struct RallyView: View {
 
     private var isGraded: Bool { picked != nil || timedOut }
 
+    /// A miss ends the point; the best ball and a playable one both keep it.
+    private func lostPoint(_ ball: RallyBall) -> Bool {
+        guard !timedOut, let picked else { return true }
+        return picked != ball.question.answerIndex && !ball.question.isPlayable(picked)
+    }
+
     /// The replay is the court; an open card would hide it.
     private func replayAgain() {
         withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) { cardExpanded = false }
@@ -191,6 +199,8 @@ struct RallyView: View {
             line = "Time's up. Point to them. Best was \(best)."
         } else if picked == ball.question.answerIndex {
             line = "Good. \(best)."
+        } else if let picked, ball.question.isPlayable(picked) {
+            line = "Playable. Rally continues. Best was \(best)."
         } else {
             line = "Point to them. Best was \(best)."
         }
@@ -206,7 +216,10 @@ struct RallyView: View {
 
     private func povPhase(for ball: RallyBall) -> CourtPOVView.Phase {
         guard isGraded else { return .deciding }
-        return .graded(picked: picked ?? -1, answer: ball.question.answerIndex)
+        return .graded(
+            picked: picked ?? -1, answer: ball.question.answerIndex,
+            pickedPlayable: picked.map(ball.question.isPlayable) ?? false
+        )
     }
 
     private func aimPoints(for ball: RallyBall) -> [CourtPoint] {
@@ -237,7 +250,7 @@ struct RallyView: View {
            let shot = ball.question.options[safe: picked] {
             let netted = MistakeCatalog.pattern(for: shot, in: ball.question)?.id == "attacked-a-low-ball"
             if let wrong = flight(picked, intoNet: netted) {
-                flights.append(.init(flight: wrong, isCorrect: false))
+                flights.append(.init(flight: wrong, isCorrect: false, isPlayable: ball.question.isPlayable(picked)))
             }
         }
         if let right = flight(ball.question.answerIndex, intoNet: false) {
@@ -295,7 +308,7 @@ struct RallyView: View {
                         .padding(.horizontal, 9)
                         .padding(.vertical, 6)
                         .background(.black.opacity(0.45), in: Capsule())
-                        .accessibilityLabel("\(limiter.remaining(isPro: false)) free balls left today")
+                        .accessibilityLabel(freeLeftLabel)
                 }
             }
             .foregroundStyle(.white.opacity(0.9))
@@ -314,7 +327,13 @@ struct RallyView: View {
         )
     }
 
+    private var freeLeftLabel: String {
+        let left = limiter.remaining(isPro: false)
+        return "\(left) free \(left == 1 ? "ball" : "balls") left today"
+    }
+
     private func focusTitle(_ focus: RallyFocus) -> String {
+        if focus.isStarter { return "YOUR LEVEL · \(focus.phase.title.uppercased())" }
         let what = focus.mistakeID.map(MistakeCatalog.title(for:)) ?? focus.phase.title
         return "FOCUS · \(what.uppercased())"
     }
@@ -338,14 +357,12 @@ struct RallyView: View {
     private var nextButtonTitle: String {
         if isLastBall { return "Finish" }
         guard let ball = balls[safe: index] else { return "Next" }
-        let lostPoint = picked != ball.question.answerIndex
-        return (lostPoint || ball.isLastOfPoint) ? "Next point" : "Next shot"
+        return (lostPoint(ball) || ball.isLastOfPoint) ? "Next point" : "Next shot"
     }
 
     private var isLastBall: Bool {
         guard let ball = balls[safe: index] else { return true }
-        let lostPoint = picked != ball.question.answerIndex
-        if lostPoint || ball.isLastOfPoint {
+        if lostPoint(ball) || ball.isLastOfPoint {
             return RallyBuilder.firstBall(after: ball.pointIndex, in: balls) == nil
         }
         return index + 1 >= balls.count
@@ -355,6 +372,9 @@ struct RallyView: View {
         guard let focus = mastery.focus(for: profile.level).first else { return nil }
         if let id = focus.mistakeID {
             return "Next run leans on \(MistakeCatalog.title(for: id).lowercased())."
+        }
+        if focus.isStarter {
+            return "Next run starts with the \(focus.phase.title.lowercased()), where rallies at your level are usually lost."
         }
         return "Next run leans on the \(focus.phase.title.lowercased())."
     }
@@ -436,6 +456,7 @@ struct RallyView: View {
         timedOut = false
         cardExpanded = false
         correctCount = 0
+        playableCount = 0
         answeredCount = 0
         yourPoints = 0
         theirPoints = 0
@@ -460,6 +481,10 @@ struct RallyView: View {
             correctCount += 1
             if ball.isLastOfPoint { yourPoints += 1 }
             Haptics.correctAnswer()
+        } else if ball.question.isPlayable(offset) {
+            playableCount += 1
+            if ball.isLastOfPoint { yourPoints += 1 }
+            Haptics.correctAnswer()
         } else {
             theirPoints += 1
             Haptics.wrongAnswer()
@@ -476,7 +501,7 @@ struct RallyView: View {
             endRun(atFreeLimit: false)
             return
         }
-        let lostPoint = timedOut || picked != ball.question.answerIndex
+        let lostPoint = lostPoint(ball)
 
         limiter.rollOverIfNeeded()
         guard limiter.canPractice(isPro: subscriptions.isPro) else {
@@ -588,6 +613,14 @@ struct VerdictCard: View {
     @State private var contentHeight: CGFloat = 0
 
     private var wasCorrect: Bool { !timedOut && picked == ball.question.answerIndex }
+    /// Kept the rally without being the best ball.
+    private var wasPlayable: Bool {
+        guard !timedOut, !wasCorrect, let picked else { return false }
+        return ball.question.isPlayable(picked)
+    }
+    private var tone: Color {
+        wasCorrect ? Theme.rightGreen : (wasPlayable ? Theme.gold : Theme.wrongRed)
+    }
     private var verdict: ShotVerdict { ball.question.verdict }
 
     private var mistake: MistakePattern? {
@@ -604,6 +637,13 @@ struct VerdictCard: View {
                     Text(verdict.best.label)
                         .font(Theme.display(23))
                         .foregroundStyle(Theme.ink)
+
+                    if wasPlayable, let picked, let shot = ball.question.options[safe: picked] {
+                        Text("\(shot.label) works, and the rally goes on. This was the better ball.")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(Theme.gold)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     if let mistake {
                         Text(mistake.summary)
@@ -754,7 +794,7 @@ struct VerdictCard: View {
     private var header: some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: wasCorrect ? "checkmark.circle.fill"
+                Image(systemName: wasPlayable ? "checkmark.circle" : wasCorrect ? "checkmark.circle.fill"
                                              : (timedOut ? "clock.badge.xmark.fill" : "xmark.circle.fill"))
                 Text(headline)
             }
@@ -774,7 +814,7 @@ struct VerdictCard: View {
             .accessibilityIdentifier("expand-why")
         }
         .font(.subheadline.weight(.heavy))
-        .foregroundStyle(wasCorrect ? Theme.rightGreen : Theme.wrongRed)
+        .foregroundStyle(tone)
         .padding(.horizontal, 18)
         .padding(.bottom, 10)
         .contentShape(Rectangle())
@@ -790,7 +830,7 @@ struct VerdictCard: View {
         HStack(spacing: 10) {
             HStack(spacing: 4) {
                 Circle()
-                    .strokeBorder(Theme.wrongRed, style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+                    .strokeBorder(tone, style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
                     .frame(width: 9, height: 9)
                 Text("You").foregroundStyle(Theme.inkSecondary)
             }
@@ -808,6 +848,9 @@ struct VerdictCard: View {
         if wasCorrect {
             return ball.isLastOfPoint ? "Point won." : "Good. Rally continues."
         }
+        if wasPlayable {
+            return ball.isLastOfPoint ? "Point won, not the best ball." : "Playable. Rally continues."
+        }
         return "Point to them."
     }
 }
@@ -817,12 +860,19 @@ struct RallySummaryView: View {
     let yourPoints: Int
     let theirPoints: Int
     let correct: Int
+    var playable: Int = 0
     let answered: Int
     let stoppedAtFreeLimit: Bool
     let nextFocus: String?
     let onSeePro: () -> Void
     let onYourGame: () -> Void
     let onPlayAgain: () -> Void
+
+    private var resultLine: String {
+        let best = "\(correct) of \(answered) \(answered == 1 ? "shot was" : "shots were") the best call."
+        guard playable > 0 else { return best }
+        return best + " \(playable) more kept the rally going."
+    }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -844,7 +894,7 @@ struct RallySummaryView: View {
                     .font(Theme.numeric(56, weight: .heavy))
                     .foregroundStyle(Theme.ink)
                     .accessibilityLabel("Final score, you \(yourPoints), them \(theirPoints)")
-                Text("\(correct) of \(answered) shots were the right call.")
+                Text(resultLine)
                     .font(.headline)
                     .foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.center)

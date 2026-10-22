@@ -1,1 +1,7 @@
-First release: generated pickleball shot-selection drills.
+Third Shot 1.1 rebuilds the app around a first-person 3D court.
+
+- Stand in a real doubles point and call the shot from where you are standing.
+- Every ball replays your shot against the best one, on the same court.
+- Sound alternatives now count: a playable shot keeps the rally going and shows in gold, with the reason the best ball was better.
+- Focus points test the tempting wrong shot that has cost you the most.
+- Optional decision timer at learning, game or fast pace.

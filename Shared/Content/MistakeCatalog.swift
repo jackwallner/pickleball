@@ -40,10 +40,13 @@ enum MistakeCatalog {
     /// whose answer was "drive at their feet" told the player who drove to the
     /// backhand that they had attacked a ball that could not be attacked.
     static func pattern(for shot: Shot, in question: DrillQuestion) -> MistakePattern? {
-        let best = question.verdict.best
+        pattern(for: shot, in: question.position, best: question.verdict.best)
+    }
+
+    static func pattern(for shot: Shot, in position: RallyPosition, best: Shot) -> MistakePattern? {
         guard shot != best,
-              let pattern = rawPattern(for: shot, in: question.position, best: best) else { return nil }
-        if rawPattern(for: best, in: question.position, best: best)?.id == pattern.id { return nil }
+              let pattern = rawPattern(for: shot, in: position, best: best) else { return nil }
+        if rawPattern(for: best, in: position, best: best)?.id == pattern.id { return nil }
         return pattern
     }
 
@@ -52,7 +55,8 @@ enum MistakeCatalog {
 
         // Attacking a ball that cannot be attacked is the single most common
         // error in the sport, and it is checkable from the height alone.
-        if !position.ballHeight.isAttackable,
+        if !position.ballHeight.isAttackable, position.phase != .serveReturn,
+           !isNetHeightTransitionDrive(shot, in: position),
            shot.type == .drive || shot.type == .speedUp || shot.type == .putAway {
             return MistakePattern(
                 id: "attacked-a-low-ball",
@@ -61,24 +65,27 @@ enum MistakeCatalog {
             )
         }
 
-        // Driving the return is the mistake the serve-return phase exists to
-        // train out: it wins nothing and it keeps you pinned at the baseline.
-        if position.phase == .serveReturn, shot.type == .drive {
+        // A soft ball off a high one is a missed chance, not a lost point,
+        // and a hard deep return is a sound if worse return; both are
+        // `ShotAdvisor.isPlayable`. A short return is the real mistake: it
+        // lets the serving team walk in behind it.
+        if position.phase == .serveReturn, shot.type == .drop {
             return MistakePattern(
-                id: "drove-the-return",
+                id: "returned-short",
                 phase: phase,
-                summary: "You drove the return. A hard return keeps you at the baseline, which hands the serving team the kitchen line you were trying to take."
+                summary: "You dropped the return. A short ball lets the serving team move up behind it, and takes away the time a deep return buys you to reach the line."
             )
         }
 
         // A shot at the player who IS set, when the other one is still moving.
         if let lagging = position.laggingOpponentSide,
+           [.drive, .speedUp, .putAway].contains(shot.type),
            let aimed = aimedOpponent(for: shot, in: position),
            aimed == lagging.opposite {
             return MistakePattern(
                 id: "hit-the-player-who-was-set",
                 phase: phase,
-                summary: "You hit at the opponent who was already set. \(lagging.label.capitalizedFirst) had not made the line, and that is the one who cannot handle a ball at their feet."
+                summary: "You attacked the opponent who was already set. \(lagging.label.capitalizedFirst) had not made the line, and that is the one who cannot handle a hard ball at their feet."
             )
         }
 
@@ -86,16 +93,17 @@ enum MistakeCatalog {
         // answer took the seam: a reset or lob that is right for other
         // reasons does not make every other ball a missed middle.
         if position.isMiddleOpen, best.target == .middle, shot.target != .middle,
-           shot.type == .dink || shot.type == .drive {
+           [.drive, .speedUp, .putAway].contains(shot.type) {
             return MistakePattern(
                 id: "ignored-the-open-middle",
                 phase: phase,
-                summary: "You went at a body with the middle wide open. A ball in the seam is a ball neither player owns, and it is the safest place on the court to put it."
+                summary: "You attacked a body with the middle wide open. A ball in the seam is a ball neither player owns, and the biggest target on the court."
             )
         }
 
         // Counter-driving from the transition zone instead of resetting.
         if position.phase == .transition || position.phase == .defense,
+           !isNetHeightTransitionDrive(shot, in: position),
            shot.type == .drive || shot.type == .speedUp {
             return MistakePattern(
                 id: "counter-drove-under-pressure",
@@ -121,7 +129,9 @@ enum MistakeCatalog {
         switch id {
         case "attacked-a-low-ball": return "Attacking a low ball"
         case "drove-the-return": return "Driving the return"
-        case "hit-the-player-who-was-set": return "Hitting the set player"
+        case "hit-the-player-who-was-set": return "Attacking the set player"
+        case "returned-short": return "Returning short"
+        case "let-a-high-ball-go": return "Letting a high ball go"
         case "ignored-the-open-middle": return "Missing the open middle"
         case "counter-drove-under-pressure": return "Counter-driving under pressure"
         case "lobbed-into-space-behind-nobody": return "Lobbing a team that isn't crowding"
@@ -129,11 +139,21 @@ enum MistakeCatalog {
         }
     }
 
+    /// Traps the catalog can still name. "drove-the-return" and
+    /// "let-a-high-ball-go" were retired as lost points after a coach review;
+    /// their titles stay so old tallies still read, but nothing targets them.
     static let allIDs = [
-        "attacked-a-low-ball", "drove-the-return", "hit-the-player-who-was-set",
+        "attacked-a-low-ball", "hit-the-player-who-was-set",
         "ignored-the-open-middle", "counter-drove-under-pressure",
-        "lobbed-into-space-behind-nobody",
+        "lobbed-into-space-behind-nobody", "returned-short",
     ]
+
+    /// A drive at the feet off a net-height ball from mid-court: a normal
+    /// 3.5 to 4.0 shot, worse than the reset but not a mistake.
+    static func isNetHeightTransitionDrive(_ shot: Shot, in position: RallyPosition) -> Bool {
+        position.phase == .transition && position.ballHeight == .netHeight
+            && shot.type == .drive && shot.target == .atFeet
+    }
 
     private static func aimedOpponent(for shot: Shot, in position: RallyPosition) -> OpponentSide? {
         switch shot.target {

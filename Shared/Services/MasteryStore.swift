@@ -141,9 +141,12 @@ final class MasteryStore: ObservableObject {
     }
 
     /// Mistakes ranked by how often they have cost a point.
-    var rankedMistakes: [MistakeTally] { state.mistakes }
+    var rankedMistakes: [MistakeTally] { state.mistakes.filter { MistakeCatalog.allIDs.contains($0.id) } }
 
-    var openMistakes: [MistakeTally] { state.mistakes.filter(\.isOpen) }
+    /// Retired traps can never be fixed, so they never count as open.
+    var openMistakes: [MistakeTally] {
+        state.mistakes.filter { $0.isOpen && MistakeCatalog.allIDs.contains($0.id) }
+    }
 
     var weakestPhase: RallyPhase? {
         RallyPhase.allCases
@@ -168,7 +171,7 @@ final class MasteryStore: ObservableObject {
             focus.append(RallyFocus(phase: weakest, mistakeID: nil))
         }
         if focus.isEmpty {
-            focus = level.starterPhases.map { RallyFocus(phase: $0, mistakeID: nil) }
+            focus = level.starterPhases.map { RallyFocus(phase: $0, mistakeID: nil, isStarter: true) }
         }
         return focus
     }

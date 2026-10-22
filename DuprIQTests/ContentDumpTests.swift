@@ -16,7 +16,7 @@ final class ContentDumpTests: XCTestCase {
                 out += "### \(phase.rawValue) #\(seed)\n"
                 out += q.position.spokenDescription() + " Ball: \(q.position.ballHeight).\n\n"
                 for (i, shot) in q.options.enumerated() {
-                    let mark = i == q.answerIndex ? "BEST" : (traps[shot.label].map { "trap: \($0.title)" } ?? "")
+                    let mark = i == q.answerIndex ? "BEST" : (traps[shot.label].map { "trap: \($0.title)" } ?? (q.isPlayable(i) ? "playable" : "wrong"))
                     out += "- \(i + 1). \(shot.label) \(mark)\n"
                 }
                 out += "\nPrinciple: \(q.verdict.principle)\n\nWhy: \(q.verdict.why)\n\n"

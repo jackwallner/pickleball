@@ -51,17 +51,22 @@ final class ShotAdvisorTests: XCTestCase {
         XCTAssertEqual(ShotAdvisor.verdict(for: position).best, Shot(.drop, .straightKitchen))
     }
 
-    func testThirdShotDrivesAtTheOpponentWhoIsNotSet() {
-        let position = makePosition(
-            phase: .thirdShot,
-            you: CourtPoint(x: 10, y: 3),
-            opponentLeft: CourtPoint(x: 6, y: 29.5),      // at the line
-            opponentRight: CourtPoint(x: 14, y: 36),      // still coming in
-            ballHeight: .belowNet
-        )
-        let verdict = ShotAdvisor.verdict(for: position)
-        XCTAssertEqual(verdict.best, Shot(.drive, .atFeet))
-        XCTAssertEqual(verdict.targetOpponent, .right, "the answer must name the player it means")
+    /// The player who isn't set is the target either way; the ball's height
+    /// decides the shot. Driving a low third ball is the habit the app exists
+    /// to break, so off a low ball it is a drop at their feet.
+    func testThirdShotGoesAtTheOpponentWhoIsNotSet() {
+        for (height, shot) in [(BallHeight.belowNet, ShotType.drop), (.aboveNet, .drive)] {
+            let position = makePosition(
+                phase: .thirdShot,
+                you: CourtPoint(x: 10, y: 3),
+                opponentLeft: CourtPoint(x: 6, y: 29.5),      // at the line
+                opponentRight: CourtPoint(x: 14, y: 36),      // still coming in
+                ballHeight: height
+            )
+            let verdict = ShotAdvisor.verdict(for: position)
+            XCTAssertEqual(verdict.best, Shot(shot, .atFeet), "\(height)")
+            XCTAssertEqual(verdict.targetOpponent, .right, "the answer must name the player it means")
+        }
     }
 
     func testTransitionNeverDrivesALowBall() {

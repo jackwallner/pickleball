@@ -13,7 +13,21 @@ paths:
 ### Points, not balls
 
 `RallyBuilder` builds POINTS. A correct decision advances the same rally to your
-next shot; a wrong one loses the point and skips the rest of it. `RallyBuilderTests`
+next shot; a wrong one loses the point and skips the rest of it. A **playable**
+pick (`ShotAdvisor.isPlayable`: no trap, and soft for soft, attack for attack or
+soft off a high ball, a low drive (feet, backhand or middle) off a high third, a hard deep return, a drive at
+the feet off a net-height transition ball, or a lob over two kitchen players on
+the third or from the baseline on defense) also keeps the rally,
+wins the point on its last ball, draws gold (`Theme.gold`), and is NOT counted as
+correct in mastery or the summary's "best call" line. A coach review found binary
+grading marking sound rec-level shots as lost points; this tier is the fix. The
+generator guarantees every ball still has at least one non-playable option.
+Traps are reserved for real mistakes: attacks off low balls, attacking the set
+player or a body past an open seam, counter-drives, lobs over a team that is not
+crowding, and the short return. "drove-the-return" and "let-a-high-ball-go" are
+retired (titles kept for old tallies; `MasteryStore` ignores them). Every soft
+ball follows one placement rule, `ShotAdvisor.softPlacement`: cross-court when
+there is a diagonal, straight from the middle. `RallyBuilderTests`
 pins the part that would otherwise train an impossible sequence: the serving team
 never returns serve and the returning team never hits the third shot. Every graded
 ball costs one from the daily allowance, and a run is truncated to the allowance
@@ -26,7 +40,10 @@ comes from `MasteryStore.focus(for:)`: open traps first (a `MistakeTally` with m
 misses than fixes since the last miss), then the weakest measured phase, then the
 player's level's `starterPhases`. A trap-targeted focus ball is rejection-sampled
 until the named trap is one of its four options. Answering one right counts as a
-fix; a fresh miss resets fixes to zero. The HUD labels it `FOCUS · <trap>`.
+fix; a fresh miss resets fixes to zero. The HUD labels it `FOCUS · <trap>`, but
+only when the trap was actually offered (sampling can miss; the ball then keeps
+the phase and drops the trap id). Level-picked starter phases are labelled
+`YOUR LEVEL · <phase>`, never FOCUS: a fresh install has nothing to fix yet.
 
 ### Side orientation
 
