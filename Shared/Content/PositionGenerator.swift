@@ -115,8 +115,11 @@ enum PositionGenerator {
             )
 
         case .thirdShot:
-            // Serving team's third. Sometimes one opponent has not made the line.
-            let bothUp = Bool.random(using: &rng)
+            // Serving team's third. A deep return usually lets the returner
+            // reach the line, so a lagging opponent is one ball in four, and a
+            // ball that sits up is one in four after that: the drop stays the
+            // third shot a rec player learns, not a coin flip against the drive.
+            let bothUp = Int.random(in: 0..<4, using: &rng) != 0
             let leftUp = bothUp || Bool.random(using: &rng)
             let you = point(x: lateral(&rng), y: .random(in: 1...6, using: &rng))
             return RallyPosition(
@@ -129,7 +132,7 @@ enum PositionGenerator {
                                                    : farPoint(&rng, x: opponentRightX, y: 33...39),
                 contact: contactPoint(from: you, &rng),
                 ballHeight: bothUp
-                    ? [.belowNet, .belowNet, .aboveNet].randomElement(using: &rng)!
+                    ? [.belowNet, .belowNet, .belowNet, .aboveNet].randomElement(using: &rng)!
                     : .belowNet,
                 yourScore: yourScore, theirScore: theirScore, isServingTeam: true
             )
@@ -304,8 +307,8 @@ enum PositionGenerator {
     /// opponents two feet apart in the middle of the court, which no doubles
     /// team has ever done and which rendered, in first person, as two people
     /// standing on each other. Five to fifteen feet apart is the real range,
-    /// and it still spans both sides of `CourtGeometry.openMiddleGap`, so the
-    /// "they have left the seam open" read is generated as often as before.
+    /// and it still spans both sides of `CourtGeometry.openMiddleGap`, so
+    /// about a third of positions leave the seam open.
     private static let opponentLeftX: ClosedRange<Double> = 2.5...7.5
     private static let opponentRightX: ClosedRange<Double> = 12.5...17.5
 

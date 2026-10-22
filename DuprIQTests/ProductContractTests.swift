@@ -124,4 +124,21 @@ final class ProductContractTests: XCTestCase {
             }
         }
     }
+
+    /// The answer mix a rec player trains on. The drop is the third shot to
+    /// learn, so it must stay the usual answer; and an open middle is a read,
+    /// so it must stay the exception rather than the default target.
+    func testTheAnswerMixMatchesHowTheGameIsTaught() {
+        let seeds = UInt64(1)...600
+        let thirds = seeds.map { PositionGenerator.question(phase: .thirdShot, seed: $0) }
+        let soft = thirds.filter { [.drop, .reset].contains($0.verdict.best.type) }.count
+        XCTAssertGreaterThan(Double(soft) / Double(thirds.count), 0.5, "third shots are mostly drives again")
+
+        let all = RallyPhase.allCases.flatMap { phase in seeds.map { PositionGenerator.question(phase: phase, seed: $0) } }
+        let open = all.filter { $0.position.isMiddleOpen }.count
+        XCTAssertLessThan(Double(open) / Double(all.count), 0.4, "the middle is open in most positions again")
+
+        let returns = seeds.map { PositionGenerator.question(phase: .serveReturn, seed: $0) }
+        XCTAssertGreaterThan(Set(returns.map { $0.verdict.best.target }).count, 1, "every return goes the same way")
+    }
 }

@@ -60,6 +60,21 @@ enum ShotAdvisor {
         // The return is the one shot where depth beats everything, including a
         // tempting high ball. Driving a return keeps you at the baseline, which
         // is the mistake the whole phase exists to train out.
+        if p.isContactNearMiddle {
+            return ShotVerdict(
+                best: Shot(.deepReturn, .middle),
+                principle: "Return deep, then take the line",
+                why: """
+                A high, deep return pins the serving team behind the baseline and \
+                buys you the seconds you need to walk in to the kitchen. You are \
+                hitting from the middle, where there is no long diagonal to use, \
+                so send it deep down the middle: both servers hesitate over who \
+                takes it, and neither gets an angle back at you. A low, hard \
+                return gets back to you faster than you can walk in.
+                """,
+                targetOpponent: nil
+            )
+        }
         let target = p.crossCourtOpponentSide
         return ShotVerdict(
             best: Shot(.deepReturn, .deepCrossCourt),

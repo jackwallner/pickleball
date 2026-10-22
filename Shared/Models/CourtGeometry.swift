@@ -40,8 +40,10 @@ enum CourtGeometry {
     static let middleContactHalfWidth: Double = 3.0
 
     /// Two opponents at least this far apart have left the middle open, which
-    /// is a real lateral read and not a coin flip.
-    static let openMiddleGap: Double = 9.0
+    /// is a real lateral read and not a coin flip. Partners at the line
+    /// normally stand eight to ten feet apart; at 9 ft two thirds of all
+    /// positions called the seam open and the middle became the default answer.
+    static let openMiddleGap: Double = 11.0
 }
 
 /// Where a player is standing, bucketed the way coaching language buckets it.
