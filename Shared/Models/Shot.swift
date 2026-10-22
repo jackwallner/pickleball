@@ -21,7 +21,7 @@ enum ShotType: String, Sendable, CaseIterable, Identifiable {
         switch self {
         case .deepReturn: return "Deep return"
         case .drive: return "Drive"
-        case .drop: return "Third shot drop"
+        case .drop: return "Drop"
         case .dink: return "Dink"
         case .reset: return "Reset"
         case .speedUp: return "Speed up"

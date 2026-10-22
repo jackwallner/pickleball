@@ -323,7 +323,7 @@ struct RallyView: View {
         HStack(spacing: 6) {
             Text("\(yourPoints)")
                 .foregroundStyle(Theme.Surface.ball)
-            Text("–").opacity(0.5)
+            Text("-").opacity(0.5)
             Text("\(theirPoints)")
                 .foregroundStyle(.white)
         }
@@ -830,6 +830,8 @@ struct RallySummaryView: View {
                 Button(action: onYourGame) {
                     Label("Your game", systemImage: "chart.bar.fill")
                         .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("summary-your-game")
                 Spacer()
@@ -838,7 +840,7 @@ struct RallySummaryView: View {
             Spacer()
 
             if answered > 0 {
-                Text("\(yourPoints) – \(theirPoints)")
+                Text("\(yourPoints) - \(theirPoints)")
                     .font(Theme.numeric(56, weight: .heavy))
                     .foregroundStyle(Theme.ink)
                     .accessibilityLabel("Final score, you \(yourPoints), them \(theirPoints)")

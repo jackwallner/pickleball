@@ -1,0 +1,16 @@
+{
+  "project": "DuprIQ.xcodeproj",
+  "scheme": "Screenshots",
+  "uitests_dir": "DuprIQScreenshots",
+  "journeys": [
+    "DuprIQScreenshots/ReleaseJourneysUITests"
+  ],
+  "personas": [
+    "newcomer",
+    "accessibility",
+    "reduce-motion",
+    "german"
+  ],
+  "persona_overrides": {},
+  "slot": null
+}

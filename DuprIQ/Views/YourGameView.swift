@@ -139,7 +139,7 @@ struct YourGameView: View {
                             .font(.subheadline)
                             .foregroundStyle(Theme.inkSecondary)
                         Spacer()
-                        Text("\(run.pointsWon) – \(run.pointsLost)")
+                        Text("\(run.pointsWon) - \(run.pointsLost)")
                             .font(Theme.numeric(16, weight: .bold))
                             .foregroundStyle(Theme.ink)
                         Text("\(run.correct)/\(run.answered)")

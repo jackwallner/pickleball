@@ -62,6 +62,13 @@ final class PracticeLimiter: ObservableObject {
         rollOverIfNeeded()
     }
 
+    /// DEBUG fixtures only: start the day with `count` balls already played.
+    func useForTesting(_ count: Int) {
+        rollOverIfNeeded()
+        usedToday = min(max(0, count), Self.freeDailyBalls)
+        defaults.set(usedToday, forKey: Key.used)
+    }
+
     func resetForTesting() {
         usedToday = 0
         defaults.set(0, forKey: Key.used)

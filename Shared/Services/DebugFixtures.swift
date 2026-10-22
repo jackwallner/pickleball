@@ -14,6 +14,9 @@ enum DebugFixtures {
         static let fixture = "uitest.fixture"
         /// `-uitest.seed 4242` pins the generated court instead of using the clock.
         static let seed = "uitest.seed"
+        /// `-uitest.freeLeft 1` leaves that many free balls today, so a test
+        /// reaches the daily limit without playing fifteen.
+        static let freeLeft = "uitest.freeLeft"
     }
 
     static var requestedSeed: UInt64? {
@@ -36,6 +39,9 @@ enum DebugFixtures {
         limiter.resetForTesting()
         reviews.resetForTesting()
         profile.resetForTesting()
+        if let left = Int(defaults.string(forKey: Key.freeLeft) ?? "") {
+            limiter.useForTesting(PracticeLimiter.freeDailyBalls - left)
+        }
 
         guard fixture == "demo" else { return }
         profile.level = .improving
