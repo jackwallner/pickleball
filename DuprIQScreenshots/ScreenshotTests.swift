@@ -34,6 +34,10 @@ final class ScreenshotTests: ScreenshotHarness {
         settle(3.4)
         expect("answer-card", on: "graded answer", visible: true)
         capture("02_replay")
+        // Closed, the explanation fades under the button; open, it reads whole.
+        guard tapIdentifier("expand-why") else { return attachTree("replay") }
+        settle(1.2)
+        capture("02_replay_open")
     }
 
     /// 03 Your game: mastery per principle and the traps costing points.
@@ -64,5 +68,44 @@ final class ScreenshotTests: ScreenshotHarness {
         settle(2.0)
         expect("onboarding-continue", on: "onboarding")
         capture("05_onboarding")
+    }
+
+    /// 06 The right answer, opened to the full explanation and its principle,
+    /// then 08 the rally's next shot from the new position.
+    /// Seed 4242's best ball is the cross-court drop, the second aim target.
+    func test06RightAnswerOpen() {
+        launch()
+        settle(2.0)
+        guard tapIdentifier("shot-1") else { return attachTree("right_answer") }
+        settle(3.4)
+        expect("answer-card", on: "right answer", visible: true)
+        if app.descendants(matching: .any)["answer-card"].firstMatch.label.contains("Point to them") {
+            report("right answer: shot-1 is no longer seed 4242's best ball")
+        }
+        guard tapIdentifier("expand-why") else { return attachTree("right_answer") }
+        settle(1.2)
+        capture("06_right_answer_open")
+        // A right answer keeps the point alive: shot 2 is the walk in.
+        guard tapIdentifier("next-ball") else { return attachTree("next_shot") }
+        settle(2.0)
+        expect("shot-0", on: "next shot")
+        capture("08_next_shot")
+    }
+
+    /// 07 A focus ball: every third point is built to test the trap costing
+    /// this player the most, and the court says which one.
+    func test07FocusBall() {
+        launch()
+        settle(2.0)
+        let focus = app.descendants(matching: .any)["focus-ball"].firstMatch
+        for _ in 0..<12 where !focus.exists {
+            guard tapFirstOption() else { return attachTree("focus_ball") }
+            settle(1.0)
+            guard tapIdentifier("next-ball") else { return attachTree("focus_ball") }
+            settle(1.6)
+        }
+        expect("focus-ball", on: "focus ball")
+        settle(1.0)
+        capture("07_focus_ball")
     }
 }

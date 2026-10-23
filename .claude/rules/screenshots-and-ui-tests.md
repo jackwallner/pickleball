@@ -14,7 +14,7 @@ Moved verbatim from AGENTS.md. Loads when a matching file is read; update it her
 - **Screenshots run headlessly off the `Screenshots` scheme.**
   `DuprIQScreenshots` is a ui-testing target kept out of the `DuprIQ` scheme's
   test action on purpose, so the unit-test loop stays instant. Drive it with
-  `scripts/capture-screenshots.sh <udid> <out>` (six shots) and
+  `scripts/capture-screenshots.sh <udid> <out>` (product shots; the paywall is skipped) and
   `scripts/capture-paywall.sh <udid> <out>` (the paywall alone, with prices).
 
 - **An identifier on a container beats the ones inside it.** `answer-card` was

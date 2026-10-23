@@ -48,6 +48,7 @@ xcodebuild test \
   -destination "id=$UDID" \
   -resultBundlePath "$RESULT" \
   -only-testing:DuprIQScreenshots/ScreenshotTests \
+  -skip-testing:DuprIQScreenshots/ScreenshotTests/test04Paywall \
   TEST_RUNNER_SCREENSHOT_APP_VERSION="$VERSION" \
   SCREENSHOT_STRICT="$STRICT" \
   || STATUS=1
