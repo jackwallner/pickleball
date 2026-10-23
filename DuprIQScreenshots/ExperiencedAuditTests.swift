@@ -44,8 +44,22 @@ final class ExperiencedAuditTests: ScreenshotHarness {
         app.descendants(matching: .any)[identifier].firstMatch.waitForExistence(timeout: timeout)
     }
 
+    private func lines(_ kind: String) -> String {
+        app.debugDescription.split(separator: "\n")
+            .filter { $0.contains(kind) }
+            .prefix(40)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: " | ")
+    }
+
     private func labels() -> String {
-        app.staticTexts.allElementsBoundByIndex.prefix(60).map(\.label).joined(separator: " | ")
+        // One snapshot of the tree. Walking allElementsBoundByIndex resolves
+        // every element separately, which stalled the runner on a busy host.
+        app.debugDescription.split(separator: "\n")
+            .filter { $0.contains("StaticText") }
+            .prefix(60)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .joined(separator: " | ")
     }
 
     // MARK: - 1. First run as an experienced player
@@ -115,8 +129,8 @@ final class ExperiencedAuditTests: ScreenshotHarness {
             app.buttons["tile-endless"].tap()
             settle(1.5)
             capture("e2_05_endless_picker")
-            note("picker nav bars: \(app.navigationBars.allElementsBoundByIndex.map(\.identifier))")
-            note("picker nav buttons: \(app.navigationBars.buttons.allElementsBoundByIndex.map(\.label))")
+            note("picker nav bars: \(lines("NavigationBar"))")
+            note("picker nav buttons: \(lines("Button"))")
             note("picker has nav-back id: \(app.buttons["nav-back"].exists)")
             note("picker texts: \(labels())")
             app.swipeUp()
@@ -184,14 +198,14 @@ final class ExperiencedAuditTests: ScreenshotHarness {
             settle(1.0)
             capture("e3_summary_session_\(sessions)")
             note("session \(sessions): balls answered via UI \(ballsThisSession); summary texts: \(labels())")
-            note("summary buttons: \(app.buttons.allElementsBoundByIndex.map(\.label))")
+            note("summary buttons: \(lines("Button"))")
             if app.buttons["summary-paywall"].exists {
                 note("free-limit summary reached in session \(sessions)")
                 app.buttons["summary-paywall"].tap()
                 settle(2.0)
                 capture("e3_paywall_from_summary")
                 // Is there a close affordance?
-                note("paywall buttons: \(app.buttons.allElementsBoundByIndex.map(\.label))")
+                note("paywall buttons: \(lines("Button"))")
                 app.swipeDown(velocity: .fast)
                 settle(1.0)
                 if app.buttons["session-done"].exists { app.buttons["session-done"].tap() }
