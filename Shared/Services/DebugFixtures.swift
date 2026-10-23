@@ -17,6 +17,8 @@ enum DebugFixtures {
         /// `-uitest.freeLeft 1` leaves that many free balls today, so a test
         /// reaches the daily limit without playing fifteen.
         static let freeLeft = "uitest.freeLeft"
+        /// Simulate a calendar-day change without changing the simulator's clock.
+        static let rolloverAfter = "uitest.rolloverAfter"
     }
 
     static var requestedSeed: UInt64? {
@@ -41,6 +43,14 @@ enum DebugFixtures {
         profile.resetForTesting()
         if let left = Int(defaults.string(forKey: Key.freeLeft) ?? "") {
             limiter.useForTesting(PracticeLimiter.freeDailyBalls - left)
+        }
+        if let delay = Double(defaults.string(forKey: Key.rolloverAfter) ?? ""), delay > 0 {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(delay))
+                let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: .now)!
+                defaults.set(yesterday, forKey: "limiter.day")
+                NotificationCenter.default.post(name: .NSCalendarDayChanged, object: nil)
+            }
         }
 
         guard fixture == "demo" else { return }

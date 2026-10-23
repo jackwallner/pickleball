@@ -1,3 +1,4 @@
+import Combine
 import StoreKit
 import SwiftUI
 
@@ -102,9 +103,13 @@ struct RallyView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
+            refreshDailyAllowance()
             // Time in the background does not count against the shot clock.
             clockLastTick = .now
             if isGraded && !finished { replayAgain() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+            refreshDailyAllowance()
         }
         .onChange(of: subscriptions.isPro) { _, isPro in
             // Buying Pro from the free-limit summary should put a ball in
@@ -423,6 +428,13 @@ struct RallyView: View {
     }
 
     // MARK: - Flow
+
+    private func refreshDailyAllowance() {
+        limiter.rollOverIfNeeded()
+        if finished && stoppedAtFreeLimit && limiter.canPractice(isPro: subscriptions.isPro) {
+            playAgain()
+        }
+    }
 
     private func build() {
         let allowance = limiter.remaining(isPro: subscriptions.isPro)

@@ -84,6 +84,46 @@ final class AuditTests: ScreenshotHarness {
         settle(2.0)
     }
 
+    func testExhaustedSummaryReopensAfterDayChange() {
+        verifyDailyAllowanceRecovery(backgrounded: false)
+    }
+
+    func testExhaustedSummaryReopensAfterNextDayForeground() {
+        verifyDailyAllowanceRecovery(backgrounded: true)
+    }
+
+    private func verifyDailyAllowanceRecovery(backgrounded: Bool) {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = [
+            "-subscription.localProOverride", "NO",
+            "-uitest.reset", "YES",
+            "-uitest.fixture", "demo",
+            "-uitest.freeLeft", "0",
+            "-uitest.rolloverAfter", "15",
+            "-settings.shotClock", "off",
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["summary-paywall"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["shot-0"].exists, "today's exhausted allowance must still hold")
+
+        if backgrounded {
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            XCTAssertTrue(app.buttons["summary-paywall"].waitForExistence(timeout: 3))
+            XCUIDevice.shared.press(.home)
+            settle(16)
+            app.activate()
+        }
+
+        let shot = app.buttons["shot-0"]
+        XCTAssertTrue(shot.waitForExistence(timeout: 25), "a renewed allowance must reopen practice")
+        XCTAssertFalse(app.buttons["summary-paywall"].exists)
+        settle(1)
+        shot.tap()
+        XCTAssertTrue(app.buttons["next-ball"].waitForExistence(timeout: 5), "the new day's ball must be gradeable")
+    }
+
     // Frame-grab walk used by the court audits.
     func testWalkTwelveBallsForFrameCapture() {
         launchForAudit(seed: 4242)
