@@ -1,0 +1,16 @@
+# Third Shot
+
+> Pickleball strategy on a first-person 3D court. Read the ball and their feet, call the shot, then watch your shot replayed against the right one. 15 balls a day free.
+
+## App
+
+- [Pickleball Strategy App for iPhone | Third Shot](https://jackwallner.com/ios/pickleball/index.html.md): Pickleball strategy on a first-person 3D court. Read the ball and their feet, call the shot, then watch your shot replayed against the right one. 15 balls a day free.
+
+## Guides
+
+- [Third Shot Drop vs Drive in Pickleball: When to Use Each](https://jackwallner.com/ios/pickleball/third-shot-drop-vs-drive.html.md): Drop the third shot when both opponents are set at the kitchen. Drive when one is still moving or the ball sits up. A plain guide with the exact cues to read.
+
+## Optional
+
+- [Privacy Policy: Third Shot](https://jackwallner.com/ios/pickleball/privacy-policy.html.md): Third Shot does not collect, transmit, or sell your personal information.
+- [Support - Third Shot](https://jackwallner.com/ios/pickleball/support.html.md): Email jackwallner+p@gmail.com. Include your iOS version and what you were doing when the problem happened, and you will get a real reply.
