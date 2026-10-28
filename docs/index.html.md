@@ -29,39 +29,39 @@ opponent has not re-established at the line, so a soft ball at their
 feet makes them hit up, and the ball that comes back is the one you
 attack.
 
-### You are on the court, not reading a diagram
+## You are on the court, not reading a diagram
 
 Every ball is the rally seen from where you are standing, and you
 answer by aiming at a place rather than picking a sentence. How high
 the ball is and whether their feet made the line are things you look
 at.
 
-### Points, not flashcards
+## Points, not flashcards
 
 Read it right and the rally continues to your next shot. Read it
 wrong and you lose the point, the way you would in a game. Practice
 starts untimed, with an optional decision timer for faster reads
 when you are ready.
 
-### See the miss, not just the answer
+## See the miss, not just the answer
 
 After every ball the court replays your shot, then the right one,
 from the same contact point. A drive at a ball below the net dies
 in the tape where you can watch it happen.
 
-### It finds your leak
+## It finds your leak
 
 Every third point is built around the mistake that has cost you the
 most, like counter-driving under pressure. Get it right and it
 counts as fixed; miss it again and it stays on your list.
 
-### Positions that never repeat
+## Positions that never repeat
 
 Court positions are generated, not shipped as the same fifty
 screenshots reshuffled. Every one is physically legal and has
 exactly one best answer.
 
-### Answers with a reason
+## Answers with a reason
 
 Keep it unattackable. Get to the kitchen. Hit the player who is not
 set. Each answer names the principle it came from, and your mastery
