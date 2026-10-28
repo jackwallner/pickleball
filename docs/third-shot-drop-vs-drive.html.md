@@ -6,7 +6,7 @@ Web page: https://jackwallner.com/ios/pickleball/third-shot-drop-vs-drive.html
 
 ## Third shot drop or drive in pickleball: when to use each
 
-By Jack Wallner. Last updated October 25, 2026.
+By Jack Wallner. Last updated October 28, 2026.
 
 A third shot drop is a soft arc that lands in the opponent's kitchen, and a third shot drive is a fast groundstroke hit off the bounce. Drop the third shot when both opponents are already set at the kitchen line and the ball is below the net. Drive it when the ball sits above net height, when the return is short, or when one opponent is still moving up and you can hit at their feet. The drop is a good default, but it is a default, not a rule.
 
