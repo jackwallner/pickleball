@@ -1,6 +1,6 @@
 # Pickleball Strategy App for iPhone | Third Shot
 
-> Pickleball strategy on a first-person 3D court. Read the ball and their feet, call the shot, then watch your shot replayed against the right one. 15 balls a day free.
+> Pickleball strategy on a first-person 3D court. Read the ball and their feet, call the shot, then see it replayed against the right one. 15 balls a day free.
 
 Web page: https://jackwallner.com/ios/pickleball/
 
