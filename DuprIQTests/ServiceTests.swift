@@ -141,6 +141,44 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(store.streak, 0, "a streak that lapsed reads as zero before the next ball")
     }
 
+    /// Chile puts its clocks forward at midnight, so on 6 September 2026 the
+    /// day starts at 01:00. Start of day to the next midnight is then 23 hours,
+    /// which `dateComponents` reports as zero days, and the streak restarted.
+    private func santiago() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Santiago")!
+        return calendar
+    }
+
+    private func noon(on day: Int, in calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: 12))!
+    }
+
+    func testAStreakKeepsCountingThroughADayThatStartedAtOneAM() {
+        let calendar = santiago()
+        let store = MasteryStore(defaults: defaults, calendar: calendar)
+        let q = question(.attack, seed: 1)
+        for day in 5...8 {
+            for _ in 0..<MasteryThreshold.ballsForPracticeDay {
+                store.record(q, picked: 0, on: noon(on: day, in: calendar))
+            }
+            XCTAssertEqual(store.streak, day - 4, "September \(day)")
+        }
+    }
+
+    func testASkippedDayStillEndsTheStreakAfterADayThatStartedAtOneAM() {
+        let calendar = santiago()
+        let store = MasteryStore(defaults: defaults, calendar: calendar)
+        let q = question(.attack, seed: 1)
+        for _ in 0..<MasteryThreshold.ballsForPracticeDay {
+            store.record(q, picked: 0, on: noon(on: 6, in: calendar))
+        }
+        store.rollOverIfNeeded(now: noon(on: 7, in: calendar))
+        XCTAssertEqual(store.streak, 1, "the 6th was yesterday, so the streak is still alive")
+        store.rollOverIfNeeded(now: noon(on: 8, in: calendar))
+        XCTAssertEqual(store.streak, 0, "the 7th was skipped")
+    }
+
     func testRalliesArePersistedAndCapped() {
         let store = MasteryStore(defaults: defaults)
         store.recordRally(won: 0, lost: 0, answered: 0, correct: 0)
@@ -171,6 +209,25 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(reloaded.level, .competitive)
         XCTAssertEqual(reloaded.half, .left)
         XCTAssertTrue(reloaded.setupComplete)
+    }
+
+    // MARK: - Reminders left behind by 1.0
+
+    private final class RemovalSpy: PendingNotificationRemoving {
+        var removed: [String] = []
+
+        func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+            removed += identifiers
+        }
+    }
+
+    func testTheRepeatingRemindersBuild21ScheduledAreCancelled() {
+        let spy = RemovalSpy()
+        LegacyReminders.cancel(on: spy)
+        XCTAssertEqual(
+            Set(spy.removed), ["duprIQ.dailyReminder", "duprIQ.matchWarmUpReminder"],
+            "1.1 has no screen to turn them off, so the update has to"
+        )
     }
 
     // MARK: - Review funnel

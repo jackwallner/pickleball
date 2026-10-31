@@ -67,9 +67,15 @@ final class MasteryStore: ObservableObject {
     @Published private(set) var state: MasteryState
 
     private let defaults: UserDefaults
+    private let calendarOverride: Calendar?
 
-    init(defaults: UserDefaults = .standard) {
+    /// Days are counted on the device's calendar. Tests pin one so a zone's
+    /// clock changes do not depend on where the runner happens to be.
+    private var calendar: Calendar { calendarOverride ?? .current }
+
+    init(defaults: UserDefaults = .standard, calendar: Calendar? = nil) {
         self.defaults = defaults
+        calendarOverride = calendar
         state = Self.load(from: defaults)
         rollOverIfNeeded()
     }
@@ -184,8 +190,8 @@ final class MasteryStore: ObservableObject {
     // MARK: - Streak
 
     private func countTowardToday(_ date: Date) {
-        let today = Calendar.current.startOfDay(for: date)
-        if let day = state.ballsDay, Calendar.current.isDate(day, inSameDayAs: today) {
+        let today = calendar.startOfDay(for: date)
+        if let day = state.ballsDay, calendar.isDate(day, inSameDayAs: today) {
             state.ballsToday += 1
         } else {
             state.ballsDay = today
@@ -197,7 +203,6 @@ final class MasteryStore: ObservableObject {
     }
 
     private func updateStreak(for today: Date) {
-        let calendar = Calendar.current
         guard let last = state.lastPracticeDay else {
             state.streak = 1
             state.lastPracticeDay = today
@@ -212,7 +217,6 @@ final class MasteryStore: ObservableObject {
     /// A streak whose last day is before yesterday is over, even if no ball has
     /// been played since to reset it.
     func rollOverIfNeeded(now: Date = .now) {
-        let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         if let day = state.ballsDay, !calendar.isDate(day, inSameDayAs: today) {
             state.ballsToday = 0
