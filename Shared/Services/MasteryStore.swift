@@ -219,15 +219,18 @@ final class MasteryStore: ObservableObject {
     /// at midnight (Santiago, Havana, Cairo, Beirut) the day starts at 01:00,
     /// and `dateComponents` calls 01:00 to the next midnight zero days. Reading
     /// each date's year, month and day and subtracting them at noon UTC, which
-    /// has no clock changes, avoids every zone's rules at once.
+    /// has no clock changes, avoids every zone's rules at once. The dates are
+    /// read off the Gregorian calendar whatever the device uses: a lunisolar
+    /// calendar numbers its leap month like the month before it, so consecutive
+    /// days read 29 days back or 31 ahead at the two ends of it.
     private func daysBetween(_ earlier: Date, _ later: Date) -> Int {
-        var utc = calendar
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        var utc = gregorian
         utc.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
         func noonUTC(_ date: Date) -> Date? {
-            let day = calendar.dateComponents([.era, .year, .month, .day], from: date)
-            return utc.date(from: DateComponents(
-                era: day.era, year: day.year, month: day.month, day: day.day, hour: 12
-            ))
+            let day = gregorian.dateComponents([.year, .month, .day], from: date)
+            return utc.date(from: DateComponents(year: day.year, month: day.month, day: day.day, hour: 12))
         }
         guard let from = noonUTC(earlier), let to = noonUTC(later) else { return 0 }
         return Int((to.timeIntervalSince(from) / 86_400).rounded())

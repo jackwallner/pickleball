@@ -45,7 +45,10 @@ paths:
   the day starts at 01:00, 23 hours before the next one), and
   `ordinality(of: .day, in: .era)` returned the same day for 29 and 30 March in
   London on macOS 12, so neither is safe. `ServiceTests` walks every time zone's
-  2026 clock changes.
+  2026 clock changes. The dates are read off the Gregorian calendar in the
+  device's time zone, whatever calendar the device uses: the Chinese calendar
+  numbers a leap month like the month before it, so consecutive days read 29 or
+  31 apart at either end of it (`ServiceTests` pins both ends in 2025).
 
 - **`LegacyReminders` is the other half of deleting the shell.** Builds before
   1.1 scheduled a repeating daily reminder and a weekly warm-up. iOS keeps
