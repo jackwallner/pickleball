@@ -243,6 +243,25 @@ final class ServiceTests: XCTestCase {
         XCTAssertTrue(reloaded.setupComplete)
     }
 
+    // MARK: - Reminders left behind by 1.0
+
+    private final class RemovalSpy: PendingNotificationRemoving {
+        var removed: [String] = []
+
+        func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+            removed += identifiers
+        }
+    }
+
+    func testTheRepeatingRemindersEarlierBuildsScheduledAreCancelled() {
+        let spy = RemovalSpy()
+        LegacyReminders.cancel(on: spy)
+        XCTAssertEqual(
+            Set(spy.removed), ["duprIQ.dailyReminder", "duprIQ.matchWarmUpReminder"],
+            "1.1 has no screen to turn them off, so the update has to"
+        )
+    }
+
     // MARK: - Review funnel
 
     func testTheReviewPromptWaitsForEnoughSessionsAndOnlyFiresOnce() {
