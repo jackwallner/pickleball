@@ -67,9 +67,15 @@ final class MasteryStore: ObservableObject {
     @Published private(set) var state: MasteryState
 
     private let defaults: UserDefaults
+    private let calendarOverride: Calendar?
 
-    init(defaults: UserDefaults = .standard) {
+    /// Days are counted on the device's calendar. Tests pin one so a zone's
+    /// clock changes do not depend on where the runner happens to be.
+    private var calendar: Calendar { calendarOverride ?? .current }
+
+    init(defaults: UserDefaults = .standard, calendar: Calendar? = nil) {
         self.defaults = defaults
+        calendarOverride = calendar
         state = Self.load(from: defaults)
         rollOverIfNeeded()
     }
@@ -184,8 +190,8 @@ final class MasteryStore: ObservableObject {
     // MARK: - Streak
 
     private func countTowardToday(_ date: Date) {
-        let today = Calendar.current.startOfDay(for: date)
-        if let day = state.ballsDay, Calendar.current.isDate(day, inSameDayAs: today) {
+        let today = calendar.startOfDay(for: date)
+        if let day = state.ballsDay, calendar.isDate(day, inSameDayAs: today) {
             state.ballsToday += 1
         } else {
             state.ballsDay = today
@@ -197,30 +203,45 @@ final class MasteryStore: ObservableObject {
     }
 
     private func updateStreak(for today: Date) {
-        let calendar = Calendar.current
         guard let last = state.lastPracticeDay else {
             state.streak = 1
             state.lastPracticeDay = today
             return
         }
-        if calendar.isDate(last, inSameDayAs: today) { return }
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: last), to: today).day ?? 0
+        let days = daysBetween(last, today)
+        if days == 0 { return }
         state.streak = days == 1 ? state.streak + 1 : 1
         state.lastPracticeDay = today
+    }
+
+    /// Calendar days from `earlier` to `later`, counted by date and not by
+    /// hours. Two starts of day can be 23 hours apart: where clocks go forward
+    /// at midnight (Santiago, Havana, Cairo, Beirut) the day starts at 01:00,
+    /// and `dateComponents` calls 01:00 to the next midnight zero days. Reading
+    /// each date's year, month and day and subtracting them at noon UTC, which
+    /// has no clock changes, avoids every zone's rules at once.
+    private func daysBetween(_ earlier: Date, _ later: Date) -> Int {
+        var utc = calendar
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+        func noonUTC(_ date: Date) -> Date? {
+            let day = calendar.dateComponents([.era, .year, .month, .day], from: date)
+            return utc.date(from: DateComponents(
+                era: day.era, year: day.year, month: day.month, day: day.day, hour: 12
+            ))
+        }
+        guard let from = noonUTC(earlier), let to = noonUTC(later) else { return 0 }
+        return Int((to.timeIntervalSince(from) / 86_400).rounded())
     }
 
     /// A streak whose last day is before yesterday is over, even if no ball has
     /// been played since to reset it.
     func rollOverIfNeeded(now: Date = .now) {
-        let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         if let day = state.ballsDay, !calendar.isDate(day, inSameDayAs: today) {
             state.ballsToday = 0
             state.ballsDay = today
         }
-        if let last = state.lastPracticeDay,
-           let gap = calendar.dateComponents([.day], from: calendar.startOfDay(for: last), to: today).day,
-           gap > 1, state.streak != 0 {
+        if let last = state.lastPracticeDay, daysBetween(last, today) > 1, state.streak != 0 {
             state.streak = 0
         }
     }
