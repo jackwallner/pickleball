@@ -211,6 +211,31 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(store.streak, 0, "the 7th was skipped")
     }
 
+    /// A lunisolar device calendar numbers its leap month with the same month
+    /// as the one before it, so civil dates read off that calendar jump by a
+    /// month at both ends of the leap month. In 2025 the Chinese calendar's
+    /// leap sixth month began on 25 July and ended on 22 August.
+    func testAStreakKeepsCountingIntoAndOutOfAChineseCalendarLeapMonth() {
+        var device = Calendar(identifier: .chinese)
+        device.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        var civil = Calendar(identifier: .gregorian)
+        civil.timeZone = device.timeZone
+        let q = question(.attack, seed: 1)
+        for (edge, month, firstDay) in [("into", 7, 23), ("out of", 8, 21)] {
+            let store = MasteryStore(defaults: defaults, calendar: device)
+            store.resetForTesting()
+            for offset in 0..<4 {
+                let date = civil.date(from: DateComponents(
+                    year: 2025, month: month, day: firstDay + offset, hour: 12
+                ))!
+                for _ in 0..<MasteryThreshold.ballsForPracticeDay { store.record(q, picked: 0, on: date) }
+                XCTAssertEqual(
+                    store.streak, offset + 1, "going \(edge) the leap month, \(month)/\(firstDay + offset)"
+                )
+            }
+        }
+    }
+
     func testRalliesArePersistedAndCapped() {
         let store = MasteryStore(defaults: defaults)
         store.recordRally(won: 0, lost: 0, answered: 0, correct: 0)
