@@ -2,6 +2,7 @@
 paths:
   - "Shared/Services/PracticeLimiter.swift"
   - "Shared/Services/MasteryStore.swift"
+  - "Shared/Services/LegacyReminders.swift"
   - "Shared/Services/SubscriptionService.swift"
   - "DuprIQ/Views/RallyView.swift"
   - "DuprIQ/Views/YourGameView.swift"
@@ -45,3 +46,8 @@ paths:
   `ordinality(of: .day, in: .era)` returned the same day for 29 and 30 March in
   London on macOS 12, so neither is safe. `ServiceTests` walks every time zone's
   2026 clock changes.
+
+- **`LegacyReminders` is the other half of deleting the shell.** Builds before
+  1.1 scheduled a repeating daily reminder and a weekly warm-up. iOS keeps
+  scheduled notifications across an update, so `RootView` cancels those two
+  identifiers at launch. A future reminders feature must use different ones.

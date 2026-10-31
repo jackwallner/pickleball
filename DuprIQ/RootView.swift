@@ -19,6 +19,7 @@ struct RootView: View {
         .task {
             subscriptions.start()
             ConversionDiagnostics.recordAppOpen()
+            LegacyReminders.cancel()
             #if DEBUG
             if RevenueCatProbe.isEnabled { await runRevenueCatProbe() }
             #endif
