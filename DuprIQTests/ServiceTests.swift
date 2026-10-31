@@ -141,6 +141,76 @@ final class ServiceTests: XCTestCase {
         XCTAssertEqual(store.streak, 0, "a streak that lapsed reads as zero before the next ball")
     }
 
+    /// Chile puts its clocks forward at midnight, so on 6 September 2026 the
+    /// day starts at 01:00. Start of day to the next midnight is then 23 hours,
+    /// which `dateComponents` reports as zero days, and the streak restarted.
+    private func santiago() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Santiago")!
+        return calendar
+    }
+
+    private func noon(on day: Int, in calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: 12))!
+    }
+
+    func testAStreakKeepsCountingThroughADayThatStartedAtOneAM() {
+        let calendar = santiago()
+        let store = MasteryStore(defaults: defaults, calendar: calendar)
+        let q = question(.attack, seed: 1)
+        for day in 5...8 {
+            for _ in 0..<MasteryThreshold.ballsForPracticeDay {
+                store.record(q, picked: 0, on: noon(on: day, in: calendar))
+            }
+            XCTAssertEqual(store.streak, day - 4, "September \(day)")
+        }
+    }
+
+    /// The same failure in every zone that has it, not just the one named in a
+    /// bug report: five days in a row around each of 2026's clock changes.
+    func testAStreakSurvivesEveryZonesClockChangesIn2026() {
+        let q = question(.attack, seed: 1)
+        var broken: [String] = []
+        for id in TimeZone.knownTimeZoneIdentifiers.sorted() {
+            guard let zone = TimeZone(identifier: id) else { continue }
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = zone
+            let end = calendar.date(from: DateComponents(year: 2027, month: 1, day: 1))!
+            var cursor = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+            while let change = zone.nextDaylightSavingTimeTransition(after: cursor), change < end {
+                cursor = change.addingTimeInterval(86_400)
+                let first = calendar.date(byAdding: .day, value: -2, to: change)!
+                let walk = MasteryStore(defaults: defaults, calendar: calendar)
+                walk.resetForTesting()
+                for offset in 0..<5 {
+                    let day = calendar.date(byAdding: .day, value: offset, to: first)!
+                    let midday = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day)!
+                    for _ in 0..<MasteryThreshold.ballsForPracticeDay {
+                        walk.record(q, picked: 0, on: midday)
+                    }
+                    if walk.streak != offset + 1 {
+                        if !broken.contains(id) { broken.append(id) }
+                        break
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(broken, [], "a daily player lost their streak in these zones")
+    }
+
+    func testASkippedDayStillEndsTheStreakAfterADayThatStartedAtOneAM() {
+        let calendar = santiago()
+        let store = MasteryStore(defaults: defaults, calendar: calendar)
+        let q = question(.attack, seed: 1)
+        for _ in 0..<MasteryThreshold.ballsForPracticeDay {
+            store.record(q, picked: 0, on: noon(on: 6, in: calendar))
+        }
+        store.rollOverIfNeeded(now: noon(on: 7, in: calendar))
+        XCTAssertEqual(store.streak, 1, "the 6th was yesterday, so the streak is still alive")
+        store.rollOverIfNeeded(now: noon(on: 8, in: calendar))
+        XCTAssertEqual(store.streak, 0, "the 7th was skipped")
+    }
+
     func testRalliesArePersistedAndCapped() {
         let store = MasteryStore(defaults: defaults)
         store.recordRally(won: 0, lost: 0, answered: 0, correct: 0)

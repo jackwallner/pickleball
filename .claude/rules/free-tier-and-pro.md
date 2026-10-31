@@ -36,3 +36,12 @@ paths:
 
 - Buying Pro from the free-limit summary starts a new run immediately
   (`RallyView` watches `isPro`).
+
+- **Days are counted by date, never by hours.** `MasteryStore.daysBetween`
+  reads each date's year, month and day and subtracts them at noon UTC.
+  `dateComponents([.day])` between two starts of day reads zero days where
+  clocks go forward at midnight (Santiago, Havana, Cairo, Beirut, the Azores:
+  the day starts at 01:00, 23 hours before the next one), and
+  `ordinality(of: .day, in: .era)` returned the same day for 29 and 30 March in
+  London on macOS 12, so neither is safe. `ServiceTests` walks every time zone's
+  2026 clock changes.
