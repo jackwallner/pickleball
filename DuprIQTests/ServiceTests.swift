@@ -1,4 +1,5 @@
 import Combine
+import SwiftUI
 import XCTest
 @testable import DuprIQ
 
@@ -67,6 +68,15 @@ final class ServiceTests: XCTestCase {
         wait(for: [delivered], timeout: 2)
         subscription.cancel()
         XCTAssertTrue(onMain.value, "the rollover handler writes main-actor state")
+    }
+
+    func testTheShotClockOnlyRunsWhileTheSceneIsActive() {
+        XCTAssertTrue(RallyView.clockRuns(graded: false, finished: false, yourGameOpen: false, scene: .active))
+        // The first tick back from the background lands before the scene is active.
+        XCTAssertFalse(RallyView.clockRuns(graded: false, finished: false, yourGameOpen: false, scene: .inactive))
+        XCTAssertFalse(RallyView.clockRuns(graded: false, finished: false, yourGameOpen: false, scene: .background))
+        XCTAssertFalse(RallyView.clockRuns(graded: false, finished: false, yourGameOpen: true, scene: .active))
+        XCTAssertFalse(RallyView.clockRuns(graded: true, finished: false, yourGameOpen: false, scene: .active))
     }
 
     func testRollingOverWithinTheSameDayKeepsTheCount() {
