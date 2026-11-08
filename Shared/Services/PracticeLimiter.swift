@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// The free tier: a fixed number of graded balls per day.
@@ -39,6 +40,16 @@ final class PracticeLimiter: ObservableObject {
         rollOverIfNeeded()
         usedToday += 1
         defaults.set(usedToday, forKey: Key.used)
+    }
+
+    /// The calendar day changing, delivered on the main queue. iOS posts
+    /// `NSCalendarDayChanged` on whichever thread noticed the change, and the
+    /// handler rolls over this main-actor state and the run on screen.
+    static func dayChanges(from center: NotificationCenter = .default) -> AnyPublisher<Void, Never> {
+        center.publisher(for: .NSCalendarDayChanged)
+            .map { _ in () }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
     /// Call from scene phase / consume / init, never from a view body.

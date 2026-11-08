@@ -108,7 +108,7 @@ struct RallyView: View {
             clockLastTick = .now
             if isGraded && !finished { replayAgain() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+        .onReceive(PracticeLimiter.dayChanges()) { _ in
             refreshDailyAllowance()
         }
         .onChange(of: subscriptions.isPro) { _, isPro in
