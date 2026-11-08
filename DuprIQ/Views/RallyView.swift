@@ -398,8 +398,9 @@ struct RallyView: View {
         let now = Date.now
         let last = clockLastTick ?? now
         clockLastTick = now
-        // Paused while "Your game" covers the court: the time does not count.
-        guard !isGraded, !finished, !showYourGame else { return }
+        guard Self.clockRuns(
+            graded: isGraded, finished: finished, yourGameOpen: showYourGame, scene: scenePhase
+        ) else { return }
         let next = remaining - now.timeIntervalSince(last)
         if next <= 0 {
             clockRemaining = nil
@@ -407,6 +408,15 @@ struct RallyView: View {
         } else {
             clockRemaining = next
         }
+    }
+
+    /// Whether a tick spends shot-clock time. Paused while "Your game" covers
+    /// the court, and while the scene is not active: coming back from the
+    /// background, the overdue timer fires while the scene is still inactive,
+    /// before the `.active` handler resets the tick, and it used to spend the
+    /// whole time away and time the ball out on arrival.
+    static func clockRuns(graded: Bool, finished: Bool, yourGameOpen: Bool, scene: ScenePhase) -> Bool {
+        !graded && !finished && !yourGameOpen && scene == .active
     }
 
     /// When the optional timer is on, an unanswered ball is a miss.
