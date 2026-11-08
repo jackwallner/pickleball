@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import DuprIQ
 
@@ -50,6 +51,22 @@ final class ServiceTests: XCTestCase {
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now)!
         limiter.rollOverIfNeeded(now: tomorrow)
         XCTAssertEqual(limiter.remaining(isPro: false), PracticeLimiter.freeDailyBalls)
+    }
+
+    func testADayChangePostedOffTheMainThreadIsDeliveredOnIt() {
+        let center = NotificationCenter()
+        let delivered = expectation(description: "day change delivered")
+        let onMain = LockedFlag()
+        let subscription = PracticeLimiter.dayChanges(from: center).sink { @Sendable _ in
+            onMain.set(Thread.isMainThread)
+            delivered.fulfill()
+        }
+        DispatchQueue.global().async {
+            center.post(name: .NSCalendarDayChanged, object: nil)
+        }
+        wait(for: [delivered], timeout: 2)
+        subscription.cancel()
+        XCTAssertTrue(onMain.value, "the rollover handler writes main-actor state")
     }
 
     func testRollingOverWithinTheSameDayKeepsTheCount() {
@@ -302,5 +319,20 @@ final class ServiceTests: XCTestCase {
         XCTAssertFalse(reviews.shouldRequestReview)
         reviews.recordSessionFinished()
         XCTAssertFalse(reviews.shouldRequestReview, "the one-shot prompt must stay spent")
+    }
+}
+
+/// A Bool a background callback can set and the test can read afterwards.
+private final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = false
+
+    var value: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return stored
+    }
+
+    func set(_ newValue: Bool) {
+        lock.lock(); stored = newValue; lock.unlock()
     }
 }
