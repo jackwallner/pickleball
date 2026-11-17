@@ -44,8 +44,9 @@ final class PracticeLimiter: ObservableObject {
 
     /// The calendar day changing, delivered on the main queue. iOS posts
     /// `NSCalendarDayChanged` on whichever thread noticed the change, and the
-    /// handler rolls over this main-actor state and the run on screen.
-    static func dayChanges(from center: NotificationCenter = .default) -> AnyPublisher<Void, Never> {
+    /// handler rolls over this main-actor state and the run on screen. Nonisolated
+    /// so the map runs on the posting thread without tripping the main-actor check.
+    nonisolated static func dayChanges(from center: NotificationCenter = .default) -> AnyPublisher<Void, Never> {
         center.publisher(for: .NSCalendarDayChanged)
             .map { _ in () }
             .receive(on: DispatchQueue.main)
