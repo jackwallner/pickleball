@@ -70,6 +70,12 @@ final class ReleaseJourneysUITests: XCTestCase {
         QA.checkpoint(app, "core-first-verdict", grace: 4.5)
 
         app.buttons["next-ball"].tap()
+        // Losing the point on the first ball ends a two-ball run; the summary
+        // then offers the one free ball still left.
+        let playAgain = app.buttons["play-again"]
+        if !app.buttons["shot-0"].waitForExistence(timeout: 5), playAgain.waitForExistence(timeout: 5) {
+            playAgain.tap()
+        }
         XCTAssertTrue(app.buttons["shot-0"].waitForExistence(timeout: 10), "second ball never appeared")
         QA.checkpoint(app, "core-second-ball")
 
