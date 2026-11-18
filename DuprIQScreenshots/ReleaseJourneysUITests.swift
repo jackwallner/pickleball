@@ -53,6 +53,40 @@ final class ReleaseJourneysUITests: XCTestCase {
         QA.checkpoint(app, "next-ball")
     }
 
+    /// The core loop end to end: two graded balls, each with a named verdict and
+    /// a scoreboard that stays readable, then the free cap counting them and
+    /// ending the day on the summary, and the court coming back after a relaunch.
+    func testCoreLoopTwoBallsCountTowardTheDailyLimit() {
+        let app = launchCourt(pro: false, extra: ["-uitest.freeLeft", "2"])
+        let score = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Score, you'")).firstMatch
+        XCTAssertTrue(score.waitForExistence(timeout: 10), "scoreboard missing")
+
+        app.buttons["shot-0"].tap()
+        let verdict = app.descendants(matching: .any).matching(identifier: "answer-card").firstMatch
+        XCTAssertTrue(verdict.waitForExistence(timeout: 10), "no verdict on the first ball")
+        XCTAssertFalse(verdict.label.isEmpty, "the verdict names nothing")
+        XCTAssertTrue(app.buttons["next-ball"].exists, "no way on from the first verdict")
+        QA.checkpoint(app, "core-first-verdict", grace: 4.5)
+
+        app.buttons["next-ball"].tap()
+        XCTAssertTrue(app.buttons["shot-0"].waitForExistence(timeout: 10), "second ball never appeared")
+        QA.checkpoint(app, "core-second-ball")
+
+        app.buttons["shot-0"].tap()
+        XCTAssertTrue(app.buttons["next-ball"].waitForExistence(timeout: 10), "no verdict on the second ball")
+        QA.checkpoint(app, "core-second-verdict", grace: 4.5)
+
+        app.buttons["next-ball"].tap()
+        XCTAssertTrue(app.buttons["summary-paywall"].waitForExistence(timeout: 10),
+                      "two graded balls did not use up two free balls")
+        QA.checkpoint(app, "core-limit-summary")
+
+        QA.relaunch(app)
+        XCTAssertTrue(app.buttons["shot-0"].waitForExistence(timeout: 120), "court missing after relaunch")
+        QA.checkpoint(app, "core-after-relaunch")
+    }
+
     /// Your game, its upgrade, and Settings, from the court.
     func testYourGameUpgradeAndSettings() {
         let app = launchCourt(pro: false)

@@ -434,7 +434,9 @@ struct CourtPOVView: View {
 
     @ViewBuilder
     private func button(for index: Int) -> some View {
-        if let shot = options[safe: index], let caption = captions[safe: index] {
+        // Graded, the verdict card covers the band: keep the buttons out of the
+        // tree so nothing sits under the card's own controls.
+        if onPick != nil, let shot = options[safe: index], let caption = captions[safe: index] {
             AimOptionButton(
                 number: index + 1,
                 title: caption.title,
