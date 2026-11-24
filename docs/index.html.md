@@ -79,7 +79,7 @@ Unlimited graded balls, plus the history behind the numbers: the
 mistakes that keep costing you points ranked, and every run you finish
 kept and scored. Replays, focus points and principle mastery stay free.
 
-Coming to the App Store.
+[Download on the App Store](https://apps.apple.com/us/app/id6804828001?pt=128748779&ct=jw-pickleball-home&mt=8)
 
 Requires iOS 17 or later. Free to install, with 15 graded balls a day.
 
