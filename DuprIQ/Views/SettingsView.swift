@@ -4,6 +4,8 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var profile: PlayerProfile
     @EnvironmentObject private var subscriptions: SubscriptionService
+    @EnvironmentObject private var reviews: ReviewPromptTracker
+    @Environment(\.openURL) private var openURL
 
     @State private var showPaywall = false
     @State private var restoreMessage: String?
@@ -58,6 +60,13 @@ struct SettingsView: View {
 
             Section {
                 NavigationLink("How answers are decided") { CoachingSystemView() }
+                if let review = AppStoreLinks.writeReviewURL {
+                    Button("Rate \(AppBrand.name)") {
+                        reviews.markOpenedWriteReview()
+                        openURL(review)
+                    }
+                    .accessibilityIdentifier("settings-rate")
+                }
                 Link("Privacy Policy", destination: PaywallLinks.privacy)
                 Link("Terms of Use", destination: PaywallLinks.terms)
                 if let mail = URL(string: "mailto:\(AppStoreLinks.feedbackEmail)") {

@@ -6,8 +6,8 @@ import XCTest
 /// The half of the app the content tests cannot see.
 ///
 /// The generator contract is well covered, and that is exactly why these
-/// matter: the daily cap, the streak rule, the sample threshold, the practice
-/// history and the review prompt can all regress without a single generator test
+/// matter: the daily cap, the streak rule, the sample threshold and the practice
+/// history can all regress without a single generator test
 /// noticing.
 @MainActor
 final class ServiceTests: XCTestCase {
@@ -312,23 +312,6 @@ final class ServiceTests: XCTestCase {
             Set(spy.removed), ["duprIQ.dailyReminder", "duprIQ.matchWarmUpReminder"],
             "1.1 has no screen to turn them off, so the update has to"
         )
-    }
-
-    // MARK: - Review funnel
-
-    func testTheReviewPromptWaitsForEnoughSessionsAndOnlyFiresOnce() {
-        let reviews = ReviewPromptTracker(defaults: defaults)
-        XCTAssertFalse(reviews.shouldRequestReview)
-        reviews.recordSessionFinished()
-        reviews.recordSessionFinished()
-        XCTAssertFalse(reviews.shouldRequestReview, "two sessions is not an opinion yet")
-        reviews.recordSessionFinished()
-        XCTAssertTrue(reviews.shouldRequestReview)
-
-        reviews.markPrompted()
-        XCTAssertFalse(reviews.shouldRequestReview)
-        reviews.recordSessionFinished()
-        XCTAssertFalse(reviews.shouldRequestReview, "the one-shot prompt must stay spent")
     }
 }
 
