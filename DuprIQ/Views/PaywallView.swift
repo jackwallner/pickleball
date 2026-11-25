@@ -29,6 +29,9 @@ struct PaywallView: View {
     @State private var plan: PaywallPlan = .yearly
     @State private var isWorking = false
     @State private var error: String?
+    /// Ask to Buy: the request is with a parent. Lives only as long as this
+    /// sheet, so nothing about it can fire after the sheet closes.
+    @State private var pendingApproval = false
 
     private var isStoreReady: Bool {
         isPlanAvailable(plan)
@@ -93,6 +96,11 @@ struct PaywallView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Not now") { dismiss() }
                 }
+            }
+            // An approved Ask to Buy, a restore elsewhere or a renewal lands
+            // through the customer-info update while the sheet is open.
+            .onChange(of: subscriptions.isPro) { _, isPro in
+                if isPro { dismiss() }
             }
             .task {
                 await subscriptions.ensureOfferings()
@@ -189,6 +197,14 @@ struct PaywallView: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.inkSecondary)
                     .multilineTextAlignment(.center)
+            }
+
+            if pendingApproval, let waiting = PurchaseError.waitingForApproval.errorDescription {
+                Text(waiting)
+                    .font(.footnote)
+                    .foregroundStyle(Theme.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("paywall-pending")
             }
 
             if let error {
@@ -312,6 +328,7 @@ struct PaywallView: View {
     private func purchase() {
         isWorking = true
         error = nil
+        pendingApproval = false
         Task {
             defer { isWorking = false }
             guard await subscriptions.ensureOfferings() else {
@@ -330,6 +347,8 @@ struct PaywallView: View {
                     // just paid staring at the sheet that charged them.
                     error = "Your purchase went through, but we couldn't confirm it yet. Tap Restore in a moment and it will unlock."
                 }
+            } catch PurchaseError.waitingForApproval {
+                pendingApproval = true
             } catch {
                 self.error = error.localizedDescription
             }

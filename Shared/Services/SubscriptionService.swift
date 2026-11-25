@@ -21,11 +21,32 @@ enum PurchaseOutcome: Sendable {
     case cancelled
 }
 
-enum PurchaseError: LocalizedError {
+enum PurchaseError: LocalizedError, Equatable {
     case productsUnavailable
+    /// Ask to Buy: a parent has the request. Apple finishes it later and the
+    /// customer-info update (the delegate, or the foreground refresh) unlocks
+    /// Pro without a relaunch.
+    case waitingForApproval
 
     var errorDescription: String? {
-        "The App Store isn't reachable right now. Check your connection and try again."
+        switch self {
+        case .productsUnavailable:
+            return "The App Store isn't reachable right now. Check your connection and try again."
+        case .waitingForApproval:
+            return "Waiting for approval. Your purchase unlocks once it is approved."
+        }
+    }
+
+    /// What a purchase or restore error is shown as. A pending Ask to Buy is
+    /// not a failure, and RevenueCat's own descriptions are English
+    /// developer text: a lost connection reads as the app's own line.
+    static func shown(_ error: Error) -> Error {
+        guard let code = error as? RevenueCat.ErrorCode else { return error }
+        switch code {
+        case .paymentPendingError: return PurchaseError.waitingForApproval
+        case .networkError, .offlineConnectionError: return PurchaseError.productsUnavailable
+        default: return error
+        }
     }
 }
 
@@ -403,7 +424,12 @@ final class SubscriptionService: NSObject, ObservableObject {
         }
         guard let package else { throw PurchaseError.productsUnavailable }
         let startedTrial = package.storeProduct.introductoryDiscount?.paymentMode == .freeTrial
-        let result = try await Purchases.shared.purchase(package: package)
+        let result: PurchaseResultData
+        do {
+            result = try await Purchases.shared.purchase(package: package)
+        } catch {
+            throw PurchaseError.shown(error)
+        }
         // RevenueCat reports a user backing out of Apple's sheet as a normal
         // result, not an error. Treating it as a failure is what used to shove
         // a second paywall in front of someone who just said "not now".
@@ -436,8 +462,11 @@ final class SubscriptionService: NSObject, ObservableObject {
 
     func restore() async throws {
         guard isConfigured else { return }
-        let info = try await Purchases.shared.restorePurchases()
-        apply(info)
+        do {
+            apply(try await Purchases.shared.restorePurchases())
+        } catch {
+            throw PurchaseError.shown(error)
+        }
     }
 
     private func apply(_ info: CustomerInfo) {
