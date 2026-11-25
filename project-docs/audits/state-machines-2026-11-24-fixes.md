@@ -28,8 +28,9 @@ carries the streak on to the next day. The existing time zone suite in
 Santiago's 01:00 days) still covers same-zone behaviour.
 
 Regression proof: the two claim tests are the repro tests verbatim, which
-failed on `f17ae53` (see the audit). They pass with the fix in the full-suite
-run recorded in `rollout-2026-11-24.md`.
+failed on `f17ae53` (see the audit). The full-suite run with the fix did not
+start within the 60-minute limit (see `rollout-2026-11-24.md`), so the passing
+half of the proof is still owed by the caller's full run.
 
 ## Held for Jack
 
