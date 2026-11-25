@@ -39,3 +39,14 @@ curl -s -H "Authorization: Bearer appl_FgwCPdxYFGQtaPKOJeuxwZBsrNZ" \
      -H "X-Platform: ios" \
      https://api.revenuecat.com/v1/subscribers/probe-1/offerings
 ```
+
+## Purchase errors
+
+`SubscriptionService.purchase` and `restore` throw `PurchaseError.shown(error)`:
+RevenueCat's `paymentPendingError` (Ask to Buy) becomes `.waitingForApproval`,
+which the paywall shows as a grey "Waiting for approval" line, never a red
+error, and network or offline errors become the app's own "App Store isn't
+reachable" line instead of RevenueCat's English text. The pending flag is the
+sheet's `@State` only. An approval lands through the `PurchasesDelegate`
+customer-info update or the foreground refresh; the paywall dismisses itself
+when `isPro` turns true (`PurchaseErrorTests`).
