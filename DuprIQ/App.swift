@@ -20,6 +20,8 @@ struct DuprIQApp: App {
             mastery: .shared, limiter: .shared, reviews: .shared, profile: .shared
         )
         #endif
+        // After the fixtures, so a reset run counts as a first launch.
+        ReviewPromptTracker.shared.recordAppLaunch()
     }
 
     var body: some Scene {

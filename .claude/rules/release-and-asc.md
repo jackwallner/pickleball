@@ -21,8 +21,8 @@ Moved verbatim from AGENTS.md. Dated state here is a snapshot: run `scripts/asc-
   `docs/asc-submission-checklist.md` is the durable record of the web-UI-only
   answers (App Privacy, age rating, version review information) plus the
   first-IAP attachment step the API cannot do.
-  Not yet released, so the review funnel still uses `requestReview()` rather
-  than a write-review URL.
+  The listing is live now (2026-11-25 lookup), so `AppStoreLinks.isListingLive`
+  is true and Settings carries a Rate row to the write-review page.
 
 - **First IAPs must ship with the app version.** Run
   `scripts/asc-setup-release.py` (subscription group + the two subs), then

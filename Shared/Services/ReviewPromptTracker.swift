@@ -4,18 +4,11 @@ enum AppStoreLinks {
     /// Numeric Apple ID for `com.jackwallner.pickleball`.
     static let appStoreID = "6804828001"
 
-    /// FLIP THIS THE DAY THE LISTING GOES READY FOR SALE, and not before.
-    ///
-    /// Having an Apple ID is not the same as having a listing. The ASC record
-    /// has existed since before there was anything to link to, and while it
-    /// sits in PREPARE_FOR_SUBMISSION every `apps.apple.com/app/id...` URL
-    /// built from it is a 404. Treating a non-empty id as "published" would
-    /// hand TestFlight testers a dead link and offer a store page that does not
-    /// exist, which is the worst first impression a funnel can make.
-    ///
-    /// While this is false the funnel uses `requestReview()` only. The feedback
-    /// path still works, and that is the one that matters pre-launch.
-    static let isListingLive = false
+    /// The listing is live (App Store lookup for this id returns it, and the
+    /// marketing site links to it). While it was false every
+    /// `apps.apple.com/app/id...` URL built from the id was a 404, so the
+    /// funnel used `requestReview()` only.
+    static let isListingLive = true
 
     static var isPublished: Bool { isListingLive && !appStoreID.isEmpty }
 
@@ -36,52 +29,93 @@ enum AppStoreLinks {
     static let feedbackEmail = "jackwallner+p@gmail.com"
 }
 
-/// When to call Apple's review prompt. A player has to finish enough drills to
-/// have an opinion first, and then the prompt is asked directly with no
-/// "Enjoying it?" question in front of it: guideline 5.6.1 rejects sending only
-/// the yes answers to the App Store.
+/// When the app may put Apple's own rating prompt on screen.
+///
+/// No question goes in front of it: an "Enjoying it?" step that sent only the
+/// yes answers to the App Store is review gating under guideline 5.6.1. The
+/// moment is a good run just finished (`ReviewMoment`); this decides whether
+/// that moment may ask. From the second cold launch on, at most once every 30
+/// days. Apple shows the prompt at most three times a year and decides each
+/// time; a call it swallows costs nothing, so the job is to ask early and
+/// often inside those limits.
 @MainActor
 final class ReviewPromptTracker: ObservableObject {
     static let shared = ReviewPromptTracker()
 
-    /// Sessions finished before the prompt is considered.
-    private let sessionThreshold = 3
-
-    @Published private(set) var completedSessions: Int
-    @Published private(set) var hasPrompted: Bool
+    /// Not in the first session: a second cold launch is the only tenure gate.
+    static let minimumLaunchCount = 2
+    /// Days between our calls. Paces the asks, not the player's answers.
+    static let cooldownDays = 30
 
     private let defaults: UserDefaults
     private enum Key {
-        static let sessions = "review.completedSessions"
-        static let prompted = "review.hasPrompted"
+        static let launches = "review.launchCount"
+        static let lastAsked = "review.lastAskedDate"
+        static let openedWriteReview = "review.openedWriteReview"
+        // Written by builds before the good-run moment. Read once so an
+        // existing player's next launch is not treated as a first session.
+        static let legacySessions = "review.completedSessions"
+        static let legacyPrompted = "review.hasPrompted"
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        completedSessions = defaults.integer(forKey: Key.sessions)
-        hasPrompted = defaults.bool(forKey: Key.prompted)
     }
 
-    func recordSessionFinished() {
-        completedSessions += 1
-        defaults.set(completedSessions, forKey: Key.sessions)
+    var launchCount: Int { max(defaults.integer(forKey: Key.launches), 0) }
+
+    var hasOpenedWriteReview: Bool { defaults.bool(forKey: Key.openedWriteReview) }
+
+    /// Once per cold launch. An install from before this counter existed that
+    /// already finished a run starts at one launch behind it, so its first
+    /// launch after the update counts as its second.
+    func recordAppLaunch() {
+        var count = launchCount
+        if defaults.object(forKey: Key.launches) == nil, defaults.integer(forKey: Key.legacySessions) > 0 {
+            count = 1
+        }
+        defaults.set(count + 1, forKey: Key.launches)
     }
 
-    /// True when the host should call `requestReview()` and then
-    /// `markPrompted()`.
-    var shouldRequestReview: Bool {
-        !hasPrompted && completedSessions >= sessionThreshold
+    /// Whether a good moment right now may call `requestReview()`.
+    func shouldRequestReview(now: Date = .now) -> Bool {
+        guard !hasOpenedWriteReview else { return false }
+        guard launchCount >= Self.minimumLaunchCount else { return false }
+        // A stamp from a clock that ran ahead is in the future: no evidence of
+        // an ask, and it would hold the cooldown shut for as long.
+        guard let last = defaults.object(forKey: Key.lastAsked) as? Date, last <= now else { return true }
+        return now.timeIntervalSince(last) >= TimeInterval(Self.cooldownDays) * 86_400
     }
 
-    func markPrompted() {
-        hasPrompted = true
-        defaults.set(true, forKey: Key.prompted)
+    /// Stamped when the call is made: Apple may show nothing, and there is no
+    /// answer to wait for.
+    func markAsked(now: Date = .now) {
+        defaults.set(now, forKey: Key.lastAsked)
+    }
+
+    /// Settings > Rate. The one thing that ends the automatic asks; sending
+    /// feedback never does.
+    func markOpenedWriteReview(now: Date = .now) {
+        defaults.set(true, forKey: Key.openedWriteReview)
+        markAsked(now: now)
     }
 
     func resetForTesting() {
-        completedSessions = 0
-        hasPrompted = false
-        defaults.set(0, forKey: Key.sessions)
-        defaults.set(false, forKey: Key.prompted)
+        [Key.launches, Key.lastAsked, Key.openedWriteReview, Key.legacySessions, Key.legacyPrompted]
+            .forEach(defaults.removeObject(forKey:))
+    }
+}
+
+/// The good moment: a run of points finished, not at the free limit, with at
+/// least half the graded balls kept in play (the best call or a playable
+/// one). It is the end of the core loop, so a typical player reaches it in
+/// every session from the first run on.
+enum ReviewMoment {
+    /// A run cut down to one or two balls is not a result to rate on.
+    static let minimumAnswered = 4
+
+    static func isGoodRun(answered: Int, correct: Int, playable: Int, stoppedAtFreeLimit: Bool) -> Bool {
+        guard !stoppedAtFreeLimit, answered >= minimumAnswered else { return false }
+        return (correct + playable) * 2 >= answered
     }
 }

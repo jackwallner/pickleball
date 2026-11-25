@@ -1,5 +1,4 @@
 import Combine
-import StoreKit
 import SwiftUI
 
 /// The app. You are on the court, the ball is coming, and you pick where it
@@ -22,10 +21,8 @@ struct RallyView: View {
     @EnvironmentObject private var subscriptions: SubscriptionService
     @EnvironmentObject private var mastery: MasteryStore
     @EnvironmentObject private var limiter: PracticeLimiter
-    @EnvironmentObject private var reviews: ReviewPromptTracker
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var profile: PlayerProfile
-    @Environment(\.requestReview) private var requestReview
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var balls: [RallyBall] = []
@@ -50,6 +47,9 @@ struct RallyView: View {
     @State private var finished = false
     @State private var stoppedAtFreeLimit = false
     @State private var recordedRun = false
+    /// Bumped when a run ends well (`ReviewMoment`), the one automatic
+    /// trigger for Apple's rating prompt.
+    @State private var goodRuns = 0
     /// Seconds left on the shot clock, or nil when the clock is off or the ball
     /// has already been graded.
     @State private var clockRemaining: Double?
@@ -89,6 +89,8 @@ struct RallyView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showPaywall) { PaywallView(source: "rally").pageSizedOnIPad() }
         .sheet(isPresented: $showYourGame) { YourGameView().pageSizedOnIPad() }
+        // Only over the summary that showed the score, never over a sheet.
+        .requestsReview(after: goodRuns) { finished && !showPaywall && !showYourGame }
         .onReceive(tick) { _ in advanceClock() }
         // A replay that ran while "Your game" covered the court, or while the
         // app was in the background, was never seen: fly it again.
@@ -557,8 +559,8 @@ struct RallyView: View {
         startClock()
     }
 
-    /// One place that closes a run, so the history, the review counter and
-    /// the free-limit state can never disagree about whether it happened.
+    /// One place that closes a run, so the history, the review moment and the
+    /// free-limit state can never disagree about whether it happened.
     private func endRun(atFreeLimit: Bool) {
         clockRemaining = nil
         stoppedAtFreeLimit = atFreeLimit
@@ -568,16 +570,11 @@ struct RallyView: View {
                 won: yourPoints, lost: theirPoints,
                 answered: answeredCount, correct: correctCount
             )
-            if answeredCount > 0 {
-                reviews.recordSessionFinished()
-                if reviews.shouldRequestReview {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 1_400_000_000)
-                        guard finished else { return }
-                        reviews.markPrompted()
-                        requestReview()
-                    }
-                }
+            if ReviewMoment.isGoodRun(
+                answered: answeredCount, correct: correctCount,
+                playable: playableCount, stoppedAtFreeLimit: atFreeLimit
+            ) {
+                goodRuns += 1
             }
         }
         finished = true

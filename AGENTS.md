@@ -60,6 +60,8 @@ Condensed from the deep notes below; the reasoning and the bugs behind each one 
 - Every verdict principle string needs a `Principle.family` entry (`ProductContractTests`), and at most two options share a shot shape.
 - Paywall prices are real or absent: there is no release fallback price string.
 - Prices sit above the Vitals default on purpose; change them only with an explicit pricing pass. Re-run `scripts/rc-setup.py` after touching products or offerings, then probe offerings with `X-Platform: ios`.
+- The rating ask has one automatic trigger: a run that ends, not at the free limit, with at least half of 4+ graded balls kept (`ReviewMoment`), about 3 s later and only if the summary is still up with no sheet over it (`requestsReview(after:isClear:)`). Gates: 2nd cold launch, 30 days between calls, Settings' Rate row ends them, `rating_prompt: off` pauses them. No launch, open-count or button trigger.
+- Wording tests go through current-offering metadata (`RemoteConfig`): `trial_cta` picks the paywall trial button (`seven_day` control is the shipped "Start free trial"). Keys a switch reads must be set the same on every offering.
 - App Store Connect record `6804828001`. For its current state run `scripts/asc-readiness.py`; the notes below are dated snapshots.
 
 ## Deep notes (load on demand)
