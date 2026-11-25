@@ -234,6 +234,9 @@ final class SubscriptionService: NSObject, ObservableObject {
         guard !attributes.isEmpty else { return }
         if let offering = offerings?.current?.identifier {
             attributes["offering_id"] = offering
+            // The trial button's arm, so a wording test can be read by
+            // attribute as well as by Experiment.
+            attributes[TrialCTA.metadataKey] = trialCTA.rawValue
         }
         Purchases.shared.attribution.setAttributes(attributes)
     }

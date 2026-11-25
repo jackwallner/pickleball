@@ -256,11 +256,11 @@ struct PaywallView: View {
         case .unavailable: return "Unavailable"
         case .available, .notConfigured:
             if plan == .lifetime { return "Buy Lifetime" }
-            switch subscriptions.trialCopy(for: plan) {
-            case .eligible: return "Start free trial"
-            case .ineligible, .none: return "Subscribe"
-            case .unknown: return "Subscribe"
-            }
+            // The wording under test is offering metadata `trial_cta`. Only
+            // an account StoreKit calls eligible is promised the trial.
+            let eligible: Bool
+            if case .eligible = subscriptions.trialCopy(for: plan) { eligible = true } else { eligible = false }
+            return subscriptions.trialCTA.title(trialEligible: eligible)
         }
     }
 
