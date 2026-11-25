@@ -38,6 +38,42 @@ struct MistakeTally: Codable, Identifiable, Equatable, Sendable {
     var title: String { MistakeCatalog.title(for: id) }
 }
 
+/// A date on the player's own clock, with no time and no time zone.
+///
+/// The streak and today's ball count used to store the start of the day as an
+/// instant. Read again after a westward time zone change, New York's midnight
+/// is 21:00 the day before in Los Angeles, so yesterday's practice read as two
+/// days ago and the streak ended. A date written as year, month and day reads
+/// the same in every zone.
+struct CalendarDay: Codable, Hashable, Sendable {
+    let year: Int
+    let month: Int
+    let day: Int
+
+    /// The Gregorian date `date` falls on in `calendar`'s time zone, whatever
+    /// calendar the device uses (see `MasteryStore.rollOverIfNeeded`).
+    init(_ date: Date, in calendar: Calendar) {
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let parts = gregorian.dateComponents([.year, .month, .day], from: date)
+        year = parts.year ?? 0
+        month = parts.month ?? 0
+        day = parts.day ?? 0
+    }
+
+    /// Calendar days from this date to `later`, subtracted at noon UTC, which
+    /// has no clock changes.
+    func days(until later: CalendarDay) -> Int {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? utc.timeZone
+        func noon(_ value: CalendarDay) -> Date? {
+            utc.date(from: DateComponents(year: value.year, month: value.month, day: value.day, hour: 12))
+        }
+        guard let from = noon(self), let to = noon(later) else { return 0 }
+        return Int((to.timeIntervalSince(from) / 86_400).rounded())
+    }
+}
+
 /// Everything the app remembers about how someone plays.
 ///
 /// One Codable value under one key, rather than a dozen loose defaults: the
@@ -51,9 +87,16 @@ struct MasteryState: Codable, Equatable, Sendable {
     var rallies: [RallyRecord] = []
     var totalAnswered = 0
     var streak = 0
+    /// Start of the last practice day as an instant. Still written so an
+    /// older build reads a sensible value; `lastPracticeDate` is the truth.
     var lastPracticeDay: Date?
     var ballsToday = 0
     var ballsDay: Date?
+    /// The dates themselves. Absent in blobs saved before these fields
+    /// existed, which fall back to the instants above, read in the current
+    /// zone as before.
+    var lastPracticeDate: CalendarDay?
+    var ballsDate: CalendarDay?
 }
 
 /// Per-principle mastery, named traps, the streak, and Pro's rally history.
@@ -189,62 +232,63 @@ final class MasteryStore: ObservableObject {
 
     // MARK: - Streak
 
+    /// The date today's balls were counted on, and the last practice date.
+    /// A blob saved before the date fields has only the instants, read in the
+    /// current zone exactly as earlier builds read them.
+    private var ballsCountedOn: CalendarDay? {
+        state.ballsDate ?? state.ballsDay.map { CalendarDay($0, in: calendar) }
+    }
+
+    private var lastPracticed: CalendarDay? {
+        state.lastPracticeDate ?? state.lastPracticeDay.map { CalendarDay($0, in: calendar) }
+    }
+
     private func countTowardToday(_ date: Date) {
-        let today = calendar.startOfDay(for: date)
-        if let day = state.ballsDay, calendar.isDate(day, inSameDayAs: today) {
+        let today = CalendarDay(date, in: calendar)
+        if ballsCountedOn == today {
             state.ballsToday += 1
         } else {
-            state.ballsDay = today
+            state.ballsDate = today
+            state.ballsDay = calendar.startOfDay(for: date)
             state.ballsToday = 1
         }
         if state.ballsToday == MasteryThreshold.ballsForPracticeDay {
-            updateStreak(for: today)
+            updateStreak(for: today, at: date)
         }
     }
 
-    private func updateStreak(for today: Date) {
-        guard let last = state.lastPracticeDay else {
+    private func updateStreak(for today: CalendarDay, at date: Date) {
+        if let last = lastPracticed {
+            let days = last.days(until: today)
+            if days == 0 { return }
+            state.streak = days == 1 ? state.streak + 1 : 1
+        } else {
             state.streak = 1
-            state.lastPracticeDay = today
-            return
         }
-        let days = daysBetween(last, today)
-        if days == 0 { return }
-        state.streak = days == 1 ? state.streak + 1 : 1
-        state.lastPracticeDay = today
+        state.lastPracticeDate = today
+        state.lastPracticeDay = calendar.startOfDay(for: date)
     }
 
-    /// Calendar days from `earlier` to `later`, counted by date and not by
-    /// hours. Two starts of day can be 23 hours apart: where clocks go forward
-    /// at midnight (Santiago, Havana, Cairo, Beirut) the day starts at 01:00,
-    /// and `dateComponents` calls 01:00 to the next midnight zero days. Reading
-    /// each date's year, month and day and subtracting them at noon UTC, which
-    /// has no clock changes, avoids every zone's rules at once. The dates are
+    /// Calendar days are counted by date and not by hours. Two starts of day
+    /// can be 23 hours apart: where clocks go forward at midnight (Santiago,
+    /// Havana, Cairo, Beirut) the day starts at 01:00, and `dateComponents`
+    /// calls 01:00 to the next midnight zero days. `CalendarDay` reads each
+    /// date's year, month and day and subtracts them at noon UTC, which has no
+    /// clock changes, so every zone's rules drop out at once. The dates are
     /// read off the Gregorian calendar whatever the device uses: a lunisolar
-    /// calendar numbers its leap month like the month before it, so consecutive
-    /// days read 29 days back or 31 ahead at the two ends of it.
-    private func daysBetween(_ earlier: Date, _ later: Date) -> Int {
-        var gregorian = Calendar(identifier: .gregorian)
-        gregorian.timeZone = calendar.timeZone
-        var utc = gregorian
-        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
-        func noonUTC(_ date: Date) -> Date? {
-            let day = gregorian.dateComponents([.year, .month, .day], from: date)
-            return utc.date(from: DateComponents(year: day.year, month: day.month, day: day.day, hour: 12))
-        }
-        guard let from = noonUTC(earlier), let to = noonUTC(later) else { return 0 }
-        return Int((to.timeIntervalSince(from) / 86_400).rounded())
-    }
-
+    /// calendar numbers its leap month like the month before it, so
+    /// consecutive days read 29 days back or 31 ahead at the two ends of it.
+    ///
     /// A streak whose last day is before yesterday is over, even if no ball has
     /// been played since to reset it.
     func rollOverIfNeeded(now: Date = .now) {
-        let today = calendar.startOfDay(for: now)
-        if let day = state.ballsDay, !calendar.isDate(day, inSameDayAs: today) {
+        let today = CalendarDay(now, in: calendar)
+        if let counted = ballsCountedOn, counted != today {
             state.ballsToday = 0
-            state.ballsDay = today
+            state.ballsDate = today
+            state.ballsDay = calendar.startOfDay(for: now)
         }
-        if let last = state.lastPracticeDay, daysBetween(last, today) > 1, state.streak != 0 {
+        if let last = lastPracticed, last.days(until: today) > 1, state.streak != 0 {
             state.streak = 0
         }
     }

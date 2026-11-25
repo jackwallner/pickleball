@@ -38,8 +38,8 @@ paths:
 - Buying Pro from the free-limit summary starts a new run immediately
   (`RallyView` watches `isPro`).
 
-- **Days are counted by date, never by hours.** `MasteryStore.daysBetween`
-  reads each date's year, month and day and subtracts them at noon UTC.
+- **Days are counted by date, never by hours.** `CalendarDay` holds each
+  date's year, month and day and subtracts them at noon UTC.
   `dateComponents([.day])` between two starts of day reads zero days where
   clocks go forward at midnight (Santiago, Havana, Cairo, Beirut, the Azores:
   the day starts at 01:00, 23 hours before the next one), and
@@ -49,6 +49,10 @@ paths:
   device's time zone, whatever calendar the device uses: the Chinese calendar
   numbers a leap month like the month before it, so consecutive days read 29 or
   31 apart at either end of it (`ServiceTests` pins both ends in 2025).
+  The date is stored as that year, month and day, never as a start-of-day
+  instant: New York's midnight read in Los Angeles is 21:00 the day before, so
+  a westward trip used to end the streak. Blobs saved before the date fields
+  existed fall back to the stored instant, read in the current zone as before.
 
 - **`LegacyReminders` is the other half of deleting the shell.** Builds before
   1.1 scheduled a repeating daily reminder and a weekly warm-up. iOS keeps
